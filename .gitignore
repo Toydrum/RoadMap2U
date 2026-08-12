@@ -50,3 +50,6 @@ Thumbs.db
 /*.png
 /tools/shots/
 /tools/battery-logs/
+
+# Local codebase-analysis scratch output
+/docs/codebase/.codebase-scan.txt
