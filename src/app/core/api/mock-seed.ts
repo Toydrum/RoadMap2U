@@ -1,5 +1,13 @@
-import { Tree, TreeNode } from '../db/schema';
-import { SyncStore } from './contracts';
+import { preflightSeed } from '../access/quota-policy';
+import { migrateForestRecords } from '../db/migrations';
+import { SCHEMA_VERSION, Tree, TreeNode } from '../db/schema';
+import {
+  ACCESS_OFFLINE_LEASE_MS,
+  PREPAYMENT_PLAN_CATALOG,
+  createFreeAccessSummary,
+  type AccessSummary,
+  type SyncStore,
+} from './contracts';
 import {
   MockCodeRow,
   MockCredentialRow,
@@ -7,8 +15,9 @@ import {
   MockGuardianLinkRow,
   MockRecordRow,
   MockUserRow,
-  mockPutManyRaw,
+  mockReplaceAllRaw,
   recordKey,
+  type MockReplacementEntry,
 } from './mock-cloud';
 
 /**
@@ -28,6 +37,30 @@ import {
 
 const now = Date.now();
 const day = 86_400_000;
+
+/** Explicit entitlement used only by the local four-tree visual showcase.
+ * It is never cached as account access and is unreachable in AWS stages. */
+export function createMockDemoPremiumAccessSummary(at: number = Date.now()): AccessSummary {
+  return {
+    effectivePlanKey: 'premium',
+    catalogVersion: PREPAYMENT_PLAN_CATALOG.version,
+    status: 'active',
+    activeSources: [
+      {
+        kind: 'sponsored',
+        sourceId: 'mock-demo-four-tree',
+        planKey: 'premium',
+        validUntil: null,
+      },
+    ],
+    limits: { ...PREPAYMENT_PLAN_CATALOG.plans.premium.limits },
+    capabilities: { ...PREPAYMENT_PLAN_CATALOG.plans.premium.capabilities },
+    usage: { activeTrees: 0, visibleBranchesByTree: {} },
+    revision: 1,
+    nextRecomputeAt: null,
+    offlineValidUntil: at + ACCESS_OFFLINE_LEASE_MS,
+  };
+}
 
 export const MOCK_USERS: MockUserRow[] = [
   { userId: 'mock-parent', username: 'rocio', displayName: 'Rocío', accountType: 'adult', socialEnabled: true, createdAt: now - 90 * day, email: 'rocio@demo.bosque' },
@@ -156,11 +189,43 @@ const FORESTS: { ownerId: string; trees: Tree[]; nodes: TreeNode[] }[] = [
   },
 ];
 
-/** Writes the whole family in seed order; called once by mock-cloud.ready(). */
-export async function plantMockSeed(): Promise<void> {
+export interface PreparedMockForest {
+  readonly ownerId: string;
+  readonly trees: Tree[];
+  readonly nodes: TreeNode[];
+}
+
+export interface PreparedMockSeed {
+  readonly forests: PreparedMockForest[];
+  readonly entries: MockReplacementEntry[];
+}
+
+/** Pure preparation boundary: run every owner forest through the shared
+ * schema migrator, then make one aggregate Free decision for that owner
+ * before any mock-cloud transaction. */
+export function prepareMockSeed(): PreparedMockSeed {
   let seq = 0;
   const records: MockRecordRow[] = [];
+  const forests: PreparedMockForest[] = [];
   for (const forest of FORESTS) {
+    const migrated = migrateForestRecords(
+      { trees: forest.trees, nodes: forest.nodes },
+      SCHEMA_VERSION,
+    );
+    const decision = preflightSeed(
+      {
+        trees: [],
+        nodes: [],
+        access: createFreeAccessSummary(now),
+        leaseState: 'valid',
+      },
+      migrated.trees,
+      migrated.nodes,
+    );
+    if (!decision.allowed) {
+      throw new Error(`mock seed quota violation for ${forest.ownerId}: ${decision.reason}`);
+    }
+    forests.push({ ownerId: forest.ownerId, ...migrated });
     const push = (store: SyncStore, record: Tree | TreeNode) => {
       seq += 1;
       records.push({
@@ -172,18 +237,39 @@ export async function plantMockSeed(): Promise<void> {
         syncedAt: now,
       });
     };
-    for (const t of forest.trees) push('trees', t);
-    for (const n of forest.nodes) push('nodes', n);
+    for (const t of migrated.trees) push('trees', t);
+    for (const n of migrated.nodes) push('nodes', n);
   }
 
-  await mockPutManyRaw('users', MOCK_USERS);
-  await mockPutManyRaw('credentials', MOCK_CREDENTIALS);
-  await mockPutManyRaw('guardianLinks', MOCK_GUARDIAN_LINKS);
-  await mockPutManyRaw('friendships', MOCK_FRIENDSHIPS);
-  await mockPutManyRaw('codes', MOCK_CODES);
-  await mockPutManyRaw('records', records);
-  await mockPutManyRaw('kv', [
-    { key: 'changeSeq', value: seq },
-    { key: 'seeded', value: true },
-  ]);
+  return {
+    forests,
+    entries: [
+      { store: 'users', rows: MOCK_USERS },
+      { store: 'credentials', rows: MOCK_CREDENTIALS },
+      { store: 'guardianLinks', rows: MOCK_GUARDIAN_LINKS },
+      { store: 'friendships', rows: MOCK_FRIENDSHIPS },
+      { store: 'friendRequests', rows: [] },
+      { store: 'codes', rows: MOCK_CODES },
+      { store: 'records', rows: records },
+      {
+        store: 'kv',
+        rows: [
+          { key: 'changeSeq', value: seq },
+          { key: 'seeded', value: true },
+        ],
+      },
+    ],
+  };
+}
+
+export interface MockSeedStorage {
+  replace(entries: readonly MockReplacementEntry[]): Promise<void>;
+}
+
+/** Writes the whole family once; called by mock-cloud.ready(). */
+export async function plantMockSeed(
+  storage: MockSeedStorage = { replace: mockReplaceAllRaw },
+): Promise<void> {
+  const prepared = prepareMockSeed();
+  await storage.replace(prepared.entries);
 }

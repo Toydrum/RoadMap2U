@@ -11,7 +11,7 @@ import {
   TreeNode,
 } from '../db/schema';
 import { migrateBackupEnvelope } from '../db/migrations';
-import { getAll, replaceAll } from '../db/idb';
+import { getAll } from '../db/idb';
 import { broadcastChange } from '../db/broadcast';
 import { SyncService } from '../sync/sync.service';
 import { TreesRepo } from './trees.repo';
@@ -21,6 +21,10 @@ import { SessionsRepo } from './sessions.repo';
 import { HarvestsRepo } from './harvests.repo';
 import { PreservesRepo } from './preserves.repo';
 import { SettingsService } from './settings.service';
+import {
+  FOREST_REPLACEMENT_STORAGE,
+  ForestMutationsService,
+} from './forest-mutations.service';
 
 @Injectable({ providedIn: 'root' })
 export class BackupService {
@@ -32,6 +36,8 @@ export class BackupService {
   private readonly preserves = inject(PreservesRepo);
   private readonly settings = inject(SettingsService);
   private readonly sync = inject(SyncService);
+  private readonly mutations = inject(ForestMutationsService);
+  private readonly replacement = inject(FOREST_REPLACEMENT_STORAGE);
 
   async buildEnvelope(): Promise<ExportEnvelope> {
     // Read from disk (includes tombstones — a backup is a full copy).
@@ -59,7 +65,10 @@ export class BackupService {
     };
   }
 
-  async download(filenamePrefix = 'roadmap2u-backup'): Promise<void> {
+  async download(
+    filenamePrefix = 'roadmap2u-backup',
+    options: { recordCopy?: boolean } = {},
+  ): Promise<void> {
     const envelope = await this.buildEnvelope();
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -68,9 +77,12 @@ export class BackupService {
     a.download = `${filenamePrefix}-${envelope.exportedAt.slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    // Every download IS a copy (manual, pre-delete, pre-import) — the
-    // gentle reminder counts from here.
-    await this.settings.patch({ lastBackupAt: Date.now() });
+    // User-triggered and pre-delete downloads stamp immediately. A
+    // pre-import safety copy defers its stamp until the replacement commits,
+    // so an aborted import changes no application state.
+    if (options.recordCopy !== false) {
+      await this.settings.patch({ lastBackupAt: Date.now() });
+    }
   }
 
   /**
@@ -105,6 +117,9 @@ export class BackupService {
         throw new Error('backup data is malformed');
       }
     }
+    // One decision over the complete replacement candidate. It happens
+    // after schema migration and before any download, disk write or signal.
+    this.mutations.assertImport(trees, nodes);
     // Records the import REMOVES must also be announced, or a second tab's
     // in-memory copy resurrects them on its next save. From byId() — not
     // all() — so TOMBSTONES count too (0.0.115 B7: a tombstone absent from
@@ -118,11 +133,14 @@ export class BackupService {
       preserves: [...this.preserves.byId().keys()],
     };
 
-    await this.download('roadmap2u-pre-import');
+    // The safety file must exist before the destructive transaction, but its
+    // device timestamp lands only after that transaction succeeds. Thus an
+    // abort leaves both persisted and in-memory application state untouched.
+    await this.download('roadmap2u-pre-import', { recordCopy: false });
 
     // ONE transaction for the whole wipe+rewrite — a failure anywhere rolls
     // the entire import back instead of leaving an empty disk (0.0.115 M1).
-    await replaceAll([
+    await this.replacement.replace([
       { store: 'trees', rows: trees },
       { store: 'nodes', rows: nodes },
       { store: 'checkins', rows: checkins },
@@ -137,6 +155,7 @@ export class BackupService {
     this.sessions.resetTo(sessions);
     this.harvests.resetTo(harvests);
     this.preserves.resetTo(preserves);
+    let preferences: Partial<Settings> = {};
     if (data.settings) {
       // Preferences travel; DEVICE STATE does not (same law that keeps
       // auth/sync out of the envelope): the whispers toggle is THIS
@@ -150,10 +169,11 @@ export class BackupService {
         lastCheckInAt: _c,
         lastWhisperAt: _d,
         whispersEnabled: _e,
-        ...preferences
+        ...importedPreferences
       } = data.settings;
-      await this.settings.patch(preferences);
+      preferences = importedPreferences;
     }
+    await this.settings.patch({ ...preferences, lastBackupAt: Date.now() });
 
     // Other tabs re-read what the import replaced (same rail as every write);
     // ids no longer on disk get DROPPED from their memory by refreshFromDisk.

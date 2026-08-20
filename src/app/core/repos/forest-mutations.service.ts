@@ -1,20 +1,56 @@
 import { Injectable, InjectionToken, inject } from '@angular/core';
 import {
+  type AccessLeaseState,
   type QuotaDecision,
   type QuotaSnapshot,
   preflightCreateTree,
+  preflightImport,
   preflightPlantBranches,
   preflightRestoreBranches,
   preflightRestoreTree,
+  preflightSeed,
 } from '../access/quota-policy';
 import { AccessService } from '../access/access.service';
+import type { AccessSummary } from '../api/contracts';
 import { broadcastChange } from '../db/broadcast';
-import { type StoreName, putAcrossOrMemory } from '../db/idb';
+import {
+  type StoreName,
+  putAcrossOrMemory,
+  replaceAll,
+  replaceAllIfEmpty,
+} from '../db/idb';
 import { type AccentToken, type Tree, type TreeNode, newSyncBase } from '../db/schema';
 
 export interface ForestMutationEntry {
   readonly store: StoreName;
   readonly rows: readonly unknown[];
+}
+
+export interface ForestReplacementEntry {
+  readonly store: StoreName;
+  readonly rows: unknown[];
+}
+
+export interface ForestReplacementStorage {
+  replace(entries: ForestReplacementEntry[]): Promise<void>;
+  replaceIfEmpty(entries: ForestReplacementEntry[]): Promise<boolean>;
+}
+
+/** One replace transaction for import and the explicit local demo seed. */
+export const FOREST_REPLACEMENT_STORAGE = new InjectionToken<ForestReplacementStorage>(
+  'FOREST_REPLACEMENT_STORAGE',
+  {
+    providedIn: 'root',
+    factory: () => ({
+      replace: (entries) => replaceAll(entries),
+      replaceIfEmpty: (entries) => replaceAllIfEmpty(entries),
+    }),
+  },
+);
+
+export interface ForestAccessContext {
+  readonly access: AccessSummary;
+  readonly leaseState: AccessLeaseState;
 }
 
 /** Persistence seam: tests can hold/reject a commit without faking IndexedDB. */
@@ -139,6 +175,22 @@ export class ForestMutationsService {
 
   assertRestoreTree(treeId: string): void {
     this.allow(preflightRestoreTree(this.snapshot(), treeId));
+  }
+
+  /** One decision over the complete replacement candidate. */
+  assertImport(trees: readonly Tree[], nodes: readonly TreeNode[]): void {
+    this.allow(preflightImport(this.snapshot(), trees, nodes));
+  }
+
+  /** Seed policy normally uses the signed-in lease. The local mock showcase
+   *  passes its explicit, bounded Premium fixture by construction. */
+  assertSeed(
+    trees: readonly Tree[],
+    nodes: readonly TreeNode[],
+    context?: ForestAccessContext,
+  ): void {
+    const snapshot = this.snapshot();
+    this.allow(preflightSeed(context ? { ...snapshot, ...context } : snapshot, trees, nodes));
   }
 
   private snapshot(): QuotaSnapshot {

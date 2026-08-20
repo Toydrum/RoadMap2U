@@ -230,13 +230,33 @@ export async function mockDelete(store: MockStore, key: string): Promise<void> {
   return txDone(tx);
 }
 
-/** Used by the seeder only — writes without the ready() seed check. */
-export async function mockPutManyRaw(store: MockStore, values: unknown[]): Promise<void> {
-  if (!values.length) return;
+export interface MockReplacementEntry {
+  readonly store: MockStore;
+  readonly rows: readonly unknown[];
+}
+
+/** Seeder-only whole-cloud transaction. The seeded sentinel cannot land
+ * unless every identity, relationship and forest row lands with it. */
+export async function mockReplaceAllRaw(
+  entries: readonly MockReplacementEntry[],
+): Promise<void> {
+  if (!entries.length) return;
   const db = await openMockDb();
-  const tx = db.transaction(store, 'readwrite');
-  const objectStore = tx.objectStore(store);
-  for (const value of values) objectStore.put(value);
+  const tx = db.transaction([...new Set(entries.map((entry) => entry.store))], 'readwrite');
+  try {
+    for (const entry of entries) {
+      const objectStore = tx.objectStore(entry.store);
+      objectStore.clear();
+      for (const row of entry.rows) objectStore.put(row);
+    }
+  } catch (error) {
+    try {
+      tx.abort();
+    } catch {
+      // The original synchronous write error remains authoritative.
+    }
+    return Promise.reject(error);
+  }
   return txDone(tx);
 }
 

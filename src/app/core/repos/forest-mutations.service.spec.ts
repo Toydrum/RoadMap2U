@@ -8,7 +8,11 @@ import { onLocalWrite, type DbChangeMessage } from '../db/broadcast';
 import { NodesRepo } from './nodes.repo';
 import { TreesRepo } from './trees.repo';
 import { VisitNodesRepo, VisitTreesRepo } from '../visit/visit-repos';
-import { FOREST_MUTATION_STORAGE, type ForestMutationStorage } from './forest-mutations.service';
+import {
+  FOREST_MUTATION_STORAGE,
+  ForestMutationsService,
+  type ForestMutationStorage,
+} from './forest-mutations.service';
 
 const NOW = 1_800_000_000_000;
 
@@ -135,6 +139,65 @@ describe('atomic forest mutations', () => {
     expect(commit).not.toHaveBeenCalled();
     expect(trees.byId().size).toBe(2);
     expect(nodes.byId().size).toBe(2);
+  });
+
+  it('rejects one Premium-sized import for Free with one aggregate decision', () => {
+    const commit = vi.fn(async () => undefined);
+    const { trees, nodes } = configure({ commit });
+    const mutations = TestBed.inject(ForestMutationsService);
+    const importedTrees = Array.from({ length: 4 }, (_, index) =>
+      tree(`import-${index}`, { order: (index + 1) * 10 }),
+    );
+    const importedNodes = importedTrees.flatMap((item) => [
+      heart(item.id),
+      ...Array.from({ length: 3 }, (_, index) => node(`${item.id}-b${index}`, item.id)),
+    ]);
+
+    expect(() => mutations.assertImport(importedTrees, importedNodes)).toThrowError(
+      expect.objectContaining({
+        decision: expect.objectContaining({
+          reason: 'ACTIVE_TREE_LIMIT',
+          current: 0,
+          projected: 4,
+          limit: 2,
+        }),
+      }),
+    );
+
+    expect(trees.byId().size).toBe(0);
+    expect(nodes.byId().size).toBe(0);
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('preflights a seed against an explicit valid Premium access context', () => {
+    configure({ commit: vi.fn(async () => undefined) });
+    const mutations = TestBed.inject(ForestMutationsService);
+    const importedTrees = Array.from({ length: 4 }, (_, index) =>
+      tree(`demo-${index}`, { order: (index + 1) * 10 }),
+    );
+    const importedNodes = importedTrees.map((item) => heart(item.id));
+    const premium = {
+      ...createFreeAccessSummary(NOW),
+      effectivePlanKey: 'premium' as const,
+      activeSources: [
+        {
+          kind: 'sponsored' as const,
+          sourceId: 'mock-demo',
+          planKey: 'premium' as const,
+          validUntil: null,
+        },
+      ],
+      limits: { maxActiveTrees: null, maxVisibleBranchesPerTree: null },
+      capabilities: { cloudSync: true, social: true, family: false },
+      revision: 1,
+    };
+
+    expect(() =>
+      mutations.assertSeed(importedTrees, importedNodes, {
+        access: premium,
+        leaseState: 'valid',
+      }),
+    ).not.toThrow();
   });
 
   it('preflights plantMany as one aggregate and writes none when the batch exceeds Free', async () => {

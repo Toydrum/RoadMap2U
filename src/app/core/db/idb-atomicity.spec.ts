@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { migrateSchemaIfNeeded, putAcrossInDatabase, replaceAllInDatabase } from './idb';
+import {
+  migrateSchemaIfNeeded,
+  putAcrossInDatabase,
+  replaceAllIfEmptyInDatabase,
+  replaceAllInDatabase,
+} from './idb';
 
 type Row = Record<string, unknown>;
 type Tables = Record<string, Map<string, Row>>;
@@ -67,6 +72,7 @@ class MemoryTransaction {
           rows.has(String(key)) ? structuredClone(rows.get(String(key))) : undefined,
           this,
         ),
+      count: () => new MemoryRequest(rows.size, this),
       clear: () => {
         rows.clear();
         this.queueFinish();
@@ -203,6 +209,43 @@ describe('backup replace atomicity', () => {
     expect([...db.tables['trees'].keys()]).toEqual(['old-tree']);
     expect([...db.tables['nodes'].keys()]).toEqual(['old-node']);
     expect(db.lastTransaction).not.toBeNull();
+  });
+
+  it('conditionally seeds every store or preserves a concurrently-created row', async () => {
+    const occupied = new MemoryDatabase({
+      trees: rowMap([{ id: 'concurrent-tree' }]),
+      nodes: rowMap([]),
+      meta: rowMap([], 'key'),
+    });
+    const before = JSON.stringify(occupied.tables, (_key, value) =>
+      value instanceof Map ? [...value] : value,
+    );
+
+    await expect(
+      replaceAllIfEmptyInDatabase(occupied as unknown as IDBDatabase, [
+        { store: 'trees', rows: [{ id: 'demo-tree' }] },
+        { store: 'nodes', rows: [{ id: 'demo-heart' }] },
+      ]),
+    ).resolves.toBe(false);
+    expect(
+      JSON.stringify(occupied.tables, (_key, value) =>
+        value instanceof Map ? [...value] : value,
+      ),
+    ).toBe(before);
+
+    const empty = new MemoryDatabase({
+      trees: rowMap([]),
+      nodes: rowMap([]),
+      meta: rowMap([], 'key'),
+    });
+    await expect(
+      replaceAllIfEmptyInDatabase(empty as unknown as IDBDatabase, [
+        { store: 'trees', rows: [{ id: 'demo-tree' }] },
+        { store: 'nodes', rows: [{ id: 'demo-heart' }] },
+      ]),
+    ).resolves.toBe(true);
+    expect([...empty.tables['trees'].keys()]).toEqual(['demo-tree']);
+    expect([...empty.tables['nodes'].keys()]).toEqual(['demo-heart']);
   });
 });
 

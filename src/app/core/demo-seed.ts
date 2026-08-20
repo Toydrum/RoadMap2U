@@ -1,4 +1,19 @@
-import { CheckIn, Harvest, Preserve, Settings, TimerSession, Tree, TreeNode, harvestIdFor } from './db/schema';
+import {
+  CheckIn,
+  Harvest,
+  Preserve,
+  SCHEMA_VERSION,
+  Settings,
+  TimerSession,
+  Tree,
+  TreeNode,
+  harvestIdFor,
+} from './db/schema';
+import type { AccessSummary } from './api/contracts';
+import { createMockDemoPremiumAccessSummary } from './api/mock-seed';
+import { broadcastChange } from './db/broadcast';
+import type { StoreName } from './db/idb';
+import { migrateForestRecords } from './db/migrations';
 import { dayOf } from './time';
 
 /**
@@ -226,3 +241,123 @@ export const DEMO_SETTINGS_PATCH: Partial<Settings> = {
   // demo would open straight into the ~30-day backup offer.
   lastBackupNudgeAt: now,
 };
+
+export interface DemoSeedEnvironment {
+  readonly backend: string;
+  readonly stage: string;
+}
+
+export function isExplicitMockDemoEnvironment(environment: DemoSeedEnvironment): boolean {
+  return environment.backend === 'mock' && environment.stage === 'local';
+}
+
+export interface PreparedDemoSeed {
+  readonly trees: Tree[];
+  readonly nodes: TreeNode[];
+  readonly checkins: CheckIn[];
+  readonly sessions: TimerSession[];
+  readonly harvests: Harvest[];
+  readonly preserves: Preserve[];
+}
+
+/** The same deterministic schema pipeline used by live storage and backup
+ * import (including v12->v13 inputs) runs before quota sees the showcase. */
+export function prepareDemoSeed(): PreparedDemoSeed {
+  const forest = migrateForestRecords(
+    { trees: DEMO_TREES, nodes: DEMO_NODES },
+    SCHEMA_VERSION,
+  );
+  return {
+    ...forest,
+    checkins: [...DEMO_CHECKINS],
+    sessions: [...DEMO_SESSIONS],
+    harvests: [...DEMO_HARVESTS],
+    preserves: [...DEMO_PRESERVES],
+  };
+}
+
+export interface DemoSeedEntry {
+  readonly store: StoreName;
+  readonly rows: unknown[];
+}
+
+export interface DemoSeedPorts {
+  hasLocalData(): boolean;
+  assertSeed(
+    trees: readonly Tree[],
+    nodes: readonly TreeNode[],
+    context: { readonly access: AccessSummary; readonly leaseState: 'valid' },
+  ): void;
+  replaceIfEmpty(entries: DemoSeedEntry[]): Promise<boolean>;
+  resetTrees(rows: Tree[]): void;
+  resetNodes(rows: TreeNode[]): void;
+  resetCheckins(rows: CheckIn[]): void;
+  resetSessions(rows: TimerSession[]): void;
+  resetHarvests(rows: Harvest[]): void;
+  resetPreserves(rows: Preserve[]): void;
+  patchSettings(patch: Partial<Settings>): Promise<void>;
+}
+
+export interface MaybeSeedDemoOptions {
+  readonly search: string;
+  readonly environment: DemoSeedEnvironment;
+  readonly now?: number;
+  readonly ports: DemoSeedPorts;
+}
+
+/** Explicit mock-only showcase. One aggregate preflight precedes one
+ * cross-store replacement; signals and broadcasts publish only afterward. */
+export async function maybeSeedDemoForest(options: MaybeSeedDemoOptions): Promise<boolean> {
+  if (new URLSearchParams(options.search).get('seed') !== 'demo') return false;
+  if (!isExplicitMockDemoEnvironment(options.environment)) return false;
+  if (options.ports.hasLocalData()) return false;
+
+  const prepared = prepareDemoSeed();
+  const access = createMockDemoPremiumAccessSummary(options.now ?? Date.now());
+  options.ports.assertSeed(prepared.trees, prepared.nodes, {
+    access,
+    leaseState: 'valid',
+  });
+
+  const committed = await options.ports.replaceIfEmpty([
+    { store: 'trees', rows: prepared.trees },
+    { store: 'nodes', rows: prepared.nodes },
+    { store: 'checkins', rows: prepared.checkins },
+    { store: 'sessions', rows: prepared.sessions },
+    { store: 'harvests', rows: prepared.harvests },
+    { store: 'preserves', rows: prepared.preserves },
+  ]);
+  if (!committed) return false;
+
+  options.ports.resetTrees(prepared.trees);
+  options.ports.resetNodes(prepared.nodes);
+  options.ports.resetCheckins(prepared.checkins);
+  options.ports.resetSessions(prepared.sessions);
+  options.ports.resetHarvests(prepared.harvests);
+  options.ports.resetPreserves(prepared.preserves);
+
+  broadcastChange({ store: 'trees', ids: prepared.trees.map((row) => row.id), reset: true });
+  broadcastChange({ store: 'nodes', ids: prepared.nodes.map((row) => row.id), reset: true });
+  broadcastChange({
+    store: 'checkins',
+    ids: prepared.checkins.map((row) => row.id),
+    reset: true,
+  });
+  broadcastChange({
+    store: 'sessions',
+    ids: prepared.sessions.map((row) => row.id),
+    reset: true,
+  });
+  broadcastChange({
+    store: 'harvests',
+    ids: prepared.harvests.map((row) => row.id),
+    reset: true,
+  });
+  broadcastChange({
+    store: 'preserves',
+    ids: prepared.preserves.map((row) => row.id),
+    reset: true,
+  });
+  await options.ports.patchSettings(DEMO_SETTINGS_PATCH);
+  return true;
+}

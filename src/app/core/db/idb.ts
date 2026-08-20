@@ -342,6 +342,56 @@ export function replaceAllInDatabase(
   return txDone(tx);
 }
 
+/** Demo-only conditional replacement. The emptiness check and every write
+ * share one transaction, so another tab cannot slip real data between a
+ * preflight and the showcase commit. `false` means a lived-in store won. */
+export async function replaceAllIfEmpty(
+  entries: { store: StoreName; rows: unknown[] }[],
+): Promise<boolean> {
+  if (!entries.length) return true;
+  const db = await openDb();
+  return replaceAllIfEmptyInDatabase(db, entries);
+}
+
+/** @internal IndexedDB transaction seam for the concurrent-empty test. */
+export function replaceAllIfEmptyInDatabase(
+  db: IDBDatabase,
+  entries: { store: StoreName; rows: unknown[] }[],
+): Promise<boolean> {
+  if (!entries.length) return Promise.resolve(true);
+  const stores = [...new Set(entries.map((entry) => entry.store))];
+  const tx = db.transaction(stores, 'readwrite');
+  const counts = stores.map((store) => tx.objectStore(store).count());
+  let planned = false;
+  let occupied = false;
+  let planningError: unknown;
+
+  const planWrites = () => {
+    if (planned || counts.some((request) => request.readyState !== 'done')) return;
+    planned = true;
+    occupied = counts.some((request) => request.result > 0);
+    if (occupied) return;
+    try {
+      for (const entry of entries) {
+        const objectStore = tx.objectStore(entry.store);
+        objectStore.clear();
+        for (const row of entry.rows) objectStore.put(row);
+      }
+    } catch (error) {
+      planningError = error;
+      tx.abort();
+    }
+  };
+
+  for (const request of counts) request.onsuccess = planWrites;
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve(!occupied);
+    tx.onerror = () => reject(planningError ?? tx.error);
+    tx.onabort = () =>
+      reject(planningError ?? tx.error ?? new Error('conditional replacement aborted'));
+  });
+}
+
 export async function putAcross(
   entries: { store: StoreName; rows: unknown[] }[],
 ): Promise<void> {

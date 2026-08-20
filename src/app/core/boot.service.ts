@@ -10,6 +10,11 @@ import { onDbChange } from './db/broadcast';
 import { storageAvailable } from './db/idb';
 import { ToastService } from '../shared/ui/toast.service';
 import { I18nService } from './i18n/i18n.service';
+import { APP_CONFIG, DEPLOY_STAGE } from './config';
+import {
+  FOREST_REPLACEMENT_STORAGE,
+  ForestMutationsService,
+} from './repos/forest-mutations.service';
 
 /** Loads every store into memory before first render and wires cross-tab refresh. */
 @Injectable({ providedIn: 'root' })
@@ -23,6 +28,8 @@ export class BootService {
   private readonly settings = inject(SettingsService);
   private readonly toast = inject(ToastService);
   private readonly i18n = inject(I18nService);
+  private readonly mutations = inject(ForestMutationsService);
+  private readonly replacement = inject(FOREST_REPLACEMENT_STORAGE);
 
   async init(): Promise<void> {
     // Loads catch their own storage failures; allSettled is belt-and-braces —
@@ -75,17 +82,36 @@ export class BootService {
 
   /** `?seed=demo` on an EMPTY store loads a small showcase forest. */
   private async maybeSeedDemo(): Promise<void> {
-    if (!location.search.includes('seed=demo')) return;
-    if (this.trees.all().length) return;
+    if (new URLSearchParams(location.search).get('seed') !== 'demo') return;
+    if (APP_CONFIG.backend !== 'mock' || String(DEPLOY_STAGE) !== 'local') return;
     const demo = await import('./demo-seed');
-    await this.trees.saveMany(demo.DEMO_TREES);
-    await this.nodes.saveMany(demo.DEMO_NODES);
-    await this.checkins.saveMany(demo.DEMO_CHECKINS);
-    await this.sessions.saveMany(demo.DEMO_SESSIONS);
-    // The showcase conservería (0.0.106): HOMED fruits + their jars land
-    // BEFORE the backfill (it skips existing ids, so homes survive).
-    await this.harvests.saveMany(demo.DEMO_HARVESTS);
-    await this.preserves.saveMany(demo.DEMO_PRESERVES);
-    await this.settings.patch(demo.DEMO_SETTINGS_PATCH);
+    await demo.maybeSeedDemoForest({
+      search: location.search,
+      environment: { backend: APP_CONFIG.backend, stage: DEPLOY_STAGE },
+      ports: {
+        // Any tombstone/history row means the device is lived-in. The demo
+        // replacement must never clear real local data just because all
+        // visible trees happen to be archived or deleted.
+        hasLocalData: () =>
+          [
+            this.trees,
+            this.nodes,
+            this.checkins,
+            this.sessions,
+            this.harvests,
+            this.preserves,
+          ].some((repo) => repo.byId().size > 0),
+        assertSeed: (trees, nodes, context) =>
+          this.mutations.assertSeed(trees, nodes, context),
+        replaceIfEmpty: (entries) => this.replacement.replaceIfEmpty(entries),
+        resetTrees: (rows) => this.trees.resetTo(rows),
+        resetNodes: (rows) => this.nodes.resetTo(rows),
+        resetCheckins: (rows) => this.checkins.resetTo(rows),
+        resetSessions: (rows) => this.sessions.resetTo(rows),
+        resetHarvests: (rows) => this.harvests.resetTo(rows),
+        resetPreserves: (rows) => this.preserves.resetTo(rows),
+        patchSettings: (patch) => this.settings.patch(patch),
+      },
+    });
   }
 }
