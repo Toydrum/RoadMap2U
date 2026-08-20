@@ -1,0 +1,111 @@
+:host {
+  display: block;
+  min-height: 100svh;
+}
+
+main {
+  min-height: 100svh;
+
+  &.with-tabs {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+}
+
+.tabbar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: space-around;
+  background: var(--surface);
+  border-top: 1.5px solid var(--border);
+  padding: 0.35rem 0 calc(0.35rem + env(safe-area-inset-bottom));
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 56px;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  transition: color 0.2s ease, background 0.2s ease;
+
+  &:hover {
+    color: var(--text-dim);
+  }
+
+  &.active {
+    color: var(--primary);
+    background: var(--surface-2);
+  }
+}
+
+.toast {
+  position: fixed;
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  left: 1rem;
+  right: 1rem;
+  width: fit-content;
+  margin-inline: auto;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 1rem;
+  max-width: min(520px, calc(100vw - 2rem));
+  animation: toast-in 0.3s ease both;
+
+  .msg {
+    font-size: 0.92rem;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .small {
+    min-height: 40px;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.session-perch {
+  position: fixed;
+  right: 0.9rem;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 0.45rem 0.7rem 0.5rem;
+  text-decoration: none;
+  color: inherit;
+  animation: perch-in 0.3s ease both;
+}
+
+@keyframes perch-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}

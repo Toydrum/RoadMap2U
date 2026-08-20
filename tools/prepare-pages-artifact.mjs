@@ -9,7 +9,7 @@ export function rewriteLegacyPagesManifest(artifactDirectory) {
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   manifest.id = '/RoadMap2U/';
   manifest.scope = '/RoadMap2U/';
-  manifest.start_url = '/RoadMap2U/';
+  manifest.start_url = '/RoadMap2U/ahora';
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 }
 

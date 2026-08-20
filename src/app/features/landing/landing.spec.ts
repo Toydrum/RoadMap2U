@@ -1,7 +1,13 @@
+import { APP_BASE_HREF } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { describe, expect, it } from 'vitest';
+import { AuthService } from '../../core/auth/auth.service';
+import { BootService } from '../../core/boot.service';
 import { EN } from '../../core/i18n/en';
 import { ES } from '../../core/i18n/es';
+import { RemindersService } from '../../core/reminders.service';
+import { SyncService } from '../../core/sync/sync.service';
 import { LandingPage } from './landing';
 import { marketingTreeModel } from './marketing-tree';
 
@@ -44,7 +50,10 @@ describe('commercial landing foundation', () => {
   });
 
   it('renders a standalone semantic landing and changes locale only in memory', async () => {
-    await TestBed.configureTestingModule({ imports: [LandingPage] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [LandingPage],
+      providers: [provideRouter([])],
+    }).compileComponents();
     const fixture = TestBed.createComponent(LandingPage);
     fixture.detectChanges();
 
@@ -60,5 +69,42 @@ describe('commercial landing foundation', () => {
     fixture.detectChanges();
     expect(root.querySelector('h1')?.textContent?.trim()).toBe(EN.landing.hero.title);
     expect(document.documentElement.lang).toBe('en');
+  });
+
+  it('renders app navigation against the configured legacy base href', async () => {
+    await TestBed.configureTestingModule({
+      imports: [LandingPage],
+      providers: [provideRouter([]), { provide: APP_BASE_HREF, useValue: '/RoadMap2U/' }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(LandingPage);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.brand')?.getAttribute('href')).toBe('/RoadMap2U/');
+    expect(root.querySelector('.sign-in')?.getAttribute('href')).toBe('/RoadMap2U/account');
+  });
+
+  it('constructs no storage, auth, sync, or reminder service', async () => {
+    const constructed: string[] = [];
+    const tracked = (name: string) => () => {
+      constructed.push(name);
+      return {};
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [LandingPage],
+      providers: [
+        provideRouter([]),
+        { provide: BootService, useFactory: tracked('boot') },
+        { provide: AuthService, useFactory: tracked('auth') },
+        { provide: SyncService, useFactory: tracked('sync') },
+        { provide: RemindersService, useFactory: tracked('reminders') },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(LandingPage);
+    fixture.detectChanges();
+
+    expect(constructed).toEqual([]);
   });
 });

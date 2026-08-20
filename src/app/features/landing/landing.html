@@ -2,7 +2,7 @@
 
 <div class="landing-shell">
   <header class="site-header">
-    <a class="brand" href="/" [attr.aria-label]="copy().app.name">
+    <a class="brand" routerLink="/" [attr.aria-label]="copy().app.name">
       <img src="brand/roadmap2u-lockup.svg" [alt]="copy().app.name" />
     </a>
 
@@ -36,8 +36,8 @@
           EN
         </button>
       </div>
-      <a class="sign-in" href="/account">{{ copy().landing.nav.signIn }}</a>
-      <a class="button button-small" href="/account">{{ copy().landing.nav.start }}</a>
+      <a class="sign-in" routerLink="/account">{{ copy().landing.nav.signIn }}</a>
+      <a class="button button-small" routerLink="/account">{{ copy().landing.nav.start }}</a>
     </div>
   </header>
 
@@ -59,7 +59,7 @@
           <h1 id="hero-title">{{ copy().landing.hero.title }}</h1>
           <p class="hero-body">{{ copy().landing.hero.body }}</p>
           <div class="hero-actions">
-            <a class="button" href="/account">{{ copy().landing.hero.primary }}</a>
+            <a class="button" routerLink="/account">{{ copy().landing.hero.primary }}</a>
             <a class="text-link" href="#how-it-works">
               {{ copy().landing.hero.secondary }}
               <span aria-hidden="true">↓</span>
@@ -148,7 +148,7 @@
               }
             </ul>
           </div>
-          <a class="button" href="/account">{{ copy().landing.plans.free.cta }}</a>
+          <a class="button" routerLink="/account">{{ copy().landing.plans.free.cta }}</a>
         </article>
 
         <article class="plan premium-plan">
@@ -187,7 +187,7 @@
         <h2 id="key-title">{{ copy().landing.key.title }}</h2>
         <p>{{ copy().landing.key.body }}</p>
       </div>
-      <a class="button button-light" href="/account">{{ copy().landing.key.cta }}</a>
+      <a class="button button-light" routerLink="/account">{{ copy().landing.key.cta }}</a>
     </section>
 
     <section id="faq" class="section faq-section reveal" aria-labelledby="faq-title">
@@ -217,7 +217,7 @@
         <p class="eyebrow">{{ copy().landing.final.eyebrow }}</p>
         <h2 id="final-title">{{ copy().landing.final.title }}</h2>
         <p>{{ copy().landing.final.body }}</p>
-        <a class="button button-light" href="/account">{{ copy().landing.final.cta }}</a>
+        <a class="button button-light" routerLink="/account">{{ copy().landing.final.cta }}</a>
       </div>
     </section>
   </main>
@@ -228,10 +228,10 @@
       <p>{{ copy().landing.footer.tagline }}</p>
     </div>
     <nav [attr.aria-label]="copy().landing.nav.label">
-      <a href="/privacy">{{ copy().landing.footer.privacy }}</a>
-      <a href="/terms">{{ copy().landing.footer.terms }}</a>
-      <a href="/support">{{ copy().landing.footer.support }}</a>
-      <a href="/support">{{ copy().landing.footer.contact }}</a>
+      <a routerLink="/privacy">{{ copy().landing.footer.privacy }}</a>
+      <a routerLink="/terms">{{ copy().landing.footer.terms }}</a>
+      <a routerLink="/support">{{ copy().landing.footer.support }}</a>
+      <a routerLink="/support">{{ copy().landing.footer.contact }}</a>
     </nav>
     <p class="rights">{{ copy().landing.footer.rights }}</p>
   </footer>

@@ -1,4 +1,5 @@
-<div class="ritual">
+<a class="skip-link" href="#account-main">{{ i18n.t().a11y.skipToContent }}</a>
+<main id="account-main" class="ritual">
   @switch (step()) {
     @case ('welcome') {
       <section class="stage" aria-live="polite">
@@ -415,4 +416,4 @@
       </section>
     }
   }
-</div>
+</main>

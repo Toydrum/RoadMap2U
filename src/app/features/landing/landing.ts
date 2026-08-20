@@ -1,10 +1,11 @@
 import { Component, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { type MarketingLang, MarketingLocaleService } from './marketing-locale.service';
 import { MarketingTree } from './marketing-tree';
 
 @Component({
   selector: 'app-landing',
-  imports: [MarketingTree],
+  imports: [RouterLink, MarketingTree],
   providers: [MarketingLocaleService],
   templateUrl: './landing.html',
   styleUrls: ['./landing.scss', './landing-responsive.scss'],

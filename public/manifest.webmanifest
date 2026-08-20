@@ -6,7 +6,7 @@
   "lang": "es",
   "display": "standalone",
   "scope": "/",
-  "start_url": "/",
+  "start_url": "/ahora",
   "background_color": "#f5f2e8",
   "theme_color": "#f5f2e8",
   "icons": [

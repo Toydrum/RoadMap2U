@@ -13,7 +13,7 @@ test('the installable PWA is rooted at the canonical domain', () => {
   const manifest = JSON.parse(read('public/manifest.webmanifest'));
   assert.equal(manifest.id, '/');
   assert.equal(manifest.scope, '/');
-  assert.equal(manifest.start_url, '/');
+  assert.equal(manifest.start_url, '/ahora');
 });
 
 test('the Cognito client signs in with username only', () => {
@@ -35,14 +35,14 @@ test('the legacy Pages artifact receives its historical subpath scope only after
     const path = join(directory, 'manifest.webmanifest');
     writeFileSync(
       path,
-      JSON.stringify({ id: '/', scope: '/', start_url: '/', name: 'RoadMap2U' }),
+      JSON.stringify({ id: '/', scope: '/', start_url: '/ahora', name: 'RoadMap2U' }),
       'utf8',
     );
     rewriteLegacyPagesManifest(directory);
     const manifest = JSON.parse(readFileSync(path, 'utf8'));
     assert.equal(manifest.id, '/RoadMap2U/');
     assert.equal(manifest.scope, '/RoadMap2U/');
-    assert.equal(manifest.start_url, '/RoadMap2U/');
+    assert.equal(manifest.start_url, '/RoadMap2U/ahora');
     assert.equal(manifest.name, 'RoadMap2U');
   } finally {
     rmSync(directory, { recursive: true, force: true });
