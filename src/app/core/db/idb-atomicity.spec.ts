@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { migrateSchemaIfNeeded, replaceAllInDatabase } from './idb';
+import { migrateSchemaIfNeeded, putAcrossInDatabase, replaceAllInDatabase } from './idb';
 
 type Row = Record<string, unknown>;
 type Tables = Record<string, Map<string, Row>>;
@@ -203,5 +203,31 @@ describe('backup replace atomicity', () => {
     expect([...db.tables['trees'].keys()]).toEqual(['old-tree']);
     expect([...db.tables['nodes'].keys()]).toEqual(['old-node']);
     expect(db.lastTransaction).not.toBeNull();
+  });
+});
+
+describe('forest cross-store atomicity', () => {
+  it('aborts every store when one newborn record cannot be written', async () => {
+    const db = new MemoryDatabase(
+      {
+        trees: rowMap([{ id: 'existing-tree', name: 'Existing' }]),
+        nodes: rowMap([{ id: 'existing-node', treeId: 'existing-tree' }]),
+      },
+      'new-heart',
+    );
+    const before = JSON.stringify(db.tables, (_key, value) =>
+      value instanceof Map ? [...value] : value,
+    );
+
+    await expect(
+      putAcrossInDatabase(db as unknown as IDBDatabase, [
+        { store: 'trees', rows: [{ id: 'new-tree', heartId: 'new-heart' }] },
+        { store: 'nodes', rows: [{ id: 'new-heart', treeId: 'new-tree' }] },
+      ]),
+    ).rejects.toThrow('synthetic put failure');
+
+    expect(
+      JSON.stringify(db.tables, (_key, value) => (value instanceof Map ? [...value] : value)),
+    ).toBe(before);
   });
 });

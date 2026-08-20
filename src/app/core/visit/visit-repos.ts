@@ -32,6 +32,10 @@ export class VisitTreesRepo extends TreesRepo {
   private ownerId = '';
   private editable = false;
 
+  protected override usesLocalForestMutations(): boolean {
+    return false;
+  }
+
   bind(ownerId: string, editable: boolean): void {
     this.ownerId = ownerId;
     this.editable = editable;
@@ -79,6 +83,10 @@ export class VisitNodesRepo extends NodesRepo {
   private readonly api = inject(API_CLIENT);
   private ownerId = '';
   private editable = false;
+
+  protected override usesLocalForestMutations(): boolean {
+    return false;
+  }
 
   bind(ownerId: string, editable: boolean): void {
     this.ownerId = ownerId;

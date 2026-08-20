@@ -721,9 +721,7 @@ export class ForestPage {
   protected async create(): Promise<void> {
     const name = this.newName().trim();
     if (!name) return;
-    const tree = await this.trees.create(name, this.newAccent());
-    const root = await this.nodes.plant(tree.id, null, { title: name });
-    await this.trees.setCurrentNode(tree, root.id);
+    await this.trees.create(name, this.newAccent());
     this.newName.set('');
     this.creating.set(false);
     // The newborn gets the highest order — walk to its clearing so it's seen.
@@ -736,10 +734,10 @@ export class ForestPage {
     const s = this.i18n.t().sow.starters[kind];
     const accent: AccentToken = kind === 'school' ? 'sky' : kind === 'home' ? 'clay' : 'moss';
     const tree = await this.trees.create(s.name, accent);
-    const root = await this.nodes.plant(tree.id, null, { title: s.name });
-    await this.trees.setCurrentNode(tree, root.id);
-    await this.nodes.plant(tree.id, root.id, { title: s.b1 });
-    await this.nodes.plant(tree.id, root.id, { title: s.b2 });
+    await this.nodes.plantMany(tree.id, [
+      { parentId: tree.heartId, title: s.b1 },
+      { parentId: tree.heartId, title: s.b2 },
+    ]);
   }
 
   /** "Prefiero empezar en blanco" — the examples bow out for good. */

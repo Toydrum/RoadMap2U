@@ -348,12 +348,50 @@ export async function putAcross(
   const nonEmpty = entries.filter((e) => e.rows.length);
   if (!nonEmpty.length) return;
   const db = await openDb();
-  const tx = db.transaction(nonEmpty.map((e) => e.store), 'readwrite');
-  for (const entry of nonEmpty) {
-    const os = tx.objectStore(entry.store);
-    for (const row of entry.rows) os.put(row);
+  return putAcrossInDatabase(db, nonEmpty);
+}
+
+/** @internal Cross-store transaction seam, exported for atomic-failure tests. */
+export function putAcrossInDatabase(
+  db: IDBDatabase,
+  entries: { store: StoreName; rows: unknown[] }[],
+): Promise<void> {
+  const nonEmpty = entries.filter((entry) => entry.rows.length);
+  if (!nonEmpty.length) return Promise.resolve();
+  const tx = db.transaction([...new Set(nonEmpty.map((entry) => entry.store))], 'readwrite');
+  try {
+    for (const entry of nonEmpty) {
+      const objectStore = tx.objectStore(entry.store);
+      for (const row of entry.rows) objectStore.put(row);
+    }
+  } catch (error) {
+    // A synchronous key/clone error does not promise to abort the rest of
+    // the transaction. Explicitly abort so an earlier store can never land
+    // without the later one (tree + technical heart depend on this).
+    try {
+      tx.abort();
+    } catch {
+      // Already inactive/aborted: the original write error is authoritative.
+    }
+    return Promise.reject(error);
   }
   return txDone(tx);
+}
+
+/**
+ * Local-first cross-store commit. A database that never opened means this
+ * session is deliberately memory-only, so callers may still publish their
+ * in-memory state. Once IndexedDB is open, any transaction failure remains
+ * authoritative and must be surfaced — it is never mistaken for a commit.
+ */
+export async function putAcrossOrMemory(
+  entries: { store: StoreName; rows: unknown[] }[],
+): Promise<void> {
+  try {
+    await putAcross(entries);
+  } catch (error) {
+    if (await storageAvailable()) throw error;
+  }
 }
 
 /** Remove one row (meta cleanup: cache invalidation, practice-cloud reset). */

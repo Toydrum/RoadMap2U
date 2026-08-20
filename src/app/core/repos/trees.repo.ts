@@ -1,11 +1,30 @@
-import { Injectable, computed } from '@angular/core';
-import { AccentToken, Tree, newSyncBase, stamp } from '../db/schema';
+import { Injectable, computed, inject } from '@angular/core';
+import { AccentToken, Tree, stamp } from '../db/schema';
 import { StoreName } from '../db/idb';
 import { RecordsRepo } from './records.repo';
+import { ForestMutationsService } from './forest-mutations.service';
 
 @Injectable({ providedIn: 'root' })
 export class TreesRepo extends RecordsRepo<Tree> {
   protected readonly store: StoreName = 'trees';
+  private readonly forestMutations = inject(ForestMutationsService);
+
+  constructor() {
+    super();
+    if (this.usesLocalForestMutations()) {
+      this.forestMutations.connectTrees({
+        records: () => [...this.byId().values()],
+        publish: (records) => {
+          for (const record of records) this.applyLocal(record);
+        },
+      });
+    }
+  }
+
+  /** Route-scoped visit repos write someone else's forest through the API. */
+  protected usesLocalForestMutations(): boolean {
+    return true;
+  }
 
   readonly active = computed(() =>
     this.all()
@@ -35,19 +54,7 @@ export class TreesRepo extends RecordsRepo<Tree> {
   }
 
   async create(name: string, accent: AccentToken): Promise<Tree> {
-    const maxOrder = Math.max(0, ...this.active().map((t) => t.order));
-    const tree: Tree = {
-      ...newSyncBase(),
-      name,
-      accent,
-      order: maxOrder + 10,
-      currentNodeId: null,
-      // TASK-054 replaces this interim two-step create path with one atomic
-      // tree + root write and assigns the newborn root id here.
-      heartId: null,
-      archivedAt: null,
-    };
-    return this.insert(tree);
+    return this.forestMutations.createTree(name, accent);
   }
 
   async rename(tree: Tree, name: string): Promise<void> {
@@ -69,6 +76,9 @@ export class TreesRepo extends RecordsRepo<Tree> {
   async restore(tree: Tree): Promise<void> {
     const current = this.byId().get(tree.id) ?? tree;
     if (!current.archivedAt) return;
+    if (this.usesLocalForestMutations()) {
+      this.forestMutations.assertRestoreTree(current.id);
+    }
     await this.save({ ...current, archivedAt: null });
   }
 }
