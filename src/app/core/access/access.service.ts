@@ -49,6 +49,7 @@ export interface AccessRuntime {
   now(): number;
   listenOnline(callback: () => void): () => void;
   scheduleEvery(callback: () => void, ms: number): () => void;
+  scheduleOnce(callback: () => void, ms: number): () => void;
 }
 
 export const ACCESS_RUNTIME = new InjectionToken<AccessRuntime>('ACCESS_RUNTIME', {
@@ -64,6 +65,11 @@ export const ACCESS_RUNTIME = new InjectionToken<AccessRuntime>('ACCESS_RUNTIME'
       if (typeof window === 'undefined') return () => undefined;
       const id = window.setInterval(callback, ms);
       return () => window.clearInterval(id);
+    },
+    scheduleOnce(callback: () => void, ms: number): () => void {
+      if (typeof window === 'undefined') return () => undefined;
+      const id = window.setTimeout(callback, ms);
+      return () => window.clearTimeout(id);
     },
   }),
 });
@@ -203,6 +209,7 @@ export class AccessService {
   private inFlight: { userId: string; promise: Promise<AccessSummary> } | null = null;
   private startPromise: Promise<void> | null = null;
   private cleanup: Array<() => void> = [];
+  private stopLeaseTimer: (() => void) | null = null;
   private pendingRequests = 0;
 
   readonly access = computed(() => {
@@ -229,6 +236,8 @@ export class AccessService {
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       for (const stop of this.cleanup.splice(0)) stop();
+      this.stopLeaseTimer?.();
+      this.stopLeaseTimer = null;
     });
   }
 
@@ -255,6 +264,8 @@ export class AccessService {
     this.tick();
     const userId = this.auth.user()?.userId;
     if (!userId) {
+      this.stopLeaseTimer?.();
+      this.stopLeaseTimer = null;
       this.cachedSignal.set(null);
       this.lastErrorSignal.set(null);
       return;
@@ -263,7 +274,7 @@ export class AccessService {
       const cached = await this.cache.read(userId);
       if (this.auth.user()?.userId === userId && cached) {
         try {
-          this.cachedSignal.set({ userId, summary: normalizeSummary(cached, this.nowSignal()) });
+          this.setCached(userId, normalizeSummary(cached, this.nowSignal()));
         } catch {
           // Corrupt or expired device state is ignored; the network may repair it.
         }
@@ -322,7 +333,7 @@ export class AccessService {
     if (this.auth.user()?.userId !== userId) return this.access();
     const summary = normalizeSummary(value, this.nowSignal());
     if (this.auth.user()?.userId !== userId) return this.access();
-    this.cachedSignal.set({ userId, summary });
+    this.setCached(userId, summary);
     try {
       await this.cache.write(userId, summary);
     } catch {
@@ -333,6 +344,27 @@ export class AccessService {
 
   private tick(): void {
     this.nowSignal.set(this.runtime.now());
+  }
+
+  private setCached(userId: string, summary: AccessSummary): void {
+    this.cachedSignal.set({ userId, summary });
+    this.stopLeaseTimer?.();
+    const expectedRevision = summary.revision;
+    this.stopLeaseTimer = this.runtime.scheduleOnce(
+      () => {
+        this.stopLeaseTimer = null;
+        this.tick();
+        const current = this.cachedSignal();
+        if (
+          current?.userId === userId &&
+          current.summary.revision === expectedRevision &&
+          current.summary.offlineValidUntil <= this.nowSignal()
+        ) {
+          void this.refresh();
+        }
+      },
+      Math.max(0, summary.offlineValidUntil - this.nowSignal()),
+    );
   }
 
   private beginRequest(): void {

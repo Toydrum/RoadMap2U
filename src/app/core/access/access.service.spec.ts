@@ -75,12 +75,16 @@ function runtime(): AccessRuntime & {
   online: (() => void) | null;
   interval: (() => void) | null;
   intervalMs: number | null;
+  timeout: (() => void) | null;
+  timeoutMs: number | null;
 } {
   const value = {
     nowValue: NOW,
     online: null as (() => void) | null,
     interval: null as (() => void) | null,
     intervalMs: null as number | null,
+    timeout: null as (() => void) | null,
+    timeoutMs: null as number | null,
     now: () => value.nowValue,
     listenOnline: (callback: () => void) => {
       value.online = callback;
@@ -93,6 +97,13 @@ function runtime(): AccessRuntime & {
       value.intervalMs = ms;
       return () => {
         value.interval = null;
+      };
+    },
+    scheduleOnce: (callback: () => void, ms: number) => {
+      value.timeout = callback;
+      value.timeoutMs = ms;
+      return () => {
+        value.timeout = null;
       };
     },
   };
@@ -266,6 +277,30 @@ describe('AccessService', () => {
 
     await expect(service.redeem('RM2U-STALE')).rejects.toThrow('stale access summary');
     expect(service.access().effectivePlanKey).toBe('premium');
+  });
+
+  it('expires a short lease at its exact boundary instead of waiting for the 15-minute loop', async () => {
+    const clock = runtime();
+    const short = premium({
+      nextRecomputeAt: NOW + 1_000,
+      offlineValidUntil: NOW + 1_000,
+    });
+    const getAccess = vi
+      .fn()
+      .mockResolvedValueOnce(short)
+      .mockRejectedValueOnce(new Error('offline'));
+    const service = configure({ runtime: clock, api: apiWith({ getAccess }) });
+
+    await service.refresh();
+    expect(clock.timeoutMs).toBe(1_000);
+    expect(service.access().effectivePlanKey).toBe('premium');
+
+    clock.nowValue = NOW + 1_000;
+    clock.timeout?.();
+
+    expect(service.leaseState()).toBe('fallback');
+    expect(service.access().effectivePlanKey).toBe('free');
+    await vi.waitFor(() => expect(getAccess).toHaveBeenCalledTimes(2));
   });
 
   it('stays Free and makes no authenticated request for a guest', async () => {
