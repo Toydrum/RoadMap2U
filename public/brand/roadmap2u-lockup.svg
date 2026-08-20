@@ -1,7 +1,7 @@
 <svg
   xmlns="http://www.w3.org/2000/svg"
   viewBox="0 0 430 120"
-  data-art-bounds="8 8 410 104"
+  data-art-bounds="8 8 416 104"
   role="img"
   aria-labelledby="title desc"
 >
@@ -28,27 +28,31 @@
       fill="#6f5640"
       d="M63 42H74V72C74 81 78 86 85 86C93 86 96 81 96 72V35C96 27 94 22 91 16L101 11C106 19 107 27 107 35V72C107 89 98 98 85 98C71 98 63 89 63 72Z"
     />
-    <path fill="#6f5640" d="M97 42C88 37 81 31 75 23L79 19C86 26 94 30 102 33Z" />
+    <path
+      data-part="branch"
+      fill="#6f5640"
+      d="M97 42C88 37 81 31 75 23L79 19C86 26 94 30 102 33Z"
+    />
     <g opacity=".94">
       <ellipse cx="76" cy="18" rx="13" ry="9" fill="#7f9a63" />
       <ellipse cx="88" cy="12" rx="15" ry="10" fill="#4e7d4a" />
       <ellipse cx="102" cy="19" rx="11" ry="8" fill="#5c8a58" />
       <ellipse cx="89" cy="26" rx="14" ry="9" fill="#7f9a63" />
     </g>
-    <circle cx="77" cy="12" r="4" fill="#e5a8c0" stroke="#cf87a6" />
-    <path d="M102 27C97 22 98 16 104 13C109 18 108 24 102 27Z" fill="#e5a8c0" />
+    <circle data-detail="flower" cx="77" cy="12" r="4" fill="#e5a8c0" stroke="#cf87a6" />
+    <path
+      data-detail="bud"
+      d="M102 27C97 22 98 16 104 13C109 18 108 24 102 27Z"
+      fill="#e5a8c0"
+    />
   </g>
   <text
-    x="133"
+    x="124"
     y="75"
     font-family="Nunito, ui-rounded, system-ui, sans-serif"
     font-size="52"
     font-weight="800"
     letter-spacing="-1.7"
     fill="#2e3b32"
-  >
-    RoadMap
-    <tspan fill="#4e7d4a">2</tspan>
-    <tspan fill="#6f5640">U</tspan>
-  </text>
+  >RoadMap<tspan fill="#4e7d4a">2</tspan><tspan fill="#6f5640">U</tspan></text>
 </svg>

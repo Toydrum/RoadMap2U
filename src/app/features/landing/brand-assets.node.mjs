@@ -66,6 +66,69 @@ describe('C6C-B v2 brand assets', () => {
     });
   }
 
+  it('keeps the real header lockup artwork inside its image and link at desktop and mobile sizes', async () => {
+    const browser = await chromium.launch({ channel: 'msedge', headless: true });
+    try {
+      const page = await browser.newPage();
+      for (const path of [
+        'public/brand/roadmap2u-lockup.svg',
+        'public/brand/roadmap2u-lockup-dark.svg',
+      ]) {
+        const lockup = asset(path);
+        const declaredBounds = artBounds(lockup);
+        for (const width of [188, 120]) {
+          await page.setContent(
+            `<style>
+              body { margin: 0; }
+              .brand { display: inline-flex; align-items: center; min-height: 48px; }
+              .brand svg { display: block; width: ${width}px; height: auto; }
+            </style><a class="brand">${lockup}</a>`,
+          );
+          const metrics = await page.locator('.brand').evaluate((brand, declared) => {
+            const svg = brand.querySelector('svg');
+            const linkRect = brand.getBoundingClientRect();
+            const imageRect = svg.getBoundingClientRect();
+            const art = svg.getBBox();
+            const branch = svg.querySelector('[data-part="branch"]');
+            const branchBox = branch.getBBox();
+            const viewBox = svg.viewBox.baseVal;
+            const scale = imageRect.width / viewBox.width;
+            return {
+              linkRight: linkRect.right,
+              imageRight: imageRect.right,
+              artRight: imageRect.left + (art.x + art.width - viewBox.x) * scale,
+              declaredArtRight:
+                imageRect.left + (declared[0] + declared[2] - viewBox.x) * scale,
+              branchWidth: branchBox.width * scale,
+              branchHeight: branchBox.height * scale,
+              branchFill: getComputedStyle(branch).fill,
+            };
+          }, declaredBounds);
+          assert.ok(
+            metrics.imageRight <= metrics.linkRight + 0.5,
+            `${path} ${width}px image exceeds link: ${JSON.stringify(metrics)}`,
+          );
+          assert.ok(
+            metrics.artRight <= metrics.imageRight - 1,
+            `${path} ${width}px lockup lacks a safe art inset: ${JSON.stringify(metrics)}`,
+          );
+          assert.ok(
+            metrics.artRight <= metrics.declaredArtRight + 0.5,
+            `${path} ${width}px measured bounds understate the artwork: ${JSON.stringify(metrics)}`,
+          );
+          assert.ok(
+            metrics.branchWidth >= 2 &&
+              metrics.branchHeight >= 2 &&
+              metrics.branchFill !== 'none',
+            `${path} ${width}px branch collapses to a stroke: ${JSON.stringify(metrics)}`,
+          );
+        }
+      }
+    } finally {
+      await browser.close();
+    }
+  });
+
   it('confirms the rendered getBBox remains inside the viewBox at 120, 72 and 32px', async () => {
     const browser = await chromium.launch({ channel: 'msedge', headless: true });
     try {
