@@ -1,4 +1,5 @@
-import { DB_NAME, DB_VERSION, LEGACY_DB_NAME } from './schema';
+import { DB_NAME, DB_VERSION, LEGACY_DB_NAME, SCHEMA_VERSION } from './schema';
+import { migrateForestRecords } from './migrations';
 
 /**
  * Minimal promise wrapper over IndexedDB — the only six operations this app
@@ -76,7 +77,15 @@ export function openDb(): Promise<IDBDatabase> {
     request.onsuccess = () => {
       // One-time adoption of the pre-rename database (see schema.ts naming
       // note): copy, never move — the legacy DB stays as a safety net.
-      void migrateLegacyIfNeeded(request.result).finally(() => resolve(request.result));
+      void migrateLegacyIfNeeded(request.result)
+        .then(() => migrateSchemaIfNeeded(request.result))
+        .then(
+          () => resolve(request.result),
+          (error: unknown) => {
+            request.result.close();
+            reject(error);
+          },
+        );
     };
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error('IndexedDB open blocked by another tab'));
@@ -96,6 +105,8 @@ const ALL_STORES: StoreName[] = [
 
 /** Meta sentinel: present ⇔ the legacy question is settled for this device. */
 const MIGRATED_KEY = 'legacy.migratedAt';
+/** Data-shape marker; independent from IndexedDB's structural version. */
+const SCHEMA_VERSION_KEY = 'schema.version';
 
 function sealMigration(db: IDBDatabase, how: string): Promise<void> {
   const tx = db.transaction('meta', 'readwrite');
@@ -180,6 +191,64 @@ async function migrateLegacyIfNeeded(db: IDBDatabase): Promise<void> {
   }
 }
 
+/**
+ * Upgrade lived-in data after the database is open. Reads, deterministic
+ * v12->v13 heart assignment, tree writes and the version marker share ONE
+ * readwrite transaction; a tab crash can leave neither a partial forest nor
+ * a falsely-advanced marker. Nodes are read for selection and never rewritten.
+ *
+ * A missing marker means v12: all earlier schema changes were additive and
+ * existing databases predate this first data-migration marker. A future or
+ * malformed marker aborts the transaction and fails closed.
+ */
+/** @internal Exported for deterministic transaction-boundary tests. */
+export function migrateSchemaIfNeeded(db: IDBDatabase): Promise<void> {
+  const tx = db.transaction(['trees', 'nodes', 'meta'], 'readwrite');
+  const treesRequest = tx.objectStore('trees').getAll();
+  const nodesRequest = tx.objectStore('nodes').getAll();
+  const markerRequest = tx.objectStore('meta').get(SCHEMA_VERSION_KEY);
+  let planned = false;
+  let planningError: unknown;
+
+  const planWrites = () => {
+    if (
+      planned ||
+      treesRequest.readyState !== 'done' ||
+      nodesRequest.readyState !== 'done' ||
+      markerRequest.readyState !== 'done'
+    ) {
+      return;
+    }
+    planned = true;
+    try {
+      const marker = markerRequest.result as { version?: unknown } | undefined;
+      const fromVersion = marker === undefined ? 12 : marker.version;
+      const migrated = migrateForestRecords(
+        { trees: treesRequest.result, nodes: nodesRequest.result },
+        fromVersion,
+      );
+      if (fromVersion !== SCHEMA_VERSION) {
+        const trees = tx.objectStore('trees');
+        for (const tree of migrated.trees) trees.put(tree);
+      }
+      tx.objectStore('meta').put({ key: SCHEMA_VERSION_KEY, version: SCHEMA_VERSION });
+    } catch (error) {
+      planningError = error;
+      tx.abort();
+    }
+  };
+
+  treesRequest.onsuccess = planWrites;
+  nodesRequest.onsuccess = planWrites;
+  markerRequest.onsuccess = planWrites;
+
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(planningError ?? tx.error);
+    tx.onabort = () => reject(planningError ?? tx.error ?? new Error('schema migration aborted'));
+  });
+}
+
 function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -244,11 +313,31 @@ export async function replaceAll(
 ): Promise<void> {
   if (!entries.length) return;
   const db = await openDb();
-  const tx = db.transaction(entries.map((e) => e.store), 'readwrite');
-  for (const entry of entries) {
-    const os = tx.objectStore(entry.store);
-    os.clear();
-    for (const row of entry.rows) os.put(row);
+  return replaceAllInDatabase(db, entries);
+}
+
+/** @internal The import transaction seam, exported for atomic-failure tests. */
+export function replaceAllInDatabase(
+  db: IDBDatabase,
+  entries: { store: StoreName; rows: unknown[] }[],
+): Promise<void> {
+  if (!entries.length) return Promise.resolve();
+  const tx = db.transaction([...new Set(entries.map((e) => e.store))], 'readwrite');
+  try {
+    for (const entry of entries) {
+      const os = tx.objectStore(entry.store);
+      os.clear();
+      for (const row of entry.rows) os.put(row);
+    }
+  } catch (error) {
+    // A synchronous key/clone error does not automatically abort IndexedDB;
+    // without this, earlier clears in the same call could still commit.
+    try {
+      tx.abort();
+    } catch {
+      // Already inactive/aborted: the original write error is authoritative.
+    }
+    return Promise.reject(error);
   }
   return txDone(tx);
 }

@@ -25,14 +25,14 @@ function base(id: string, offsetDays: number) {
 }
 
 export const DEMO_TREES: Tree[] = [
-  { ...base('demo-guitar', 40), name: 'Aprender guitarra', accent: 'moss', order: 10, currentNodeId: 'demo-g-first-song', archivedAt: null },
-  { ...base('demo-health', 30), name: 'Cuidarme', accent: 'rose', order: 20, currentNodeId: null, archivedAt: null },
-  { ...base('demo-work', 20), name: 'Proyecto personal', accent: 'sky', order: 30, currentNodeId: null, archivedAt: null },
-  { ...base('demo-seedling', 10), name: 'Idea nueva', accent: 'clay', order: 40, currentNodeId: null, archivedAt: null },
+  { ...base('demo-guitar', 40), name: 'Aprender guitarra', accent: 'moss', order: 10, currentNodeId: 'demo-g-first-song', heartId: 'demo-g-root', archivedAt: null },
+  { ...base('demo-health', 30), name: 'Cuidarme', accent: 'rose', order: 20, currentNodeId: null, heartId: 'demo-h-root', archivedAt: null },
+  { ...base('demo-work', 20), name: 'Proyecto personal', accent: 'sky', order: 30, currentNodeId: null, heartId: 'demo-w-root', archivedAt: null },
+  { ...base('demo-seedling', 10), name: 'Idea nueva', accent: 'clay', order: 40, currentNodeId: null, heartId: 'demo-s-root', archivedAt: null },
   // A CLOSED chapter (archived — never shows in the meadow): it feeds the
   // showcase elixir, and the backfill mints its fruits like any lived-in
   // device (fruit survives archive — «nada se gasta»).
-  { ...base('demo-huerto', 60), name: 'Mi huerto de verano', accent: 'sand', order: 50, currentNodeId: null, archivedAt: now - 6 * day },
+  { ...base('demo-huerto', 60), name: 'Mi huerto de verano', accent: 'sand', order: 50, currentNodeId: null, heartId: 'demo-o-root', archivedAt: now - 6 * day },
 ];
 
 function node(

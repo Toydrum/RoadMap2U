@@ -10,6 +10,7 @@ import {
   Tree,
   TreeNode,
 } from '../db/schema';
+import { migrateBackupEnvelope } from '../db/migrations';
 import { getAll, replaceAll } from '../db/idb';
 import { broadcastChange } from '../db/broadcast';
 import { SyncService } from '../sync/sync.service';
@@ -78,15 +79,10 @@ export class BackupService {
    * problem — not half-built here.
    */
   async importReplace(json: string): Promise<void> {
-    const envelope = JSON.parse(json) as ExportEnvelope;
-    // 'rodemap2u' is the pre-rename envelope id — accepted FOREVER so every
-    // backup ever downloaded keeps importing (naming note in schema.ts).
-    if (envelope.app !== 'roadmap2u' && envelope.app !== 'rodemap2u') {
-      throw new Error('not a RoadMap2U backup');
-    }
-    if (typeof envelope.schemaVersion !== 'number' || envelope.schemaVersion > SCHEMA_VERSION) {
-      throw new Error('backup from a newer app version');
-    }
+    // Validation + the same pure data-shape pipeline used by live IndexedDB
+    // happen BEFORE the safety download or any replace transaction. The
+    // import-only 'rodemap2u' app id remains accepted inside the migrator.
+    const envelope = migrateBackupEnvelope(JSON.parse(json));
     // Validate the WHOLE shape before touching disk: a malformed file that
     // passed the header checks used to wipe the stores and THEN throw —
     // empty forest on next reload.
@@ -109,9 +105,6 @@ export class BackupService {
         throw new Error('backup data is malformed');
       }
     }
-    // (When SCHEMA_VERSION grows, run the same data-migration pipeline used
-    // at DB open against envelope.data before writing.)
-
     // Records the import REMOVES must also be announced, or a second tab's
     // in-memory copy resurrects them on its next save. From byId() — not
     // all() — so TOMBSTONES count too (0.0.115 B7: a tombstone absent from

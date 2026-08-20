@@ -16,6 +16,7 @@ function tree(partial: Partial<Tree> = {}): Tree {
     accent: 'moss',
     order: 10,
     currentNodeId: null,
+    heartId: null,
     archivedAt: null,
     ...partial,
   };

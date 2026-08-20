@@ -69,8 +69,8 @@ function base(id: string, offsetDays: number) {
   };
 }
 
-function tree(id: string, name: string, accent: Tree['accent'], order: number, offsetDays: number): Tree {
-  return { ...base(id, offsetDays), name, accent, order, currentNodeId: null, archivedAt: null };
+function tree(id: string, heartId: string, name: string, accent: Tree['accent'], order: number, offsetDays: number): Tree {
+  return { ...base(id, offsetDays), name, accent, order, currentNodeId: null, heartId, archivedAt: null };
 }
 
 function node(
@@ -103,8 +103,8 @@ const FORESTS: { ownerId: string; trees: Tree[]; nodes: TreeNode[] }[] = [
   {
     ownerId: 'mock-parent',
     trees: [
-      tree('rocio-huerto', 'Huerto en el balcón', 'moss', 10, 80),
-      tree('rocio-lectura', 'Leer más seguido', 'sand', 20, 50),
+      tree('rocio-huerto', 'rocio-h-root', 'Huerto en el balcón', 'moss', 10, 80),
+      tree('rocio-lectura', 'rocio-l-root', 'Leer más seguido', 'sand', 20, 50),
     ],
     nodes: [
       node('rocio-h-root', 'rocio-huerto', null, 'Un huerto que dé de comer', 'growing', 10),
@@ -116,7 +116,7 @@ const FORESTS: { ownerId: string; trees: Tree[]; nodes: TreeNode[] }[] = [
   },
   {
     ownerId: 'mock-child',
-    trees: [tree('nico-bici', 'Andar en bici sin rueditas', 'sky', 10, 25)],
+    trees: [tree('nico-bici', 'nico-b-root', 'Andar en bici sin rueditas', 'sky', 10, 25)],
     nodes: [
       node('nico-b-root', 'nico-bici', null, 'Rodar solo hasta el parque', 'growing', 10),
       node('nico-b-equilibrio', 'nico-bici', 'nico-b-root', 'Practicar equilibrio en el pasto', 'achieved', 10),
@@ -125,7 +125,7 @@ const FORESTS: { ownerId: string; trees: Tree[]; nodes: TreeNode[] }[] = [
   },
   {
     ownerId: 'mock-teen',
-    trees: [tree('val-banda', 'Tocar en una banda', 'lavender', 10, 55)],
+    trees: [tree('val-banda', 'val-b-root', 'Tocar en una banda', 'lavender', 10, 55)],
     nodes: [
       node('val-b-root', 'val-banda', null, 'Subirme a un escenario', 'growing', 10),
       node('val-b-bajo', 'val-banda', 'val-b-root', 'Clases de bajo', 'growing', 10),
@@ -136,8 +136,8 @@ const FORESTS: { ownerId: string; trees: Tree[]; nodes: TreeNode[] }[] = [
   {
     ownerId: 'mock-friend',
     trees: [
-      tree('ambar-ceramica', 'Cerámica', 'clay', 10, 110),
-      tree('ambar-jardin', 'Jardín de lluvia', 'pine', 20, 70),
+      tree('ambar-ceramica', 'ambar-c-root', 'Cerámica', 'clay', 10, 110),
+      tree('ambar-jardin', 'ambar-j-root', 'Jardín de lluvia', 'pine', 20, 70),
     ],
     nodes: [
       node('ambar-c-root', 'ambar-ceramica', null, 'Vivir del barro', 'growing', 10),

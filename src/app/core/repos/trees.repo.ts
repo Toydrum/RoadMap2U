@@ -42,6 +42,9 @@ export class TreesRepo extends RecordsRepo<Tree> {
       accent,
       order: maxOrder + 10,
       currentNodeId: null,
+      // TASK-054 replaces this interim two-step create path with one atomic
+      // tree + root write and assigns the newborn root id here.
+      heartId: null,
       archivedAt: null,
     };
     return this.insert(tree);
