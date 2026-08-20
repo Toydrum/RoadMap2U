@@ -48,8 +48,7 @@ describe('commercial demo seed', () => {
         (tree) =>
           typeof tree.heartId === 'string' &&
           prepared.nodes.some(
-            (node) =>
-              node.id === tree.heartId && node.treeId === tree.id && node.parentId === null,
+            (node) => node.id === tree.heartId && node.treeId === tree.id && node.parentId === null,
           ),
       ),
     ).toBe(true);
@@ -130,6 +129,7 @@ describe('commercial demo seed', () => {
     expect(seedPorts.patchSettings).toHaveBeenCalledOnce();
     expect(messages).toHaveLength(6);
     expect(messages.every((message) => message.reset === true)).toBe(true);
+    expect(new Set(messages.map((message) => message.mutationGroupId)).size).toBe(1);
     stop();
   });
 

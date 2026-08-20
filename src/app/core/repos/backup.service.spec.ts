@@ -74,7 +74,9 @@ function legacyEnvelope(): string {
 class RepoDouble<T extends { id: string }> {
   private readonly records = signal<ReadonlyMap<string, T>>(new Map());
   readonly byId = this.records.asReadonly();
-  readonly resetTo = vi.fn((rows: T[]) => this.records.set(new Map(rows.map((row) => [row.id, row]))));
+  readonly resetTo = vi.fn((rows: T[]) =>
+    this.records.set(new Map(rows.map((row) => [row.id, row]))),
+  );
 }
 
 function replacementStorage(
@@ -83,7 +85,10 @@ function replacementStorage(
   return { replace, replaceIfEmpty: vi.fn(async () => false) };
 }
 
-function configure(storage: ForestReplacementStorage, assertImport = vi.fn()): {
+function configure(
+  storage: ForestReplacementStorage,
+  assertImport = vi.fn(),
+): {
   service: BackupService;
   repos: RepoDouble<{ id: string }>[];
   assertImport: ReturnType<typeof vi.fn>;
@@ -123,9 +128,7 @@ describe('commercial backup replacement', () => {
   it('migrates and preflights once, then resets memory and broadcasts only after commit', async () => {
     let release!: () => void;
     const replace = vi.fn(() => new Promise<void>((resolve) => (release = resolve)));
-    const { service, repos, assertImport, settings, sync } = configure(
-      replacementStorage(replace),
-    );
+    const { service, repos, assertImport, settings, sync } = configure(replacementStorage(replace));
     const download = vi.spyOn(service, 'download').mockResolvedValue();
     const messages: DbChangeMessage[] = [];
     const stop = onLocalWrite((message) => messages.push(message));
@@ -152,13 +155,44 @@ describe('commercial backup replacement', () => {
     );
     expect(sync.noteRestore).toHaveBeenCalledOnce();
     expect(messages).toEqual([
-      { store: 'trees', ids: ['restored'], reset: true },
-      { store: 'nodes', ids: ['restored-root'], reset: true },
-      { store: 'checkins', ids: [], reset: true },
-      { store: 'sessions', ids: [], reset: true },
-      { store: 'harvests', ids: [], reset: true },
-      { store: 'preserves', ids: [], reset: true },
+      {
+        store: 'trees',
+        ids: ['restored'],
+        reset: true,
+        mutationGroupId: expect.stringMatching(/^mg-[0-9a-f-]{36}$/),
+      },
+      {
+        store: 'nodes',
+        ids: ['restored-root'],
+        reset: true,
+        mutationGroupId: expect.stringMatching(/^mg-[0-9a-f-]{36}$/),
+      },
+      {
+        store: 'checkins',
+        ids: [],
+        reset: true,
+        mutationGroupId: expect.stringMatching(/^mg-[0-9a-f-]{36}$/),
+      },
+      {
+        store: 'sessions',
+        ids: [],
+        reset: true,
+        mutationGroupId: expect.stringMatching(/^mg-[0-9a-f-]{36}$/),
+      },
+      {
+        store: 'harvests',
+        ids: [],
+        reset: true,
+        mutationGroupId: expect.stringMatching(/^mg-[0-9a-f-]{36}$/),
+      },
+      {
+        store: 'preserves',
+        ids: [],
+        reset: true,
+        mutationGroupId: expect.stringMatching(/^mg-[0-9a-f-]{36}$/),
+      },
     ]);
+    expect(new Set(messages.map((message) => message.mutationGroupId)).size).toBe(1);
     stop();
   });
 
@@ -168,10 +202,7 @@ describe('commercial backup replacement', () => {
       throw denial;
     });
     const replace = vi.fn(async () => undefined);
-    const { service, repos, settings, sync } = configure(
-      replacementStorage(replace),
-      assertImport,
-    );
+    const { service, repos, settings, sync } = configure(replacementStorage(replace), assertImport);
     const download = vi.spyOn(service, 'download').mockResolvedValue();
     const messages: DbChangeMessage[] = [];
     const stop = onLocalWrite((message) => messages.push(message));

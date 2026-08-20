@@ -101,9 +101,18 @@ describe('atomic forest mutations', () => {
       deletedAt: null,
     });
     expect(writes).toEqual([
-      { store: 'trees', ids: [newborn.id] },
-      { store: 'nodes', ids: [newborn.heartId!] },
+      {
+        store: 'trees',
+        ids: [newborn.id],
+        mutationGroupId: expect.stringMatching(/^mg-/),
+      },
+      {
+        store: 'nodes',
+        ids: [newborn.heartId!],
+        mutationGroupId: expect.stringMatching(/^mg-/),
+      },
     ]);
+    expect(writes[1].mutationGroupId).toBe(writes[0].mutationGroupId);
     stop();
   });
 
@@ -320,10 +329,31 @@ describe('atomic forest mutations', () => {
     ).resolves.toMatchObject({ title: 'La autoridad vive en el owner' });
 
     expect(pushSyncFor).toHaveBeenCalledTimes(1);
+    const request = pushSyncFor.mock.calls[0][1];
+    expect(request).toMatchObject({
+      schemaVersion: 13,
+      contractVersion: 2,
+      mutationGroups: [
+        {
+          id: expect.stringMatching(/^mg-[0-9a-f-]{36}$/),
+          expectedCount: 1,
+          records: [
+            {
+              store: 'nodes',
+              record: expect.objectContaining({ title: 'La autoridad vive en el owner' }),
+            },
+          ],
+        },
+      ],
+    });
   });
 
   it('leaves a delegated visit tree restore to the visited owner server policy', async () => {
-    const pushSyncFor = vi.fn(async () => ({ applied: ['oak'], rejected: [], serverRecords: [] }));
+    const pushSyncFor = vi.fn<ApiClient['pushSyncFor']>(async () => ({
+      applied: ['oak'],
+      rejected: [],
+      serverRecords: [],
+    }));
     TestBed.configureTestingModule({
       providers: [
         VisitTreesRepo,
@@ -346,5 +376,16 @@ describe('atomic forest mutations', () => {
     await expect(visited.restore(archived)).resolves.toBeUndefined();
 
     expect(pushSyncFor).toHaveBeenCalledTimes(1);
+    expect(pushSyncFor.mock.calls[0][1]).toMatchObject({
+      schemaVersion: 13,
+      contractVersion: 2,
+      mutationGroups: [
+        {
+          id: expect.stringMatching(/^mg-[0-9a-f-]{36}$/),
+          expectedCount: 1,
+          records: [{ store: 'trees', record: expect.objectContaining({ id: 'oak' }) }],
+        },
+      ],
+    });
   });
 });

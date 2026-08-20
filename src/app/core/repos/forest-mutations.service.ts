@@ -12,13 +12,8 @@ import {
 } from '../access/quota-policy';
 import { AccessService } from '../access/access.service';
 import type { AccessSummary } from '../api/contracts';
-import { broadcastChange } from '../db/broadcast';
-import {
-  type StoreName,
-  putAcrossOrMemory,
-  replaceAll,
-  replaceAllIfEmpty,
-} from '../db/idb';
+import { broadcastMutation } from '../db/broadcast';
+import { type StoreName, putAcrossOrMemory, replaceAll, replaceAllIfEmpty } from '../db/idb';
 import { type AccentToken, type Tree, type TreeNode, newSyncBase } from '../db/schema';
 
 export interface ForestMutationEntry {
@@ -160,8 +155,10 @@ export class ForestMutationsService {
     // commits (or after the storage seam deliberately chose memory-only).
     this.treesPort!.publish([tree]);
     this.nodesPort!.publish([heart]);
-    broadcastChange({ store: 'trees', ids: [tree.id] });
-    broadcastChange({ store: 'nodes', ids: [heart.id] });
+    broadcastMutation([
+      { store: 'trees', ids: [tree.id] },
+      { store: 'nodes', ids: [heart.id] },
+    ]);
     return tree;
   }
 

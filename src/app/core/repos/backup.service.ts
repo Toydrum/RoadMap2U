@@ -12,7 +12,7 @@ import {
 } from '../db/schema';
 import { migrateBackupEnvelope } from '../db/migrations';
 import { getAll } from '../db/idb';
-import { broadcastChange } from '../db/broadcast';
+import { broadcastMutation } from '../db/broadcast';
 import { SyncService } from '../sync/sync.service';
 import { TreesRepo } from './trees.repo';
 import { NodesRepo } from './nodes.repo';
@@ -21,10 +21,7 @@ import { SessionsRepo } from './sessions.repo';
 import { HarvestsRepo } from './harvests.repo';
 import { PreservesRepo } from './preserves.repo';
 import { SettingsService } from './settings.service';
-import {
-  FOREST_REPLACEMENT_STORAGE,
-  ForestMutationsService,
-} from './forest-mutations.service';
+import { FOREST_REPLACEMENT_STORAGE, ForestMutationsService } from './forest-mutations.service';
 
 @Injectable({ providedIn: 'root' })
 export class BackupService {
@@ -185,12 +182,14 @@ export class BackupService {
     // LWW guard in applyExternal reject the restoration (0.0.115 audit A1:
     // the sibling tab used to keep the pre-import forest and could re-push
     // exactly what the user reverted).
-    broadcastChange({ store: 'trees', ids: union(trees, removedIds.trees), reset: true });
-    broadcastChange({ store: 'nodes', ids: union(nodes, removedIds.nodes), reset: true });
-    broadcastChange({ store: 'checkins', ids: union(checkins, removedIds.checkins), reset: true });
-    broadcastChange({ store: 'sessions', ids: union(sessions, removedIds.sessions), reset: true });
-    broadcastChange({ store: 'harvests', ids: union(harvests, removedIds.harvests), reset: true });
-    broadcastChange({ store: 'preserves', ids: union(preserves, removedIds.preserves), reset: true });
+    broadcastMutation([
+      { store: 'trees', ids: union(trees, removedIds.trees), reset: true },
+      { store: 'nodes', ids: union(nodes, removedIds.nodes), reset: true },
+      { store: 'checkins', ids: union(checkins, removedIds.checkins), reset: true },
+      { store: 'sessions', ids: union(sessions, removedIds.sessions), reset: true },
+      { store: 'harvests', ids: union(harvests, removedIds.harvests), reset: true },
+      { store: 'preserves', ids: union(preserves, removedIds.preserves), reset: true },
+    ]);
 
     // An explicit restore must WIN over the cloud — without this, the next
     // pull silently resurrects whatever the backup rolled back (cloud revs

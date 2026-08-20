@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { AccentToken, Harvest, JarVessel, Preserve, newSyncBase, stamp } from './db/schema';
 import { StoreName, putAcross } from './db/idb';
-import { broadcastChange } from './db/broadcast';
+import { broadcastChange, broadcastMutation } from './db/broadcast';
 import { deriveAccent, isPending, jarCapacity, jarSizeFor } from './harvest';
 import { HarvestsRepo } from './repos/harvests.repo';
 import { PreservesRepo } from './repos/preserves.repo';
@@ -75,8 +75,10 @@ export class ConserveriaService {
     ]);
     this.preserves.applyExternal(preserve);
     for (const row of stamped) this.harvests.applyExternal(row);
-    broadcastChange({ store: 'preserves', ids: [preserve.id] });
-    broadcastChange({ store: 'harvests', ids: stamped.map((r) => r.id) });
+    broadcastMutation([
+      { store: 'preserves', ids: [preserve.id] },
+      { store: 'harvests', ids: stamped.map((r) => r.id) },
+    ]);
     return preserve;
   }
 
@@ -117,8 +119,10 @@ export class ConserveriaService {
     ]);
     this.preserves.applyExternal(tombstoned);
     for (const row of freed) this.harvests.applyExternal(row);
-    broadcastChange({ store: 'preserves', ids: [tombstoned.id] });
-    broadcastChange({ store: 'harvests', ids: freed.map((r) => r.id) });
+    broadcastMutation([
+      { store: 'preserves', ids: [tombstoned.id] },
+      { store: 'harvests', ids: freed.map((r) => r.id) },
+    ]);
   }
 
   // ── «La promesa» (0.0.93): goal jars — an empty jar created ahead of its
@@ -242,7 +246,8 @@ export class ConserveriaService {
       ...jar,
       name: fields.name?.trim() || jar.name,
       premio: fields.premio?.trim() || jar.premio,
-      savedFor: fields.savedFor !== undefined ? fields.savedFor.trim() || null : (jar.savedFor ?? null),
+      savedFor:
+        fields.savedFor !== undefined ? fields.savedFor.trim() || null : (jar.savedFor ?? null),
     });
   }
 
@@ -274,8 +279,10 @@ export class ConserveriaService {
     ]);
     this.preserves.applyExternal(tombstoned);
     for (const row of freed) this.harvests.applyExternal(row);
-    broadcastChange({ store: 'preserves', ids: [tombstoned.id] });
-    if (freed.length) broadcastChange({ store: 'harvests', ids: freed.map((r) => r.id) });
+    broadcastMutation([
+      { store: 'preserves', ids: [tombstoned.id] },
+      ...(freed.length ? [{ store: 'harvests' as const, ids: freed.map((r) => r.id) }] : []),
+    ]);
   }
 
   /** «Hacer mermelada» (0.0.96): the user seals a FULL goal jar themselves —
