@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { AccompanimentService } from '../../core/accompaniment.service';
+import { AccessService } from '../../core/access/access.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { BackupReminderService } from '../../core/backup-reminder.service';
 import { BootService } from '../../core/boot.service';
@@ -51,22 +52,29 @@ describe('route-scoped startup', () => {
 
   it('starts data seams before chrome and performs the whole startup only once', async () => {
     const dataReady = deferred();
+    const accessReady = deferred();
     const calls: string[] = [];
     const start = (name: string) => () => {
       calls.push(name);
       return dataReady.promise;
     };
-    const tracked = <T>(name: string, value: T) => () => {
-      calls.push(name);
-      return value;
-    };
+    const tracked =
+      <T>(name: string, value: T) =>
+      () => {
+        calls.push(name);
+        return value;
+      };
 
     TestBed.configureTestingModule({
       providers: [
         ProductInitializer,
         { provide: BootService, useValue: { init: start('boot') } },
         { provide: AuthInitializer, useValue: { init: start('auth') } },
-        { provide: SyncService, useValue: { init: start('sync') } },
+        {
+          provide: AccessService,
+          useValue: { start: () => (calls.push('access'), accessReady.promise) },
+        },
+        { provide: SyncService, useValue: { init: () => (calls.push('sync'), Promise.resolve()) } },
         { provide: ThemeService, useFactory: tracked('theme', {}) },
         { provide: MotionService, useFactory: tracked('motion', {}) },
         {
@@ -93,14 +101,17 @@ describe('route-scoped startup', () => {
     const second = initializer.init();
 
     expect(first).toBe(second);
-    expect(calls).toEqual(['boot', 'auth', 'sync']);
+    expect(calls).toEqual(['boot', 'auth']);
 
     dataReady.resolve();
+    await vi.waitFor(() => expect(calls).toEqual(['boot', 'auth', 'access']));
+    accessReady.resolve();
     await first;
 
     expect(calls).toEqual([
       'boot',
       'auth',
+      'access',
       'sync',
       'theme',
       'motion',

@@ -1,6 +1,7 @@
 import { Injectable, Injector, inject } from '@angular/core';
 import { CanActivateFn } from '@angular/router';
 import { AccompanimentService } from '../../core/accompaniment.service';
+import { AccessService } from '../../core/access/access.service';
 import { BackupReminderService } from '../../core/backup-reminder.service';
 import { BootService } from '../../core/boot.service';
 import { MotionService } from '../../core/motion.service';
@@ -33,8 +34,9 @@ export class ProductInitializer {
     await Promise.all([
       this.injector.get(BootService).init(),
       this.injector.get(AuthInitializer).init(),
-      this.injector.get(SyncService).init(),
     ]);
+    await this.injector.get(AccessService).start();
+    await this.injector.get(SyncService).init();
 
     this.injector.get(ThemeService);
     this.injector.get(MotionService);
