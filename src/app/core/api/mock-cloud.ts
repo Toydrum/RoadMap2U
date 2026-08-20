@@ -1,5 +1,5 @@
 import { CheckIn, Harvest, Preserve, Tree, TreeNode, TimerSession } from '../db/schema';
-import { GuardianLinkKind, SyncStore, UserProfile } from './contracts';
+import { GuardianLinkKind, SyncRecord, SyncStore, UserProfile, lwwBeats } from './contracts';
 
 /**
  * The simulated cloud — a SEPARATE IndexedDB database standing in for
@@ -163,6 +163,64 @@ export async function mockPut<T>(store: MockStore, value: T): Promise<void> {
   const tx = db.transaction(store, 'readwrite');
   tx.objectStore(store).put(value);
   return txDone(tx);
+}
+
+export interface MockRecordGroupResult {
+  applied: MockRecordRow[];
+  stale: MockRecordRow[];
+}
+
+/**
+ * Applies one sync mutation group under a single IndexedDB read/write
+ * transaction. The records store and its change-feed counter commit together;
+ * if any member loses LWW, the transaction performs no writes and returns
+ * every stored winner needed by the caller.
+ */
+export async function mockApplyRecordGroup(
+  ownerId: string,
+  entries: readonly SyncRecord[],
+  syncedAt: number,
+): Promise<MockRecordGroupResult> {
+  if (!entries.length) return { applied: [], stale: [] };
+
+  const db = await ready();
+  const tx = db.transaction(['records', 'kv'], 'readwrite');
+  const records = tx.objectStore('records');
+  const kv = tx.objectStore('kv');
+  const keys = entries.map((entry) => recordKey(ownerId, entry.store, entry.record.id));
+  const stored = await Promise.all(
+    keys.map((key) => requestToPromise<MockRecordRow | undefined>(records.get(key))),
+  );
+  const stale = stored.filter(
+    (row, index): row is MockRecordRow =>
+      row !== undefined && !lwwBeats(entries[index].record, row.record),
+  );
+
+  if (stale.length) {
+    await txDone(tx);
+    return { applied: [], stale };
+  }
+
+  const counter = await requestToPromise<{ key: string; value: number } | undefined>(
+    kv.get('changeSeq'),
+  );
+  const firstSeq = (counter?.value ?? 0) + 1;
+  const applied = entries.map(
+    (entry, index) =>
+      ({
+        key: keys[index],
+        ownerId,
+        store: entry.store,
+        record: entry.record,
+        seq: firstSeq + index,
+        syncedAt,
+      }) satisfies MockRecordRow,
+  );
+
+  for (const row of applied) records.put(row);
+  kv.put({ key: 'changeSeq', value: firstSeq + applied.length - 1 });
+  await txDone(tx);
+  return { applied, stale: [] };
 }
 
 export async function mockDelete(store: MockStore, key: string): Promise<void> {

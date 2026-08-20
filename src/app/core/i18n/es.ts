@@ -993,6 +993,24 @@ export const ES = {
       LIMIT_EXCEEDED: 'Se alcanzó el límite de vínculos por ahora.',
       RATE_LIMITED: 'Muchos intentos seguidos. Espera un ratito.',
       SYNC_TOO_OLD: 'La app necesita actualizarse para continuar.',
+      QUOTA_EXCEEDED:
+        'Tu bosque sigue aquí. Para plantar otra rama, libera espacio o activa Premium.',
+      CAPABILITY_REQUIRED: 'Esta acción necesita Premium. Tu bosque local sigue intacto.',
+      MUTATION_GROUP_INVALID: 'La acción no llegó completa a la nube. Inténtala de nuevo completa.',
+      ACCESS_REVISION_CONFLICT:
+        'Tu acceso cambió mientras guardábamos. Actualiza e intenta de nuevo.',
+      ACCESS_CODE_INVALID: 'Esa llave no es válida. Revísala con calma.',
+      ACCESS_CODE_RATE_LIMITED:
+        'Hubo muchos intentos con llaves. Espera un rato antes de volver a intentar.',
+      ACCESS_CODE_ALREADY_REDEEMED:
+        'Esa llave ya se usó. Puedes revisar el acceso que tienes ahora.',
+      SYNC_SCHEMA_INVALID:
+        'Una parte de tu bosque necesita corregirse antes de subir. Tu copia local sigue intacta.',
+      SYNC_CLIENT_UPGRADE_REQUIRED: 'Actualiza la app antes de volver a enviar cambios a la nube.',
+      USAGE_MIGRATION_IN_PROGRESS:
+        'La nube está preparando tus límites. Tu cambio sigue en este dispositivo; inténtalo en un momento.',
+      COMMERCIAL_CONFIGURATION_UNAVAILABLE:
+        'No pudimos confirmar tu acceso ahora. Tu copia local sigue disponible; inténtalo después.',
       offline: 'Sin conexión ahora mismo — inténtalo cuando vuelva.',
       server: 'La nube tuvo un tropiezo. Intenta de nuevo en un momento.',
       unknown: 'Algo no salió. Intenta de nuevo en un momento.',

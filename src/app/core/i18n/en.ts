@@ -993,6 +993,24 @@ export const EN: Dict = {
       LIMIT_EXCEEDED: 'The link limit has been reached for now.',
       RATE_LIMITED: 'Too many tries in a row. Wait a little while.',
       SYNC_TOO_OLD: 'The app needs an update to continue.',
+      QUOTA_EXCEEDED:
+        'Your forest is still here. To plant another branch, free some space or activate Premium.',
+      CAPABILITY_REQUIRED: 'This action needs Premium. Your local forest remains untouched.',
+      MUTATION_GROUP_INVALID:
+        'The complete action did not reach the cloud. Try the whole action again.',
+      ACCESS_REVISION_CONFLICT: 'Your access changed while we were saving. Refresh and try again.',
+      ACCESS_CODE_INVALID: 'That access key is not valid. Check it calmly.',
+      ACCESS_CODE_RATE_LIMITED:
+        'There were too many access-key attempts. Wait a while before trying again.',
+      ACCESS_CODE_ALREADY_REDEEMED:
+        'That access key was already used. You can review the access you have now.',
+      SYNC_SCHEMA_INVALID:
+        'Part of your forest needs correction before upload. Your local copy remains intact.',
+      SYNC_CLIENT_UPGRADE_REQUIRED: 'Update the app before sending changes to the cloud again.',
+      USAGE_MIGRATION_IN_PROGRESS:
+        'The cloud is preparing your limits. Your change remains on this device; try again in a moment.',
+      COMMERCIAL_CONFIGURATION_UNAVAILABLE:
+        'We could not confirm your access right now. Your local copy remains available; try again later.',
       offline: 'No connection right now — try again when it returns.',
       server: 'The cloud stumbled. Try again in a moment.',
       unknown: 'Something didn’t work. Try again in a moment.',

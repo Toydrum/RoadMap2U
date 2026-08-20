@@ -1,7 +1,10 @@
 import { ApiClient } from './api-client';
 import {
+  AccessSummary,
+  AccountClosureReceipt,
   ApiError,
   ApiErrorCode,
+  CONTRACT_VERSION,
   CodeGrant,
   CreateChildRequest,
   CreateChildResponse,
@@ -13,14 +16,26 @@ import {
   ForestSnapshot,
   LIMITS,
   MeResponse,
+  PREPAYMENT_PLAN_CATALOG,
+  PlanCatalog,
   PublicProfile,
   SyncChangesResponse,
-  SyncPushRequest,
+  SyncPushPayload,
+  SyncRecord,
   SyncPushResponse,
   UserProfile,
-  lwwBeats,
+  createFreeAccessSummary,
 } from './contracts';
-import { CheckIn, ExportEnvelope, Harvest, Preserve, SCHEMA_VERSION, TimerSession, Tree, TreeNode } from '../db/schema';
+import {
+  CheckIn,
+  ExportEnvelope,
+  Harvest,
+  Preserve,
+  SCHEMA_VERSION,
+  TimerSession,
+  Tree,
+  TreeNode,
+} from '../db/schema';
 import { AuthProvider } from '../auth/auth-provider';
 import { USERNAME_PATTERN } from '../auth/auth-types';
 import { parseMockToken } from '../auth/mock-auth.provider';
@@ -32,6 +47,7 @@ import {
   MockGuardianLinkRow,
   MockRecordRow,
   MockUserRow,
+  mockApplyRecordGroup,
   mockDelete,
   mockGet,
   mockGetAll,
@@ -55,6 +71,28 @@ export function assertSocialEnabled(user: Pick<MockUserRow, 'socialEnabled'>): v
  */
 export class MockApi implements ApiClient {
   constructor(private readonly auth: AuthProvider) {}
+
+  // ── commercial access ────────────────────────────────────────────────────
+
+  async getPlans(): Promise<PlanCatalog> {
+    // Public and compiled: deliberately does not call auth or mock-cloud.
+    return PREPAYMENT_PLAN_CATALOG;
+  }
+
+  async getAccess(): Promise<AccessSummary> {
+    await simLatency('api.getAccess');
+    await this.caller();
+    return createFreeAccessSummary();
+  }
+
+  async redeemAccessCode(_code: string): Promise<AccessSummary> {
+    await simLatency('api.redeemAccessCode');
+    const caller = await this.caller();
+    if (caller.accountType !== 'adult') throw new ApiError('FORBIDDEN');
+    // The device mock has no HMAC secret or owner broker. Accepting a magic or
+    // arbitrary string here would create a false Premium security model.
+    throw new ApiError('ACCESS_CODE_INVALID');
+  }
 
   // ── me (phase «cuentas») ──────────────────────────────────────────────────
 
@@ -86,16 +124,26 @@ export class MockApi implements ApiClient {
     return this.profileOf(caller);
   }
 
+  async deleteMe(): Promise<AccountClosureReceipt> {
+    await simLatency('api.deleteMe');
+    const caller = await this.caller();
+    await this.auth.deleteAccount();
+    return { closureId: `mock:${caller.userId}`, state: 'completed' };
+  }
+
   // ── family (phase «familia») ──────────────────────────────────────────────
 
   async createChild(req: CreateChildRequest): Promise<CreateChildResponse> {
     await simLatency('api.createChild');
     const caller = await this.caller();
-    if (caller.accountType !== 'adult') throw new ApiError('FORBIDDEN', 'only adults create minors');
+    if (caller.accountType !== 'adult')
+      throw new ApiError('FORBIDDEN', 'only adults create minors');
     const username = req.username?.trim().toLowerCase() ?? '';
     const displayName = req.displayName?.trim() ?? '';
-    if (!USERNAME_PATTERN.test(username)) throw new ApiError('VALIDATION', 'username 3-20 [a-z0-9_]');
-    if (!displayName || displayName.length > 40) throw new ApiError('VALIDATION', 'displayName 1-40');
+    if (!USERNAME_PATTERN.test(username))
+      throw new ApiError('VALIDATION', 'username 3-20 [a-z0-9_]');
+    if (!displayName || displayName.length > 40)
+      throw new ApiError('VALIDATION', 'displayName 1-40');
     if ((await this.minorsOf(caller.userId)).length >= LIMITS.maxChildrenPerGuardian) {
       throw new ApiError('LIMIT_EXCEEDED');
     }
@@ -161,7 +209,9 @@ export class MockApi implements ApiClient {
     await simLatency('api.exportChild');
     const caller = await this.caller();
     await this.requireCreatedLink(caller.userId, userId);
-    const records = (await mockGetAll<MockRecordRow>('records')).filter((r) => r.ownerId === userId);
+    const records = (await mockGetAll<MockRecordRow>('records')).filter(
+      (r) => r.ownerId === userId,
+    );
     const of = <T>(store: string): T[] =>
       records.filter((r) => r.store === store).map((r) => r.record as T);
     return {
@@ -458,7 +508,10 @@ export class MockApi implements ApiClient {
     // and either side may have filled up since the request was sent.
     const edges = await mockGetAll<MockFriendshipRow>('friendships');
     const countOf = (id: string) => edges.filter((f) => f.userA === id || f.userB === id).length;
-    if (countOf(caller.userId) >= LIMITS.maxFriends || countOf(request.fromId) >= LIMITS.maxFriends) {
+    if (
+      countOf(caller.userId) >= LIMITS.maxFriends ||
+      countOf(request.fromId) >= LIMITS.maxFriends
+    ) {
       throw new ApiError('LIMIT_EXCEEDED');
     }
     const [a, b] = [caller.userId, request.fromId].sort();
@@ -470,7 +523,11 @@ export class MockApi implements ApiClient {
     };
     await mockPut('friendships', friendship);
     await mockDelete('friendRequests', requestId);
-    return { friendshipId: friendship.friendshipId, user: this.publicOf(other, false), since: friendship.createdAt };
+    return {
+      friendshipId: friendship.friendshipId,
+      user: this.publicOf(other, false),
+      since: friendship.createdAt,
+    };
   }
 
   /** Silent by design — the requester's pending item simply disappears. */
@@ -539,7 +596,20 @@ export class MockApi implements ApiClient {
       .map((r) => r.record as TreeNode)
       .filter((n) => !n.deletedAt && !n.archivedAt && liveTreeIds.has(n.treeId))
       .map((n) =>
-        detail === 'full' ? n : { ...n, note: '', trigger: null, targetDate: null, priority: null, estimateMin: null, repeatsDaily: undefined, repeats: undefined, repeatsSetAt: undefined, remindAt: undefined },
+        detail === 'full'
+          ? n
+          : {
+              ...n,
+              note: '',
+              trigger: null,
+              targetDate: null,
+              priority: null,
+              estimateMin: null,
+              repeatsDaily: undefined,
+              repeats: undefined,
+              repeatsSetAt: undefined,
+              remindAt: undefined,
+            },
       );
 
     return {
@@ -569,7 +639,7 @@ export class MockApi implements ApiClient {
     };
   }
 
-  async pushSync(req: SyncPushRequest): Promise<SyncPushResponse> {
+  async pushSync(req: SyncPushPayload): Promise<SyncPushResponse> {
     await simLatency('api.pushSync');
     const caller = await this.caller();
     return this.pushInto(caller.userId, req);
@@ -577,7 +647,7 @@ export class MockApi implements ApiClient {
 
   /** Guardian write-through (co-gardening): same rev-LWW law as own pushes;
    *  records land in the minor's cloud store. */
-  async pushSyncFor(userId: string, req: SyncPushRequest): Promise<SyncPushResponse> {
+  async pushSyncFor(userId: string, req: SyncPushPayload): Promise<SyncPushResponse> {
     await simLatency('api.pushSyncFor');
     const caller = await this.caller();
     const link = await this.linkBetween(caller.userId, userId);
@@ -585,12 +655,11 @@ export class MockApi implements ApiClient {
     return this.pushInto(userId, req);
   }
 
-  /** Shared LWW write loop — accept iff `lwwBeats(incoming, stored)` (the
-   *  contract's one ordering: rev, then updatedAt; exact ties keep the stored
-   *  copy), otherwise reject STALE_REV and hand back the stored winner. */
-  private async pushInto(ownerId: string, req: SyncPushRequest): Promise<SyncPushResponse> {
-    if (!Array.isArray(req.records)) throw new ApiError('VALIDATION');
-    if (req.records.length > LIMITS.syncPushMax) throw new ApiError('LIMIT_EXCEEDED');
+  /** Shared LWW write loop. v12 records remain independent singleton writes;
+   *  v2 validates the complete request up front and commits each mutation
+   *  group all-or-nothing. */
+  private async pushInto(ownerId: string, req: SyncPushPayload): Promise<SyncPushResponse> {
+    const groups = this.syncGroups(req);
     // The executable spec must rehearse what the Lambda enforces: a client
     // whose schema outruns the server gets SYNC_TOO_OLD, and every record
     // must carry a valid SyncBase + a known store.
@@ -606,39 +675,75 @@ export class MockApi implements ApiClient {
       'preserves',
     ];
 
+    const isV2 = 'contractVersion' in req;
+    for (const group of groups) {
+      const groupKeys = new Set<string>();
+      for (const entry of group) {
+        const record = entry.record;
+        if (
+          !STORES.includes(entry.store) ||
+          typeof record?.id !== 'string' ||
+          typeof record.rev !== 'number' ||
+          typeof record.updatedAt !== 'number'
+        ) {
+          throw new ApiError(isV2 ? 'SYNC_SCHEMA_INVALID' : 'VALIDATION', 'malformed sync record');
+        }
+        const key = `${entry.store}|${record.id}`;
+        if (groupKeys.has(key)) {
+          throw new ApiError(isV2 ? 'SYNC_SCHEMA_INVALID' : 'VALIDATION', 'duplicate sync record');
+        }
+        groupKeys.add(key);
+      }
+    }
+
     const applied: string[] = [];
     const rejected: { id: string; reason: 'STALE_REV' }[] = [];
     const serverRecords: SyncPushResponse['serverRecords'] = [];
-    const syncedAt = Date.now();
-    for (const entry of req.records) {
-      const record = entry.record;
-      if (
-        !STORES.includes(entry.store) ||
-        typeof record?.id !== 'string' ||
-        typeof record.rev !== 'number' ||
-        typeof record.updatedAt !== 'number'
-      ) {
-        throw new ApiError('VALIDATION', 'malformed sync record');
-      }
-      const key = `${ownerId}|${entry.store}|${record.id}`;
-      const stored = await mockGet<MockRecordRow>('records', key);
-      if (stored && !lwwBeats(record, stored.record)) {
-        rejected.push({ id: record.id, reason: 'STALE_REV' });
-        serverRecords.push({ store: stored.store, record: stored.record });
+    for (const group of groups) {
+      const result = await mockApplyRecordGroup(ownerId, group, Date.now());
+      if (result.stale.length) {
+        for (const winner of result.stale) {
+          rejected.push({ id: winner.record.id, reason: 'STALE_REV' });
+          serverRecords.push({ store: winner.store, record: winner.record });
+        }
         continue;
       }
-      const seq = await mockNextSeq('changeSeq');
-      await mockPut('records', {
-        key,
-        ownerId,
-        store: entry.store,
-        record,
-        seq,
-        syncedAt,
-      } satisfies MockRecordRow);
-      applied.push(record.id);
+      applied.push(...result.applied.map((row) => row.record.id));
     }
     return { applied, rejected, serverRecords };
+  }
+
+  private syncGroups(req: SyncPushPayload): SyncRecord[][] {
+    if ('contractVersion' in req) {
+      if (req.contractVersion !== CONTRACT_VERSION || !Array.isArray(req.mutationGroups)) {
+        throw new ApiError('MUTATION_GROUP_INVALID');
+      }
+      const ids = new Set<string>();
+      const groups: SyncRecord[][] = [];
+      let total = 0;
+      for (const group of req.mutationGroups) {
+        if (
+          typeof group?.id !== 'string' ||
+          !group.id.trim() ||
+          ids.has(group.id) ||
+          !Number.isSafeInteger(group.expectedCount) ||
+          group.expectedCount < 1 ||
+          group.expectedCount > LIMITS.syncMutationGroupMax ||
+          !Array.isArray(group.records) ||
+          group.records.length !== group.expectedCount
+        ) {
+          throw new ApiError('MUTATION_GROUP_INVALID');
+        }
+        ids.add(group.id);
+        total += group.records.length;
+        groups.push(group.records);
+      }
+      if (total > LIMITS.syncPushMax) throw new ApiError('LIMIT_EXCEEDED');
+      return groups;
+    }
+    if (!Array.isArray(req.records)) throw new ApiError('VALIDATION');
+    if (req.records.length > LIMITS.syncPushMax) throw new ApiError('LIMIT_EXCEEDED');
+    return req.records.map((record) => [record]);
   }
 
   // ── internals ─────────────────────────────────────────────────────────────
@@ -701,9 +806,7 @@ export class MockApi implements ApiClient {
   private async friendshipBetween(a: string, b: string): Promise<MockFriendshipRow | null> {
     const rows = await mockGetAll<MockFriendshipRow>('friendships');
     return (
-      rows.find(
-        (f) => (f.userA === a && f.userB === b) || (f.userA === b && f.userB === a),
-      ) ?? null
+      rows.find((f) => (f.userA === a && f.userB === b) || (f.userA === b && f.userB === a)) ?? null
     );
   }
 
@@ -720,19 +823,33 @@ export class MockApi implements ApiClient {
       const otherId = f.userA === userId ? f.userB : f.userA;
       const other = await mockGet<MockUserRow>('users', otherId);
       if (!other) continue;
-      friends.push({ friendshipId: f.friendshipId, user: this.publicOf(other, false), since: f.createdAt });
+      friends.push({
+        friendshipId: f.friendshipId,
+        user: this.publicOf(other, false),
+        since: f.createdAt,
+      });
     }
     const incoming: FriendRequestView[] = [];
     for (const r of requests.filter((r) => r.toId === userId)) {
       const other = await mockGet<MockUserRow>('users', r.fromId);
       if (!other) continue;
-      incoming.push({ requestId: r.requestId, user: this.publicOf(other, false), createdAt: r.createdAt, expiresAt: r.expiresAt });
+      incoming.push({
+        requestId: r.requestId,
+        user: this.publicOf(other, false),
+        createdAt: r.createdAt,
+        expiresAt: r.expiresAt,
+      });
     }
     const outgoing: FriendRequestView[] = [];
     for (const r of requests.filter((r) => r.fromId === userId)) {
       const other = await mockGet<MockUserRow>('users', r.toId);
       if (!other) continue;
-      outgoing.push({ requestId: r.requestId, user: this.publicOf(other, false), createdAt: r.createdAt, expiresAt: r.expiresAt });
+      outgoing.push({
+        requestId: r.requestId,
+        user: this.publicOf(other, false),
+        createdAt: r.createdAt,
+        expiresAt: r.expiresAt,
+      });
     }
     return { friends, incoming, outgoing };
   }
@@ -785,7 +902,10 @@ export class MockApi implements ApiClient {
   }
 
   /** Identity-admin gate — 404-shaped like the real Lambda (no oracle). */
-  private async requireCreatedLink(guardianId: string, minorId: string): Promise<MockGuardianLinkRow> {
+  private async requireCreatedLink(
+    guardianId: string,
+    minorId: string,
+  ): Promise<MockGuardianLinkRow> {
     const link = await this.linkBetween(guardianId, minorId);
     if (!link) throw new ApiError('NOT_FOUND');
     if (link.kind !== 'created') {
