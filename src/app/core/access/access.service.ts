@@ -88,16 +88,50 @@ function isTimestamp(value: unknown): value is number {
 
 function isSource(value: unknown, now: number): value is AccessSource {
   if (!isObject(value)) return false;
+  if (
+    value['kind'] === 'default' &&
+    value['sourceId'] === 'default' &&
+    value['planKey'] === 'free' &&
+    value['validUntil'] === null
+  ) {
+    return true;
+  }
+
+  // `subscription` is reserved in the wire type for the later payments
+  // phase. This launch has no live billing source, and every issued grant is
+  // the allowlisted Premium sponsored offer.
   return (
-    (value['kind'] === 'default' ||
-      value['kind'] === 'sponsored' ||
-      value['kind'] === 'subscription') &&
+    value['kind'] === 'sponsored' &&
     typeof value['sourceId'] === 'string' &&
     value['sourceId'].length > 0 &&
     value['sourceId'].length <= 128 &&
-    (value['planKey'] === 'free' || value['planKey'] === 'premium') &&
+    value['planKey'] === 'premium' &&
     (value['validUntil'] === null ||
       (isTimestamp(value['validUntil']) && (value['validUntil'] as number) > now))
+  );
+}
+
+function hasCanonicalEntitlements(
+  planKey: 'free' | 'premium',
+  sources: readonly AccessSource[],
+  limits: Record<string, unknown>,
+  capabilities: Record<string, unknown>,
+): boolean {
+  const plan = PREPAYMENT_PLAN_CATALOG.plans[planKey];
+  const sourceIds = new Set(sources.map((source) => source.sourceId));
+  const canonicalSources =
+    sourceIds.size === sources.length &&
+    (planKey === 'free'
+      ? sources.length === 1 && sources[0]?.kind === 'default'
+      : sources.length > 0 && sources.every((source) => source.kind === 'sponsored'));
+
+  return (
+    canonicalSources &&
+    limits['maxActiveTrees'] === plan.limits.maxActiveTrees &&
+    limits['maxVisibleBranchesPerTree'] === plan.limits.maxVisibleBranchesPerTree &&
+    capabilities['cloudSync'] === plan.capabilities.cloudSync &&
+    capabilities['social'] === plan.capabilities.social &&
+    capabilities['family'] === false
   );
 }
 
@@ -140,6 +174,12 @@ function normalizeSummary(value: unknown, now: number): AccessSummary {
     !isLimit(usage['activeTrees']) ||
     usage['activeTrees'] === null ||
     !validBranches ||
+    !hasCanonicalEntitlements(
+      value['effectivePlanKey'],
+      sources,
+      limits,
+      capabilities,
+    ) ||
     !Number.isSafeInteger(value['revision']) ||
     (value['revision'] as number) < 0 ||
     (nextRecomputeAt !== null && !isTimestamp(nextRecomputeAt)) ||
@@ -148,9 +188,15 @@ function normalizeSummary(value: unknown, now: number): AccessSummary {
     throw new Error('invalid access summary');
   }
 
+  const sourceBoundary = sources.reduce<number>(
+    (earliest, source) =>
+      source.validUntil === null ? earliest : Math.min(earliest, source.validUntil),
+    Number.POSITIVE_INFINITY,
+  );
   const leaseCeiling = Math.min(
     now + ACCESS_OFFLINE_LEASE_MS,
     nextRecomputeAt === null ? Number.POSITIVE_INFINITY : nextRecomputeAt,
+    sourceBoundary,
   );
   const boundedLease = Math.min(offlineValidUntil, leaseCeiling);
   if (boundedLease <= now) throw new Error('stale access summary');

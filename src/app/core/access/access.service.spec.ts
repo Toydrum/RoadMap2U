@@ -177,6 +177,70 @@ describe('AccessService', () => {
     expect(service.lastError()).toBe('unknown');
   });
 
+  it.each([
+    [
+      'Free with unlimited limits',
+      premium({
+        effectivePlanKey: 'free',
+        activeSources: [
+          { kind: 'default', sourceId: 'default', planKey: 'free', validUntil: null },
+        ],
+      }),
+    ],
+    [
+      'Free with Premium capabilities',
+      premium({
+        effectivePlanKey: 'free',
+        activeSources: [
+          { kind: 'default', sourceId: 'default', planKey: 'free', validUntil: null },
+        ],
+        limits: { ...PREPAYMENT_PLAN_CATALOG.plans.free.limits },
+      }),
+    ],
+    [
+      'Premium without a Premium source',
+      premium({
+        activeSources: [
+          { kind: 'default', sourceId: 'default', planKey: 'free', validUntil: null },
+        ],
+      }),
+    ],
+    [
+      'a launch-phase subscription source',
+      premium({
+        activeSources: [
+          {
+            kind: 'subscription',
+            sourceId: 'reserved-not-live',
+            planKey: 'premium',
+            validUntil: NOW + 12 * 60 * 60 * 1000,
+          },
+        ],
+      }),
+    ],
+    [
+      'family capability enabled',
+      premium({ capabilities: { cloudSync: true, social: true, family: true } }),
+    ],
+  ])('rejects %s from cache and network instead of granting it', async (_label, corrupt) => {
+    const cache = cachePort();
+    cache.rows.set('rocio', corrupt);
+    const service = configure({
+      cache,
+      api: apiWith({ getAccess: vi.fn(async () => corrupt) }),
+    });
+
+    await service.open();
+
+    expect(service.access()).toMatchObject({
+      effectivePlanKey: 'free',
+      limits: PREPAYMENT_PLAN_CATALOG.plans.free.limits,
+      capabilities: PREPAYMENT_PLAN_CATALOG.plans.free.capabilities,
+    });
+    expect(service.leaseState()).toBe('fallback');
+    expect(cache.write).not.toHaveBeenCalled();
+  });
+
   it('never applies another user cache and falls back to Free when no valid lease exists', async () => {
     const cache = cachePort();
     cache.rows.set('someone-else', premium());
@@ -198,6 +262,31 @@ describe('AccessService', () => {
     const summary = premium({
       nextRecomputeAt: NOW + 60 * 60 * 1000,
       offlineValidUntil: NOW + 10 * ACCESS_OFFLINE_LEASE_MS,
+    });
+    const service = configure({ cache, api: apiWith({ getAccess: vi.fn(async () => summary) }) });
+
+    await service.refresh();
+
+    expect(service.access().offlineValidUntil).toBe(NOW + 60 * 60 * 1000);
+    expect(cache.write).toHaveBeenCalledWith(
+      'rocio',
+      expect.objectContaining({ offlineValidUntil: NOW + 60 * 60 * 1000 }),
+    );
+  });
+
+  it('never keeps Premium beyond the earliest sponsored-source expiry', async () => {
+    const cache = cachePort();
+    const summary = premium({
+      activeSources: [
+        {
+          kind: 'sponsored',
+          sourceId: 'short-grant',
+          planKey: 'premium',
+          validUntil: NOW + 60 * 60 * 1000,
+        },
+      ],
+      nextRecomputeAt: null,
+      offlineValidUntil: NOW + 12 * 60 * 60 * 1000,
     });
     const service = configure({ cache, api: apiWith({ getAccess: vi.fn(async () => summary) }) });
 
