@@ -1,12 +1,12 @@
-// Render public/icons/logo.svg into the full PWA icon set (replaces the
-// Angular-default icons). Maskable-safe: the badge already keeps its content
-// inside the safe zone. Usage: node tools/gen-icons.mjs
+// Render the master mark into the PWA icon set and the simplified mark into
+// the 32px browser favicon. Usage: node tools/gen-icons.mjs
 import { chromium } from 'playwright-core';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
 const svg = readFileSync(resolve('public/icons/logo.svg'), 'utf-8');
+const faviconSvg = readFileSync(resolve('public/icons/favicon.svg'), 'utf-8');
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 
@@ -25,5 +25,20 @@ for (const size of sizes) {
   await page.close();
   console.log(`icon-${size}x${size}.png`);
 }
+
+const faviconSize = 32;
+const faviconPage = await browser.newPage({
+  viewport: { width: faviconSize, height: faviconSize },
+});
+await faviconPage.setContent(
+  `<body style="margin:0;width:${faviconSize}px;height:${faviconSize}px">` +
+    `<div style="width:${faviconSize}px;height:${faviconSize}px">${faviconSvg}</div></body>`,
+);
+await faviconPage.screenshot({
+  path: 'public/icons/favicon-32x32.png',
+  omitBackground: true,
+});
+await faviconPage.close();
+console.log('favicon-32x32.png');
 
 await browser.close();

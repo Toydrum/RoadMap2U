@@ -7,6 +7,146 @@ export const EN: Dict = {
     memoryOnly:
       'This device could not open its storage: your forest lives only in this session and will be lost on reload. Close other tabs and reload to retry.',
   },
+  landing: {
+    skip: 'Skip to content',
+    nav: {
+      label: 'Main navigation',
+      how: 'How it works',
+      product: 'The product',
+      plans: 'Plans',
+      signIn: 'Sign in',
+      start: 'Start for free',
+      language: 'Language',
+      spanish: 'Español',
+      english: 'English',
+    },
+    hero: {
+      eyebrow: 'A living map for your plans',
+      title: 'See the path. Help it grow.',
+      body: 'Turn what you want to build into trees, branches, and next steps you can actually follow.',
+      primary: 'Create my forest for free',
+      secondary: 'See how it works',
+      microcopy: 'No card required · start with 2 trees and 10 branches per tree',
+    },
+    steps: {
+      eyebrow: 'From intention to path',
+      title: 'A plan you can actually see',
+      body: 'RoadMap2U turns a big goal into a living shape, without judging lists or rigid paths.',
+      plant: {
+        number: '01',
+        title: 'Plant',
+        body: 'Name what you want to build. That is where the heart of your tree begins.',
+      },
+      branch: {
+        number: '02',
+        title: 'Branch',
+        body: 'Open routes, small steps, and alternatives when the path changes.',
+      },
+      advance: {
+        number: '03',
+        title: 'Move',
+        body: 'Return to one next action and let every lived step bloom.',
+      },
+    },
+    product: {
+      eyebrow: 'Your map, in motion',
+      title: 'The tree does not decorate the plan. It is the plan.',
+      body: 'Every branch holds a decision, every flower keeps a step you lived, and every knot shows that you found another way forward.',
+      proof:
+        'The same structure appears in your forest, focus, almanac, and harvest; it all remains yours and works offline.',
+      treeLabel:
+        'Example of a RoadMap2U tree with branches, leaves, flowers, and a transformation knot.',
+      notes: [
+        'One next step at a time',
+        'Gentle dates, never alarms',
+        'Your forest lives on your device first',
+      ],
+    },
+    plans: {
+      eyebrow: 'Start small. Grow when it helps.',
+      title: 'Two ways into the forest',
+      body: 'The free version keeps the complete personal cycle. Premium adds space and connection without changing the app’s gentle way of working.',
+      included: 'Includes',
+      free: {
+        name: 'Free',
+        price: '$0 MXN',
+        cadence: 'to begin',
+        summary: 'Get to know the app with a forest of your own that truly works.',
+        features: [
+          '2 active trees',
+          '10 visible branches per tree',
+          'Check-in, focus, almanac, and harvest',
+          'Local-first use, export, and accessibility',
+        ],
+        cta: 'Create my forest for free',
+      },
+      premium: {
+        name: 'Premium',
+        badge: 'Coming soon',
+        monthly: '$99 MXN per month',
+        yearly: '$949 MXN per year · save $239 · tax included',
+        summary: 'Grow your forest beyond the limits of the free plan.',
+        features: [
+          'Capacity beyond the Free limit',
+          'Secure sync across devices',
+          'Friends and read-only visits',
+        ],
+        note: 'The same capabilities monthly or yearly. Family is not included in this phase.',
+        cta: 'Explore Premium',
+      },
+    },
+    key: {
+      eyebrow: 'Sponsored access',
+      title: 'Did you receive an access key?',
+      body: 'Some people receive Premium access by invitation, with or without an expiration date. The key is linked to your own account.',
+      cta: 'Sign in to redeem it',
+    },
+    faq: {
+      eyebrow: 'Frequently asked questions',
+      title: 'What matters before you begin',
+      items: [
+        {
+          question: 'What can I do with Free?',
+          answer:
+            'You can use the full personal cycle with 2 active trees and up to 10 visible branches per tree: check-in, focus, gentle dates, rituals, almanac, harvest, backup, and accessibility.',
+        },
+        {
+          question: 'Can I buy Premium now?',
+          answer:
+            'Not yet. These are the proposed launch prices and they are marked Coming soon; no button makes or simulates a charge.',
+        },
+        {
+          question: 'What does Premium add?',
+          answer:
+            'Capacity beyond the Free limit, secure sync across devices, and friendships with read-only visits.',
+        },
+        {
+          question: 'What happens to my data?',
+          answer:
+            'Your forest works on your device first. RoadMap2U uses no ads, analytics, or trackers, and you can export your information.',
+        },
+        {
+          question: 'How does a key work?',
+          answer:
+            'Create or open your account and redeem the key you received. Access may expire on a set date or remain active, depending on the invitation.',
+        },
+      ],
+    },
+    final: {
+      eyebrow: 'Your path does not have to look like anyone else’s',
+      title: 'Plant the first version of your forest.',
+      body: 'Two trees and ten branches per tree are enough to feel how RoadMap2U thinks.',
+      cta: 'Start for free',
+    },
+    footer: {
+      tagline: 'A living map for moving forward without turning your life into a list.',
+      privacy: 'Privacy',
+      terms: 'Terms',
+      support: 'Support',
+      contact: 'Contact',
+      rights: 'RoadMap2U · Made to grow at your pace.',
+    },
+  },
   finder: {
     title: 'Search my forest',
     placeholder: 'A tree or branch name…',

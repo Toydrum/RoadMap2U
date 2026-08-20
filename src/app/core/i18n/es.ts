@@ -9,6 +9,146 @@ export const ES = {
     memoryOnly:
       'Este dispositivo no pudo abrir su almacenamiento: tu bosque vive solo en esta sesión y se perderá al recargar. Cierra otras pestañas y recarga para reintentar.',
   },
+  landing: {
+    skip: 'Saltar al contenido',
+    nav: {
+      label: 'Navegación principal',
+      how: 'Cómo funciona',
+      product: 'El producto',
+      plans: 'Planes',
+      signIn: 'Entrar',
+      start: 'Comenzar gratis',
+      language: 'Idioma',
+      spanish: 'Español',
+      english: 'English',
+    },
+    hero: {
+      eyebrow: 'Un mapa vivo para tus planes',
+      title: 'Haz visible el camino. Hazlo crecer.',
+      body: 'Convierte lo que quieres construir en árboles, ramas y siguientes pasos que realmente puedas recorrer.',
+      primary: 'Crear mi bosque gratis',
+      secondary: 'Ver cómo funciona',
+      microcopy: 'Sin tarjeta · empieza con 2 árboles y 10 ramas por árbol',
+    },
+    steps: {
+      eyebrow: 'Del deseo al camino',
+      title: 'Un plan que se puede mirar',
+      body: 'RoadMap2U convierte una meta grande en una forma viva, sin listas que te juzgan ni caminos rígidos.',
+      plant: {
+        number: '01',
+        title: 'Planta',
+        body: 'Dale nombre a lo que quieres construir. Ahí nace el corazón de tu árbol.',
+      },
+      branch: {
+        number: '02',
+        title: 'Ramifica',
+        body: 'Abre rutas, pasitos y alternativas cuando el camino cambia.',
+      },
+      advance: {
+        number: '03',
+        title: 'Avanza',
+        body: 'Vuelve a una sola siguiente acción y deja que cada logro florezca.',
+      },
+    },
+    product: {
+      eyebrow: 'Tu mapa, en movimiento',
+      title: 'El árbol no adorna el plan. Es el plan.',
+      body: 'Cada rama guarda una decisión, cada flor conserva un paso vivido y cada nudo muestra que encontraste otra manera de seguir.',
+      proof:
+        'La misma estructura aparece en tu bosque, tu enfoque, tu almanaque y tu cosecha; todo sigue siendo tuyo y funciona sin conexión.',
+      treeLabel:
+        'Ejemplo de un árbol RoadMap2U con ramas, hojas, flores y un nudo de transformación.',
+      notes: [
+        'Un siguiente paso a la vez',
+        'Fechas amables, nunca alarmas',
+        'Tu bosque vive primero en tu dispositivo',
+      ],
+    },
+    plans: {
+      eyebrow: 'Empieza pequeño. Crece cuando te sirva.',
+      title: 'Dos formas de entrar al bosque',
+      body: 'La versión gratuita conserva el ciclo personal completo. Premium añade espacio y conexión, sin cambiar la manera amable de usar la app.',
+      included: 'Incluye',
+      free: {
+        name: 'Free',
+        price: '$0 MXN',
+        cadence: 'para empezar',
+        summary: 'Conoce la app con un bosque propio y funcional.',
+        features: [
+          '2 árboles activos',
+          '10 ramas visibles por árbol',
+          'Check-in, enfoque, almanaque y cosecha',
+          'Uso local-first, exportación y accesibilidad',
+        ],
+        cta: 'Crear mi bosque gratis',
+      },
+      premium: {
+        name: 'Premium',
+        badge: 'Próximamente',
+        monthly: '$99 MXN al mes',
+        yearly: '$949 MXN al año · ahorra $239 · IVA incluido',
+        summary: 'Haz crecer tu bosque más allá de los límites del plan gratuito.',
+        features: [
+          'Capacidad por encima del límite Free',
+          'Sincronización segura entre dispositivos',
+          'Amistades y visitas de sólo lectura',
+        ],
+        note: 'Mismas capacidades en mensual y anual. Familia no está incluida en esta fase.',
+        cta: 'Conocer Premium',
+      },
+    },
+    key: {
+      eyebrow: 'Acceso patrocinado',
+      title: '¿Recibiste una llave de acceso?',
+      body: 'Algunas personas reciben acceso Premium por invitación, con o sin fecha de caducidad. La llave se vincula a tu propia cuenta.',
+      cta: 'Entrar para canjearla',
+    },
+    faq: {
+      eyebrow: 'Preguntas frecuentes',
+      title: 'Lo importante, antes de empezar',
+      items: [
+        {
+          question: '¿Qué puedo hacer con Free?',
+          answer:
+            'Puedes usar el ciclo personal completo con 2 árboles activos y hasta 10 ramas visibles por árbol: check-in, enfoque, fechas amables, rituales, almanaque, cosecha, respaldo y accesibilidad.',
+        },
+        {
+          question: '¿Premium ya se puede comprar?',
+          answer:
+            'Todavía no. Los precios son la propuesta de lanzamiento y están marcados como Próximamente; ningún botón realiza o simula un cobro.',
+        },
+        {
+          question: '¿Qué añade Premium?',
+          answer:
+            'Capacidad por encima del límite Free, sincronización segura en varios dispositivos y amistades con visitas de sólo lectura.',
+        },
+        {
+          question: '¿Qué pasa con mis datos?',
+          answer:
+            'Tu bosque funciona primero en tu dispositivo. RoadMap2U no usa anuncios, analítica ni rastreadores, y puedes exportar tu información.',
+        },
+        {
+          question: '¿Cómo funciona una llave?',
+          answer:
+            'Creas o abres tu cuenta y canjeas la llave que recibiste. El acceso puede tener una fecha de caducidad o permanecer activo, según la invitación.',
+        },
+      ],
+    },
+    final: {
+      eyebrow: 'Tu camino no necesita verse como el de nadie más',
+      title: 'Planta la primera versión de tu bosque.',
+      body: 'Dos árboles y diez ramas por árbol son suficientes para sentir cómo piensa RoadMap2U.',
+      cta: 'Comenzar gratis',
+    },
+    footer: {
+      tagline: 'Un mapa vivo para avanzar sin convertir tu vida en una lista.',
+      privacy: 'Privacidad',
+      terms: 'Términos',
+      support: 'Soporte',
+      contact: 'Contacto',
+      rights: 'RoadMap2U · Hecho para crecer a tu ritmo.',
+    },
+  },
   finder: {
     title: 'Buscar en mi bosque',
     placeholder: 'Nombre de un árbol o una rama…',
