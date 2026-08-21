@@ -59,6 +59,17 @@ describe('C6C-B v2 brand assets', () => {
     assert.match(master, /data-detail="bud"/);
   });
 
+  it('pins the lockup wordmark width across platform fallback fonts', () => {
+    for (const path of [
+      'public/brand/roadmap2u-lockup.svg',
+      'public/brand/roadmap2u-lockup-dark.svg',
+    ]) {
+      const lockup = asset(path);
+      assert.match(lockup, /<text[\s\S]*?textLength="296"/);
+      assert.match(lockup, /<text[\s\S]*?lengthAdjust="spacingAndGlyphs"/);
+    }
+  });
+
   for (const size of [120, 72, 32]) {
     it(`preserves an internal margin and clips nothing at ${size}px`, () => {
       const margins = scaledMargins(asset('public/icons/logo.svg'), size);
@@ -97,8 +108,7 @@ describe('C6C-B v2 brand assets', () => {
               linkRight: linkRect.right,
               imageRight: imageRect.right,
               artRight: imageRect.left + (art.x + art.width - viewBox.x) * scale,
-              declaredArtRight:
-                imageRect.left + (declared[0] + declared[2] - viewBox.x) * scale,
+              declaredArtRight: imageRect.left + (declared[0] + declared[2] - viewBox.x) * scale,
               branchWidth: branchBox.width * scale,
               branchHeight: branchBox.height * scale,
               branchFill: getComputedStyle(branch).fill,
@@ -117,9 +127,7 @@ describe('C6C-B v2 brand assets', () => {
             `${path} ${width}px measured bounds understate the artwork: ${JSON.stringify(metrics)}`,
           );
           assert.ok(
-            metrics.branchWidth >= 2 &&
-              metrics.branchHeight >= 2 &&
-              metrics.branchFill !== 'none',
+            metrics.branchWidth >= 2 && metrics.branchHeight >= 2 && metrics.branchFill !== 'none',
             `${path} ${width}px branch collapses to a stroke: ${JSON.stringify(metrics)}`,
           );
         }

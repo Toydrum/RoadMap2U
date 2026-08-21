@@ -53,6 +53,8 @@
     font-size="52"
     font-weight="800"
     letter-spacing="-1.7"
+    textLength="296"
+    lengthAdjust="spacingAndGlyphs"
     fill="#fdfbf3"
   >RoadMap<tspan fill="#8fbc86">2</tspan><tspan fill="#c19d79">U</tspan></text>
 </svg>
