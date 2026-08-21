@@ -8,7 +8,7 @@
     "generate:config": "node tools/generate-config.mjs --output src/app/core/generated-config.ts",
     "test:config": "node --test tools/battery-harness.test.mjs tools/generate-config.test.mjs tools/hosting-config.test.mjs tools/public-shell.test.mjs tools/smoke-frontend.test.mjs tools/test-runtime-contract.test.mjs tools/validate-built-pwa.test.mjs tools/validate-deployment-target.test.mjs src/app/features/landing/landing-boundary.node.mjs src/app/features/landing/brand-assets.node.mjs",
     "watch": "ng build --watch --configuration development",
-    "test": "node --no-experimental-webstorage ./node_modules/@angular/cli/bin/ng.js test"
+    "test": "ng test"
   },
   "private": true,
   "packageManager": "npm@11.17.0",
