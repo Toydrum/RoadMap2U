@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { DestroyRef, Injectable, inject } from '@angular/core';
 import { TreesRepo } from './repos/trees.repo';
 import { NodesRepo } from './repos/nodes.repo';
 import { CheckinsRepo } from './repos/checkins.repo';
@@ -8,6 +8,7 @@ import { PreservesRepo } from './repos/preserves.repo';
 import { SettingsService } from './repos/settings.service';
 import { onDbChange } from './db/broadcast';
 import { storageAvailable } from './db/idb';
+import { onAccountClosureQuiesce } from './db/account-closure-fence';
 import { ToastService } from '../shared/ui/toast.service';
 import { I18nService } from './i18n/i18n.service';
 import { APP_CONFIG, DEPLOY_STAGE } from './config';
@@ -30,6 +31,7 @@ export class BootService {
   private readonly i18n = inject(I18nService);
   private readonly mutations = inject(ForestMutationsService);
   private readonly replacement = inject(FOREST_REPLACEMENT_STORAGE);
+  private readonly destroyRef = inject(DestroyRef);
 
   async init(): Promise<void> {
     // Loads catch their own storage failures; allSettled is belt-and-braces —
@@ -44,6 +46,17 @@ export class BootService {
       this.settings.load(),
     ]);
 
+    this.destroyRef.onDestroy(
+      onAccountClosureQuiesce(() => {
+        this.trees.resetTo([]);
+        this.nodes.resetTo([]);
+        this.checkins.resetTo([]);
+        this.sessions.resetTo([]);
+        this.harvests.resetTo([]);
+        this.preserves.resetTo([]);
+      }),
+    );
+
     onDbChange(({ store, ids, reset }) => {
       // Settings travel too — lastCheckInAt/todayIntentions/lastWhisperAt
       // are behavioral, and a tab that can't see them re-routes to a
@@ -53,13 +66,19 @@ export class BootService {
         return;
       }
       const repo =
-        store === 'trees' ? this.trees
-        : store === 'nodes' ? this.nodes
-        : store === 'checkins' ? this.checkins
-        : store === 'sessions' ? this.sessions
-        : store === 'harvests' ? this.harvests
-        : store === 'preserves' ? this.preserves
-        : null;
+        store === 'trees'
+          ? this.trees
+          : store === 'nodes'
+            ? this.nodes
+            : store === 'checkins'
+              ? this.checkins
+              : store === 'sessions'
+                ? this.sessions
+                : store === 'harvests'
+                  ? this.harvests
+                  : store === 'preserves'
+                    ? this.preserves
+                    : null;
       // reset = an import-replace put OLDER revs on disk: reload wholesale
       // (load() replaces memory), never through the LWW guard (0.0.115 A1).
       if (reset) void repo?.load();
@@ -101,8 +120,7 @@ export class BootService {
             this.harvests,
             this.preserves,
           ].some((repo) => repo.byId().size > 0),
-        assertSeed: (trees, nodes, context) =>
-          this.mutations.assertSeed(trees, nodes, context),
+        assertSeed: (trees, nodes, context) => this.mutations.assertSeed(trees, nodes, context),
         replaceIfEmpty: (entries) => this.replacement.replaceIfEmpty(entries),
         resetTrees: (rows) => this.trees.resetTo(rows),
         resetNodes: (rows) => this.nodes.resetTo(rows),

@@ -1,12 +1,27 @@
 import { describe, expect, it, vi } from 'vitest';
 import { countQuotaUsage } from '../access/quota-policy';
-import {
-  plantMockSeed,
-  prepareMockSeed,
-  type MockSeedStorage,
-} from './mock-seed';
+import { plantMockSeed, prepareMockSeed, type MockSeedStorage } from './mock-seed';
 
 describe('mock cloud seed boundary', () => {
+  it('mints a fresh stable instance for every seeded account incarnation', () => {
+    const first = prepareMockSeed().entries.find((entry) => entry.store === 'users')
+      ?.rows as Array<{
+      userId: string;
+      accountInstanceId: string;
+    }>;
+    const second = prepareMockSeed().entries.find((entry) => entry.store === 'users')
+      ?.rows as Array<{
+      userId: string;
+      accountInstanceId: string;
+    }>;
+
+    expect(first.every((user) => /^[0-9a-f-]{36}$/.test(user.accountInstanceId))).toBe(true);
+    expect(new Set(first.map((user) => user.accountInstanceId)).size).toBe(first.length);
+    expect(second.map((user) => user.accountInstanceId)).not.toEqual(
+      first.map((user) => user.accountInstanceId),
+    );
+  });
+
   it('migrates and validates every owner forest before producing rows', () => {
     const prepared = prepareMockSeed();
 
@@ -22,8 +37,7 @@ describe('mock cloud seed boundary', () => {
       expect(
         forest.trees.every((tree) =>
           forest.nodes.some(
-            (node) =>
-              node.id === tree.heartId && node.treeId === tree.id && node.parentId === null,
+            (node) => node.id === tree.heartId && node.treeId === tree.id && node.parentId === null,
           ),
         ),
         forest.ownerId,

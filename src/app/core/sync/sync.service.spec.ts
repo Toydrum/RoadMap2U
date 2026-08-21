@@ -24,7 +24,7 @@ import {
   SyncConflictStore,
   type SyncConflictStorage,
 } from './sync-conflict.store';
-import { SyncService } from './sync.service';
+import { SYNC_META_STORAGE, SyncService, type SyncMetaStorage } from './sync.service';
 
 const NOW = 1_800_000_000_000;
 
@@ -100,6 +100,7 @@ function configure(input: {
   trees?: Tree[];
   nodes?: TreeNode[];
   pushSync: ApiClient['pushSync'];
+  metaStorage?: SyncMetaStorage;
 }): {
   service: SyncService;
   conflicts: SyncConflictStore;
@@ -128,6 +129,7 @@ function configure(input: {
       { provide: PreservesRepo, useValue: empty },
       { provide: SYNC_CONFLICT_STORAGE, useValue: memoryConflictStorage() },
       { provide: SYNC_CONFLICT_RUNTIME, useValue: { now: () => NOW } },
+      ...(input.metaStorage ? [{ provide: SYNC_META_STORAGE, useValue: input.metaStorage }] : []),
     ],
   });
   return {
@@ -148,6 +150,38 @@ const BLOCKING_CODES: ApiErrorCode[] = [
 
 describe('commercial sync conflicts', () => {
   beforeEach(() => TestBed.resetTestingModule());
+
+  it('drains an already-started sync meta write before terminal cleanup returns', async () => {
+    let releaseWrite!: () => void;
+    const metaStorage: SyncMetaStorage = {
+      read: vi.fn(async () => undefined),
+      write: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseWrite = resolve;
+          }),
+      ),
+    };
+    const { service } = configure({
+      pushSync: vi.fn<ApiClient['pushSync']>(),
+      metaStorage,
+    });
+    const internal = service as unknown as { persistState(): Promise<void> };
+
+    const writing = internal.persistState();
+    await vi.waitFor(() => expect(metaStorage.write).toHaveBeenCalledOnce());
+    const reset = service.resetAfterAccountClosure();
+    let resetFinished = false;
+    void reset.then(() => (resetFinished = true));
+    await Promise.resolve();
+
+    expect(resetFinished).toBe(false);
+
+    releaseWrite();
+    await reset;
+    await writing;
+    expect(service.link()).toBeNull();
+  });
 
   it('merges pending mutation memberships by transitive connected component', () => {
     const { service } = configure({

@@ -832,6 +832,7 @@ export const EN: Dict = {
     accountGuestHint: 'Your forest has no key yet. Whenever you like, you can create an account.',
     accountOpen: 'Open my account',
     accountSignedInAs: 'You are here as',
+    accountClosureResume: 'Review my account closure',
     mockReset: 'Reset the practice cloud',
     mockResetHint: 'Rehearsal mode only: restarts the demo family (rocio, nico, val, ambar).',
     mockResetDone: 'The practice cloud started over 🌱',
@@ -901,8 +902,25 @@ export const EN: Dict = {
     deleteCta: 'Delete my account',
     deleteTitle: 'Delete your account?',
     deleteBody:
-      'The key is deleted, not the forest: your trees keep living on this device. This action cannot be undone.',
-    deleteConfirm: 'Yes, delete my account',
+      'First we will download a complete copy. While closure is in progress, your forest and session stay intact here. Only after the final confirmation will this app copy be cleared and the session signed out.',
+    deleteConfirm: 'Download copy and begin',
+    closureStatusTitle: 'Your closure is underway',
+    closureRequested:
+      'The server received your request. Your local copy stays here while it finishes.',
+    closurePurging:
+      'The cloud is carefully removing your data. Your local copy has not been touched.',
+    closurePurgeComplete:
+      'The cloud is empty and finishing the closure of your key. Your local copy stays here.',
+    closureCompleted: 'Closure is complete and this local copy can now be cleared.',
+    closurePendingHint:
+      'You can check the status again. Do not sign out while we wait for final confirmation.',
+    closureRetry: 'Check status',
+    closureOffline: 'We could not check now. Your local copy and session remain intact.',
+    closureRetryError:
+      'We could not finish this step. You can retry to continue from the closure state already saved.',
+    closureSessionExpired:
+      'Your session expired before completion could be confirmed. For safety, nothing on this device was cleared; the current contract cannot check closure without a valid session.',
+    closureSupport: 'Ask for help confirming closure',
     errors: {
       invalidUsername:
         'Your username can only use lowercase letters, numbers and underscore; no spaces. For example: lynx_pardelle.',

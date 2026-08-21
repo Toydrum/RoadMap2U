@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, InjectionToken, computed, inject, signal } from '@angular/core';
 import { API_CLIENT } from './api/api-client';
 import {
   ApiError,
@@ -11,6 +11,7 @@ import {
   UserProfile,
 } from './api/contracts';
 import { AuthService } from './auth/auth.service';
+import { onAccountClosureQuiesce } from './db/account-closure-fence';
 import { del, get, put } from './db/idb';
 
 /**
@@ -23,21 +24,41 @@ import { del, get, put } from './db/idb';
 
 const META_FAMILY_ME = 'family.me';
 
-interface FamilyMeSnapshot {
+export interface FamilyMeSnapshot {
   key: typeof META_FAMILY_ME;
   userId: string;
   me: MeResponse;
   cachedAt: number;
 }
 
+export interface FamilyCachePort {
+  read(): Promise<FamilyMeSnapshot | null>;
+  write(snapshot: FamilyMeSnapshot): Promise<void>;
+  remove(): Promise<void>;
+}
+
+export const FAMILY_CACHE = new InjectionToken<FamilyCachePort>('FAMILY_CACHE', {
+  providedIn: 'root',
+  factory: () => ({
+    read: async () => (await get<FamilyMeSnapshot>('meta', META_FAMILY_ME)) ?? null,
+    write: (snapshot) => put('meta', snapshot),
+    remove: () => del('meta', META_FAMILY_ME),
+  }),
+});
+
 @Injectable({ providedIn: 'root' })
 export class FamilyService {
   private readonly api = inject(API_CLIENT);
   private readonly auth = inject(AuthService);
+  private readonly cache = inject(FAMILY_CACHE);
 
   private readonly meSignal = signal<MeResponse | null>(null);
   private readonly loadingSignal = signal(false);
   private readonly lastErrorSignal = signal<ApiErrorCode | null>(null);
+  /** Invalidates cache/network completions once terminal account cleanup starts. */
+  private generation = 0;
+  private accountClosureQuiesced = false;
+  private readonly pendingCacheWrites = new Set<Promise<void>>();
 
   readonly me = this.meSignal.asReadonly();
   readonly loading = this.loadingSignal.asReadonly();
@@ -46,13 +67,27 @@ export class FamilyService {
   readonly minors = computed(() => this.meSignal()?.family.minors ?? []);
   readonly guardians = computed(() => this.meSignal()?.family.guardians ?? []);
 
+  constructor() {
+    const stopAccountClosure = onAccountClosureQuiesce(() => this.beginAccountClosureReset());
+    inject(DestroyRef).onDestroy(stopAccountClosure);
+  }
+
   /** Cache-first paint + background refresh. Call when the surface opens. */
   async open(): Promise<void> {
+    if (this.accountClosureQuiesced) return;
     const userId = this.auth.user()?.userId;
     if (!userId) return;
+    const generation = this.generation;
     try {
-      const cached = await get<FamilyMeSnapshot>('meta', META_FAMILY_ME);
-      if (cached?.userId === userId && !this.meSignal()) this.meSignal.set(cached.me);
+      const cached = await this.cache.read();
+      if (
+        generation === this.generation &&
+        this.auth.user()?.userId === userId &&
+        cached?.userId === userId &&
+        !this.meSignal()
+      ) {
+        this.meSignal.set(cached.me);
+      }
     } catch {
       /* no cache — network will answer */
     }
@@ -60,38 +95,59 @@ export class FamilyService {
   }
 
   async refresh(): Promise<void> {
+    if (this.accountClosureQuiesced) return;
     const userId = this.auth.user()?.userId;
     if (!userId) {
       this.meSignal.set(null);
       return;
     }
+    const generation = this.generation;
     this.loadingSignal.set(true);
     this.lastErrorSignal.set(null);
     try {
       const me = await this.api.getMe();
+      if (generation !== this.generation || this.auth.user()?.userId !== userId) return;
       this.meSignal.set(me);
       try {
-        await put('meta', {
+        const write = this.cache.write({
           key: META_FAMILY_ME,
           userId,
           me,
           cachedAt: Date.now(),
         } satisfies FamilyMeSnapshot);
+        this.pendingCacheWrites.add(write);
+        try {
+          await write;
+        } finally {
+          this.pendingCacheWrites.delete(write);
+        }
       } catch {
         /* memory-only session */
       }
     } catch (error) {
       // Cached view stands; the card shows the calm error line.
-      this.lastErrorSignal.set(error instanceof ApiError ? error.code : 'unknown');
+      if (generation === this.generation) {
+        this.lastErrorSignal.set(error instanceof ApiError ? error.code : 'unknown');
+      }
     } finally {
-      this.loadingSignal.set(false);
+      if (generation === this.generation) this.loadingSignal.set(false);
     }
   }
 
   /** Wipes the signal on sign-out (the meta cache is keyed by user anyway). */
   clear(): void {
+    this.generation += 1;
     this.meSignal.set(null);
     this.lastErrorSignal.set(null);
+    this.loadingSignal.set(false);
+  }
+
+  async resetAfterAccountClosure(): Promise<void> {
+    this.beginAccountClosureReset();
+    while (this.pendingCacheWrites.size) {
+      await Promise.allSettled([...this.pendingCacheWrites]);
+    }
+    this.beginAccountClosureReset();
   }
 
   /** Practice-cloud reset: the cached snapshot must go WITH the cloud — the
@@ -100,7 +156,7 @@ export class FamilyService {
   async clearCache(): Promise<void> {
     this.clear();
     try {
-      await del('meta', META_FAMILY_ME);
+      await this.cache.remove();
     } catch {
       /* memory-only session */
     }
@@ -214,6 +270,7 @@ export class FamilyService {
   // ── internals ─────────────────────────────────────────────────────────────
 
   private async run<T>(operation: () => Promise<T>): Promise<T | null> {
+    if (this.accountClosureQuiesced) return null;
     this.loadingSignal.set(true);
     this.lastErrorSignal.set(null);
     try {
@@ -224,6 +281,11 @@ export class FamilyService {
     } finally {
       this.loadingSignal.set(false);
     }
+  }
+
+  private beginAccountClosureReset(): void {
+    this.accountClosureQuiesced = true;
+    this.clear();
   }
 
   private download(filename: string, payload: unknown): void {

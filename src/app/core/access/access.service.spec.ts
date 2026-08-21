@@ -401,4 +401,34 @@ describe('AccessService', () => {
     expect(getAccess).not.toHaveBeenCalled();
     expect(service.access().effectivePlanKey).toBe('free');
   });
+
+  it('drains an already-started cache write before terminal cleanup may replace meta', async () => {
+    const cache = cachePort();
+    let releaseWrite!: () => void;
+    cache.write.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseWrite = resolve;
+        }),
+    );
+    const service = configure({
+      cache,
+      api: apiWith({ getAccess: vi.fn(async () => premium()) }),
+    });
+
+    const refresh = service.refresh();
+    await vi.waitFor(() => expect(cache.write).toHaveBeenCalledOnce());
+    const reset = service.resetAfterAccountClosure() as unknown as Promise<void>;
+    let resetFinished = false;
+    void reset.then(() => (resetFinished = true));
+    await Promise.resolve();
+
+    expect(resetFinished).toBe(false);
+    expect(service.access().effectivePlanKey).toBe('free');
+
+    releaseWrite();
+    await expect(reset).resolves.toBeUndefined();
+    await refresh;
+    expect(service.access().effectivePlanKey).toBe('free');
+  });
 });

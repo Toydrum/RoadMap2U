@@ -47,6 +47,7 @@ import {
   MockGuardianLinkRow,
   MockRecordRow,
   MockUserRow,
+  mockAccountClosureKey,
   mockApplyRecordGroup,
   mockDelete,
   mockGet,
@@ -55,9 +56,33 @@ import {
   mockNextSeq,
   mockPut,
   simLatency,
+  withMockAccountLock,
+  withMockAccountLocks,
 } from './mock-cloud';
 
 const INVITE_TTL_MS = 72 * 3600 * 1000;
+
+interface MockAccountClosureState {
+  receipt: AccountClosureReceipt;
+  userId: string;
+  accountInstanceId: string;
+  purgeCompleted: boolean;
+}
+
+interface MockAccountClosureRow {
+  key: string;
+  value: MockAccountClosureState;
+}
+
+interface MockCallerIdentity {
+  sub: string;
+  accountInstanceId: string;
+  closureOnly?: boolean;
+}
+
+interface AccountClosureCredentialProvider {
+  accountClosureCredential(): Promise<string | null>;
+}
 
 export function assertSocialEnabled(user: Pick<MockUserRow, 'socialEnabled'>): void {
   if (!user.socialEnabled) throw new ApiError('FORBIDDEN', 'social features are off');
@@ -114,76 +139,122 @@ export class MockApi implements ApiClient {
 
   async patchMe(patch: { displayName?: string }): Promise<UserProfile> {
     await simLatency('api.patchMe');
-    const caller = await this.caller();
-    const displayName = patch.displayName?.trim();
-    if (displayName !== undefined) {
-      if (!displayName || displayName.length > 40) throw new ApiError('VALIDATION');
-      caller.displayName = displayName;
-      await mockPut('users', caller);
-    }
-    return this.profileOf(caller);
+    return this.withAccountMutation(async (caller) => {
+      const displayName = patch.displayName?.trim();
+      if (displayName !== undefined) {
+        if (!displayName || displayName.length > 40) throw new ApiError('VALIDATION');
+        caller.displayName = displayName;
+        await mockPut('users', caller);
+      }
+      return this.profileOf(caller);
+    });
   }
 
   async deleteMe(): Promise<AccountClosureReceipt> {
     await simLatency('api.deleteMe');
-    const caller = await this.caller();
-    await this.auth.deleteAccount();
-    return { closureId: `mock:${caller.userId}`, state: 'completed' };
+    const identity = await this.accountClosureIdentity();
+
+    return withMockAccountLock(identity.sub, async () => {
+      const key = mockAccountClosureKey(identity.sub, identity.accountInstanceId);
+      const prior = await mockGet<MockAccountClosureRow>('kv', key);
+      const caller = await mockGet<MockUserRow>('users', identity.sub);
+      if (
+        prior?.value.accountInstanceId === identity.accountInstanceId &&
+        (!caller || caller.accountInstanceId === identity.accountInstanceId || identity.closureOnly)
+      ) {
+        return this.completeMockAccountClosure(key, prior.value);
+      }
+      if (!caller) {
+        throw new ApiError('UNAUTHENTICATED');
+      }
+      if (caller.accountInstanceId !== identity.accountInstanceId) {
+        throw new ApiError('UNAUTHENTICATED');
+      }
+
+      const state: MockAccountClosureState = {
+        receipt: { closureId: `mock:${crypto.randomUUID()}`, state: 'completed' },
+        userId: caller.userId,
+        accountInstanceId: identity.accountInstanceId,
+        purgeCompleted: false,
+      };
+      await mockPut('kv', { key, value: state } satisfies MockAccountClosureRow);
+
+      // The mock API owns the same server-side identity boundary as the real
+      // closure worker. The retained opaque receipt makes retries terminal;
+      // the client signs out only after observing it.
+      return this.completeMockAccountClosure(key, state);
+    });
   }
 
   // ── family (phase «familia») ──────────────────────────────────────────────
 
   async createChild(req: CreateChildRequest): Promise<CreateChildResponse> {
     await simLatency('api.createChild');
-    const caller = await this.caller();
-    if (caller.accountType !== 'adult')
-      throw new ApiError('FORBIDDEN', 'only adults create minors');
-    const username = req.username?.trim().toLowerCase() ?? '';
-    const displayName = req.displayName?.trim() ?? '';
-    if (!USERNAME_PATTERN.test(username))
-      throw new ApiError('VALIDATION', 'username 3-20 [a-z0-9_]');
-    if (!displayName || displayName.length > 40)
-      throw new ApiError('VALIDATION', 'displayName 1-40');
-    if ((await this.minorsOf(caller.userId)).length >= LIMITS.maxChildrenPerGuardian) {
-      throw new ApiError('LIMIT_EXCEEDED');
-    }
-    if (await mockGet<MockCredentialRow>('credentials', username)) {
-      throw new ApiError('USERNAME_TAKEN');
-    }
-    const tempPassword = await this.mintTempPassword(username);
-    const now = Date.now();
-    const child: MockUserRow = {
-      userId: `u-${username}`,
-      username,
-      displayName,
-      accountType: 'minor',
-      socialEnabled: false,
-      createdAt: now,
-      email: null,
-    };
-    await mockPut('users', child);
-    await mockPut('credentials', {
-      username,
-      userId: child.userId,
-      password: tempPassword,
-      mustChangePassword: true,
-      pendingConfirm: false,
-    } satisfies MockCredentialRow);
-    await mockPut('guardianLinks', this.newLink(caller.userId, child.userId, 'created', now));
-    return { child: this.profileOf(child), tempPassword };
+    return this.withAccountMutation(
+      async (caller) => {
+        if (caller.accountType !== 'adult')
+          throw new ApiError('FORBIDDEN', 'only adults create minors');
+        const username = req.username?.trim().toLowerCase() ?? '';
+        const displayName = req.displayName?.trim() ?? '';
+        if (!USERNAME_PATTERN.test(username))
+          throw new ApiError('VALIDATION', 'username 3-20 [a-z0-9_]');
+        if (!displayName || displayName.length > 40)
+          throw new ApiError('VALIDATION', 'displayName 1-40');
+        if ((await this.minorsOf(caller.userId)).length >= LIMITS.maxChildrenPerGuardian) {
+          throw new ApiError('LIMIT_EXCEEDED');
+        }
+        if (await mockGet<MockCredentialRow>('credentials', username)) {
+          throw new ApiError('USERNAME_TAKEN');
+        }
+        if (await mockGet<MockUserRow>('users', `u-${username}`)) {
+          throw new ApiError('USERNAME_TAKEN');
+        }
+        const tempPassword = await this.mintTempPassword(username);
+        const now = Date.now();
+        const child: MockUserRow = {
+          userId: `u-${username}`,
+          username,
+          displayName,
+          accountType: 'minor',
+          socialEnabled: false,
+          createdAt: now,
+          email: null,
+          accountInstanceId: crypto.randomUUID(),
+        };
+        await mockPut('users', child);
+        await mockPut('credentials', {
+          username,
+          userId: child.userId,
+          password: tempPassword,
+          mustChangePassword: true,
+          pendingConfirm: false,
+        } satisfies MockCredentialRow);
+        await mockPut('guardianLinks', this.newLink(caller.userId, child.userId, 'created', now));
+        return { child: this.profileOf(child), tempPassword };
+      },
+      undefined,
+      async () => {
+        const username = req.username?.trim().toLowerCase() ?? '';
+        return USERNAME_PATTERN.test(username) ? [`u-${username}`] : [];
+      },
+    );
   }
 
   async resetChildPassword(userId: string): Promise<{ tempPassword: string }> {
     await simLatency('api.resetChildPassword');
-    const caller = await this.caller();
-    await this.requireCreatedLink(caller.userId, userId);
-    const child = await mockGet<MockUserRow>('users', userId);
-    if (!child) throw new ApiError('NOT_FOUND');
-    const cred = await mockGet<MockCredentialRow>('credentials', child.username);
-    if (!cred) throw new ApiError('NOT_FOUND');
-    const tempPassword = await this.mintTempPassword(child.username);
-    await mockPut('credentials', { ...cred, password: tempPassword, mustChangePassword: true });
-    return { tempPassword };
+    return this.withAccountMutation(
+      async (caller) => {
+        await this.requireCreatedLink(caller.userId, userId);
+        const child = await mockGet<MockUserRow>('users', userId);
+        if (!child) throw new ApiError('NOT_FOUND');
+        const cred = await mockGet<MockCredentialRow>('credentials', child.username);
+        if (!cred) throw new ApiError('NOT_FOUND');
+        const tempPassword = await this.mintTempPassword(child.username);
+        await mockPut('credentials', { ...cred, password: tempPassword, mustChangePassword: true });
+        return { tempPassword };
+      },
+      async () => [userId],
+    );
   }
 
   async patchChild(
@@ -191,18 +262,22 @@ export class MockApi implements ApiClient {
     patch: { displayName?: string; socialEnabled?: boolean },
   ): Promise<UserProfile> {
     await simLatency('api.patchChild');
-    const caller = await this.caller();
-    await this.requireCreatedLink(caller.userId, userId);
-    const child = await mockGet<MockUserRow>('users', userId);
-    if (!child) throw new ApiError('NOT_FOUND');
-    if (patch.displayName !== undefined) {
-      const displayName = patch.displayName.trim();
-      if (!displayName || displayName.length > 40) throw new ApiError('VALIDATION');
-      child.displayName = displayName;
-    }
-    if (patch.socialEnabled !== undefined) child.socialEnabled = !!patch.socialEnabled;
-    await mockPut('users', child);
-    return this.profileOf(child);
+    return this.withAccountMutation(
+      async (caller) => {
+        await this.requireCreatedLink(caller.userId, userId);
+        const child = await mockGet<MockUserRow>('users', userId);
+        if (!child) throw new ApiError('NOT_FOUND');
+        if (patch.displayName !== undefined) {
+          const displayName = patch.displayName.trim();
+          if (!displayName || displayName.length > 40) throw new ApiError('VALIDATION');
+          child.displayName = displayName;
+        }
+        if (patch.socialEnabled !== undefined) child.socialEnabled = !!patch.socialEnabled;
+        await mockPut('users', child);
+        return this.profileOf(child);
+      },
+      async () => [userId],
+    );
   }
 
   async exportChild(userId: string): Promise<ExportEnvelope> {
@@ -233,13 +308,21 @@ export class MockApi implements ApiClient {
   /** Export-first is the CLIENT flow; here the purge is total and final. */
   async deleteChild(userId: string): Promise<void> {
     await simLatency('api.deleteChild');
-    const caller = await this.caller();
-    await this.requireCreatedLink(caller.userId, userId);
-    const child = await mockGet<MockUserRow>('users', userId);
-    if (!child) throw new ApiError('NOT_FOUND');
+    return this.withAccountMutation(
+      async (caller) => {
+        await this.requireCreatedLink(caller.userId, userId);
+        const child = await mockGet<MockUserRow>('users', userId);
+        if (!child) throw new ApiError('NOT_FOUND');
+        await this.purgeMockUser(userId);
+      },
+      async () => [userId],
+    );
+  }
 
-    await mockDelete('credentials', child.username);
-    await mockDelete('users', userId);
+  private async purgeMockUser(userId: string): Promise<void> {
+    for (const credential of await mockGetAll<MockCredentialRow>('credentials')) {
+      if (credential.userId === userId) await mockDelete('credentials', credential.username);
+    }
     for (const link of await mockGetAll<MockGuardianLinkRow>('guardianLinks')) {
       if (link.minorId === userId || link.guardianId === userId) {
         await mockDelete('guardianLinks', link.linkId);
@@ -263,118 +346,156 @@ export class MockApi implements ApiClient {
     for (const record of await mockGetAll<MockRecordRow>('records')) {
       if (record.ownerId === userId) await mockDelete('records', record.key);
     }
+    for (const row of await mockGetAll<{ key: string }>('kv')) {
+      if (row.key.startsWith(`rate:${userId}:`)) await mockDelete('kv', row.key);
+    }
+    await mockDelete('users', userId);
+  }
+
+  private async completeMockAccountClosure(
+    key: string,
+    state: MockAccountClosureState,
+  ): Promise<AccountClosureReceipt> {
+    if (!state.purgeCompleted) {
+      const current = await mockGet<MockUserRow>('users', state.userId);
+      if (current && current.accountInstanceId !== state.accountInstanceId) {
+        throw new ApiError('UNAUTHENTICATED');
+      }
+      await this.purgeMockUser(state.userId);
+      await mockPut('kv', {
+        key,
+        value: { ...state, purgeCompleted: true },
+      } satisfies MockAccountClosureRow);
+    }
+    return state.receipt;
   }
 
   async deleteFamilyLink(linkId: string): Promise<void> {
     await simLatency('api.deleteFamilyLink');
-    const caller = await this.caller();
-    const link = await mockGet<MockGuardianLinkRow>('guardianLinks', linkId);
-    if (!link) throw new ApiError('NOT_FOUND');
-    const callerIsGuardian = caller.userId === link.guardianId;
-    const callerIsMinorSide = caller.userId === link.minorId && link.kind === 'invited';
-    if (!callerIsGuardian && !callerIsMinorSide) throw new ApiError('NOT_FOUND');
-    if (link.kind === 'created') {
-      const remaining = (await this.guardiansOf(link.minorId)).filter(
-        (l) => l.linkId !== link.linkId,
-      );
-      if (!remaining.length) throw new ApiError('LAST_GUARDIAN');
-    }
-    await mockDelete('guardianLinks', linkId);
+    return this.withAccountMutation(
+      async (caller) => {
+        const link = await mockGet<MockGuardianLinkRow>('guardianLinks', linkId);
+        if (!link) throw new ApiError('NOT_FOUND');
+        const callerIsGuardian = caller.userId === link.guardianId;
+        const callerIsMinorSide = caller.userId === link.minorId && link.kind === 'invited';
+        if (!callerIsGuardian && !callerIsMinorSide) throw new ApiError('NOT_FOUND');
+        if (link.kind === 'created') {
+          const remaining = (await this.guardiansOf(link.minorId)).filter(
+            (l) => l.linkId !== link.linkId,
+          );
+          if (!remaining.length) throw new ApiError('LAST_GUARDIAN');
+        }
+        await mockDelete('guardianLinks', linkId);
+      },
+      () => this.familyLinkParticipantIds(linkId),
+    );
   }
 
   async createFamilyInvite(req: FamilyInviteRequest): Promise<CodeGrant> {
     await simLatency('api.createFamilyInvite');
-    const caller = await this.caller();
-    if (caller.accountType !== 'adult') throw new ApiError('FORBIDDEN');
-    let minorId: string | null = null;
-    if (req.kind === 'coGuardian') {
-      await this.requireCreatedLink(caller.userId, req.minorId);
-      if ((await this.guardiansOf(req.minorId)).length >= LIMITS.maxGuardiansPerMinor) {
-        throw new ApiError('LIMIT_EXCEEDED');
-      }
-      minorId = req.minorId;
-    } else if (req.kind !== 'linkExisting') {
-      throw new ApiError('VALIDATION', 'unknown invite kind');
-    }
-    const code = await this.mintCode();
-    const expiresAt = Date.now() + INVITE_TTL_MS;
-    await mockPut('codes', {
-      code,
-      kind: req.kind,
-      userId: caller.userId,
-      minorId,
-      expiresAt,
-    } satisfies MockCodeRow);
-    return { code, expiresAt };
+    return this.withAccountMutation(
+      async (caller) => {
+        if (caller.accountType !== 'adult') throw new ApiError('FORBIDDEN');
+        let minorId: string | null = null;
+        if (req.kind === 'coGuardian') {
+          await this.requireCreatedLink(caller.userId, req.minorId);
+          if ((await this.guardiansOf(req.minorId)).length >= LIMITS.maxGuardiansPerMinor) {
+            throw new ApiError('LIMIT_EXCEEDED');
+          }
+          minorId = req.minorId;
+        } else if (req.kind !== 'linkExisting') {
+          throw new ApiError('VALIDATION', 'unknown invite kind');
+        }
+        const code = await this.mintCode();
+        const expiresAt = Date.now() + INVITE_TTL_MS;
+        await mockPut('codes', {
+          code,
+          kind: req.kind,
+          userId: caller.userId,
+          minorId,
+          expiresAt,
+        } satisfies MockCodeRow);
+        return { code, expiresAt };
+      },
+      async () => (req.kind === 'coGuardian' ? [req.minorId] : []),
+    );
   }
 
   async acceptFamilyInvite(rawCode: string): Promise<FamilyLinkView> {
     await simLatency('api.acceptFamilyInvite');
-    const caller = await this.caller();
-    const code = rawCode?.trim().toUpperCase().replace(/-/g, '');
-    if (!code) throw new ApiError('VALIDATION');
-    // Same code-guessing brake as friend codes (the contract scopes it to
-    // BAD redemptions of any code — family invites were uncovered).
-    const bucket = Math.floor(Date.now() / 3_600_000);
-    const rateKey = `rate:${caller.userId}:${bucket}`;
-    const attempts = (await mockGet<{ key: string; value: number }>('kv', rateKey))?.value ?? 0;
-    if (attempts >= LIMITS.codeAttemptsPerHour) throw new ApiError('RATE_LIMITED');
-    const badAttempt = async (errorCode: ApiErrorCode): Promise<never> => {
-      await mockNextSeq(rateKey);
-      throw new ApiError(errorCode);
-    };
-    const invite = await mockGet<MockCodeRow>('codes', code);
-    if (!invite || invite.kind === 'friend') return badAttempt('CODE_INVALID');
-    if (invite.expiresAt <= Date.now()) return badAttempt('CODE_EXPIRED');
+    return this.withAccountMutation(
+      async (caller) => {
+        const code = rawCode?.trim().toUpperCase().replace(/-/g, '');
+        if (!code) throw new ApiError('VALIDATION');
+        // Same code-guessing brake as friend codes (the contract scopes it to
+        // BAD redemptions of any code — family invites were uncovered).
+        const bucket = Math.floor(Date.now() / 3_600_000);
+        const rateKey = `rate:${caller.userId}:${bucket}`;
+        const attempts = (await mockGet<{ key: string; value: number }>('kv', rateKey))?.value ?? 0;
+        if (attempts >= LIMITS.codeAttemptsPerHour) throw new ApiError('RATE_LIMITED');
+        const badAttempt = async (errorCode: ApiErrorCode): Promise<never> => {
+          await mockNextSeq(rateKey);
+          throw new ApiError(errorCode);
+        };
+        const invite = await mockGet<MockCodeRow>('codes', code);
+        if (!invite || invite.kind === 'friend') return badAttempt('CODE_INVALID');
+        if (invite.expiresAt <= Date.now()) return badAttempt('CODE_EXPIRED');
 
-    const now = Date.now();
-    if (invite.kind === 'coGuardian') {
-      // Redeemer becomes a co-guardian (full admin) of the invite's minor.
-      if (caller.accountType !== 'adult') throw new ApiError('FORBIDDEN');
-      const minorId = invite.minorId;
-      if (!minorId) return badAttempt('CODE_INVALID');
-      const issuerLink = await this.linkBetween(invite.userId, minorId);
-      if (issuerLink?.kind !== 'created') return badAttempt('CODE_INVALID');
-      const minor = await mockGet<MockUserRow>('users', minorId);
-      if (!minor) throw new ApiError('NOT_FOUND');
-      if (await this.linkBetween(caller.userId, minorId)) {
-        throw new ApiError('CONFLICT', 'already a guardian');
-      }
-      if ((await this.guardiansOf(minorId)).length >= LIMITS.maxGuardiansPerMinor) {
-        throw new ApiError('LIMIT_EXCEEDED');
-      }
-      const link = this.newLink(caller.userId, minorId, 'created', now);
-      await mockPut('guardianLinks', link);
-      await mockDelete('codes', code); // single-use
-      return this.linkView(link, minorId, true);
-    }
+        const now = Date.now();
+        if (invite.kind === 'coGuardian') {
+          // Redeemer becomes a co-guardian (full admin) of the invite's minor.
+          if (caller.accountType !== 'adult') throw new ApiError('FORBIDDEN');
+          const minorId = invite.minorId;
+          if (!minorId) return badAttempt('CODE_INVALID');
+          const issuerLink = await this.linkBetween(invite.userId, minorId);
+          if (issuerLink?.kind !== 'created') return badAttempt('CODE_INVALID');
+          const minor = await mockGet<MockUserRow>('users', minorId);
+          if (!minor) throw new ApiError('NOT_FOUND');
+          if (await this.linkBetween(caller.userId, minorId)) {
+            throw new ApiError('CONFLICT', 'already a guardian');
+          }
+          if ((await this.guardiansOf(minorId)).length >= LIMITS.maxGuardiansPerMinor) {
+            throw new ApiError('LIMIT_EXCEEDED');
+          }
+          const link = this.newLink(caller.userId, minorId, 'created', now);
+          await mockPut('guardianLinks', link);
+          await mockDelete('codes', code); // single-use
+          return this.linkView(link, minorId, true);
+        }
 
-    // linkExisting: the REDEEMER consents to become the issuer's invited minor.
-    const issuer = await mockGet<MockUserRow>('users', invite.userId);
-    if (!issuer) throw new ApiError('CODE_INVALID');
-    if (invite.userId === caller.userId) throw new ApiError('VALIDATION', 'own invite');
-    if (await this.linkBetween(invite.userId, caller.userId)) {
-      throw new ApiError('CONFLICT', 'already linked');
-    }
-    if ((await this.minorsOf(invite.userId)).length >= LIMITS.maxChildrenPerGuardian) {
-      throw new ApiError('LIMIT_EXCEEDED');
-    }
-    const link = this.newLink(invite.userId, caller.userId, 'invited', now);
-    await mockPut('guardianLinks', link);
-    await mockDelete('codes', code);
-    // The redeemer sees the GUARDIAN on the other end of the new link.
-    return this.linkView(link, invite.userId, false);
+        // linkExisting: the REDEEMER consents to become the issuer's invited minor.
+        const issuer = await mockGet<MockUserRow>('users', invite.userId);
+        if (!issuer) throw new ApiError('CODE_INVALID');
+        if (invite.userId === caller.userId) throw new ApiError('VALIDATION', 'own invite');
+        if (await this.linkBetween(invite.userId, caller.userId)) {
+          throw new ApiError('CONFLICT', 'already linked');
+        }
+        if ((await this.minorsOf(invite.userId)).length >= LIMITS.maxChildrenPerGuardian) {
+          throw new ApiError('LIMIT_EXCEEDED');
+        }
+        const link = this.newLink(invite.userId, caller.userId, 'invited', now);
+        await mockPut('guardianLinks', link);
+        await mockDelete('codes', code);
+        // The redeemer sees the GUARDIAN on the other end of the new link.
+        return this.linkView(link, invite.userId, false);
+      },
+      () => this.familyInviteParticipantIds(rawCode),
+    );
   }
 
   async revokeFamilyInvite(rawCode: string): Promise<void> {
     await simLatency('api.revokeFamilyInvite');
-    const caller = await this.caller();
-    const code = rawCode?.trim().toUpperCase().replace(/-/g, '') ?? '';
-    const invite = await mockGet<MockCodeRow>('codes', code);
-    if (!invite || invite.userId !== caller.userId || invite.kind === 'friend') {
-      throw new ApiError('NOT_FOUND');
-    }
-    await mockDelete('codes', code);
+    return this.withAccountMutation(
+      async (caller) => {
+        const code = rawCode?.trim().toUpperCase().replace(/-/g, '') ?? '';
+        const invite = await mockGet<MockCodeRow>('codes', code);
+        if (!invite || invite.userId !== caller.userId || invite.kind === 'friend') {
+          throw new ApiError('NOT_FOUND');
+        }
+        await mockDelete('codes', code);
+      },
+      () => this.familyInviteParticipantIds(rawCode),
+    );
   }
 
   /** Guardian oversight — same list the minor sees; removal, never initiation. */
@@ -387,18 +508,26 @@ export class MockApi implements ApiClient {
 
   async removeChildFriendship(userId: string, friendshipId: string): Promise<void> {
     await simLatency('api.removeChildFriendship');
-    const caller = await this.caller();
-    if (!(await this.linkBetween(caller.userId, userId))) throw new ApiError('NOT_FOUND');
-    await this.removeFriendshipAs(userId, friendshipId);
+    return this.withAccountMutation(
+      async (caller) => {
+        if (!(await this.linkBetween(caller.userId, userId))) throw new ApiError('NOT_FOUND');
+        await this.removeFriendshipAs(userId, friendshipId);
+      },
+      async () => [userId, ...(await this.friendshipParticipantIds(friendshipId))],
+    );
   }
 
   async cancelChildRequest(userId: string, requestId: string): Promise<void> {
     await simLatency('api.cancelChildRequest');
-    const caller = await this.caller();
-    if (!(await this.linkBetween(caller.userId, userId))) throw new ApiError('NOT_FOUND');
-    const request = await mockGet<MockFriendRequestRow>('friendRequests', requestId);
-    if (!request || request.fromId !== userId) throw new ApiError('NOT_FOUND');
-    await mockDelete('friendRequests', requestId);
+    return this.withAccountMutation(
+      async (caller) => {
+        if (!(await this.linkBetween(caller.userId, userId))) throw new ApiError('NOT_FOUND');
+        const request = await mockGet<MockFriendRequestRow>('friendRequests', requestId);
+        if (!request || request.fromId !== userId) throw new ApiError('NOT_FOUND');
+        await mockDelete('friendRequests', requestId);
+      },
+      async () => [userId, ...(await this.friendRequestParticipantIds(requestId))],
+    );
   }
 
   // ── friends ───────────────────────────────────────────────────────────────
@@ -419,141 +548,173 @@ export class MockApi implements ApiClient {
       (c) => c.kind === 'friend' && c.userId === caller.userId && c.expiresAt > now,
     );
     if (existing) return { code: existing.code, expiresAt: existing.expiresAt };
-    return this.mintFriendCode(caller.userId);
+    return this.withAccountMutation(async (current) => {
+      this.requireSocial(current);
+      const live = (await mockGetAll<MockCodeRow>('codes')).find(
+        (code) =>
+          code.kind === 'friend' && code.userId === current.userId && code.expiresAt > Date.now(),
+      );
+      return live
+        ? { code: live.code, expiresAt: live.expiresAt }
+        : this.mintFriendCode(current.userId);
+    });
   }
 
   async rotateFriendCode(): Promise<CodeGrant> {
     await simLatency('api.rotateFriendCode');
-    const caller = await this.caller();
-    this.requireSocial(caller);
-    return this.mintFriendCode(caller.userId);
+    return this.withAccountMutation(async (caller) => {
+      this.requireSocial(caller);
+      return this.mintFriendCode(caller.userId);
+    });
   }
 
   async createFriendRequest(rawCode: string): Promise<FriendRequestView> {
     await simLatency('api.createFriendRequest');
-    const caller = await this.caller();
-    this.requireSocial(caller);
-    const code = rawCode?.trim().toUpperCase().replace(/-/g, '');
-    if (!code) throw new ApiError('VALIDATION', 'code required');
+    return this.withAccountMutation(
+      async (caller) => {
+        this.requireSocial(caller);
+        const code = rawCode?.trim().toUpperCase().replace(/-/g, '');
+        if (!code) throw new ApiError('VALIDATION', 'code required');
 
-    // Code-guessing brake: only BAD redemptions count (contract law — five
-    // valid requests in an hour must never lock out the sixth).
-    const bucket = Math.floor(Date.now() / 3_600_000);
-    const rateKey = `rate:${caller.userId}:${bucket}`;
-    const attempts = (await mockGet<{ key: string; value: number }>('kv', rateKey))?.value ?? 0;
-    if (attempts >= LIMITS.codeAttemptsPerHour) throw new ApiError('RATE_LIMITED');
-    const badAttempt = async (errorCode: ApiErrorCode, message?: string): Promise<never> => {
-      await mockNextSeq(rateKey);
-      throw new ApiError(errorCode, message);
-    };
+        // Code-guessing brake: only BAD redemptions count (contract law — five
+        // valid requests in an hour must never lock out the sixth).
+        const bucket = Math.floor(Date.now() / 3_600_000);
+        const rateKey = `rate:${caller.userId}:${bucket}`;
+        const attempts = (await mockGet<{ key: string; value: number }>('kv', rateKey))?.value ?? 0;
+        if (attempts >= LIMITS.codeAttemptsPerHour) throw new ApiError('RATE_LIMITED');
+        const badAttempt = async (errorCode: ApiErrorCode, message?: string): Promise<never> => {
+          await mockNextSeq(rateKey);
+          throw new ApiError(errorCode, message);
+        };
 
-    const grant = await mockGet<MockCodeRow>('codes', code);
-    if (!grant || grant.kind !== 'friend') return badAttempt('CODE_INVALID');
-    if (grant.expiresAt <= Date.now()) return badAttempt('CODE_EXPIRED');
-    if (grant.userId === caller.userId) throw new ApiError('VALIDATION', 'that is your own code');
+        const grant = await mockGet<MockCodeRow>('codes', code);
+        if (!grant || grant.kind !== 'friend') return badAttempt('CODE_INVALID');
+        if (grant.expiresAt <= Date.now()) return badAttempt('CODE_EXPIRED');
+        if (grant.userId === caller.userId)
+          throw new ApiError('VALIDATION', 'that is your own code');
 
-    const target = await mockGet<MockUserRow>('users', grant.userId);
-    if (!target || !target.socialEnabled) return badAttempt('CODE_INVALID');
-    if (await this.friendshipBetween(caller.userId, grant.userId)) {
-      throw new ApiError('CONFLICT', 'already friends');
-    }
-    const pending = await mockGetAll<MockFriendRequestRow>('friendRequests');
-    const already = pending.find(
-      (r) => r.fromId === caller.userId && r.toId === grant.userId && r.expiresAt > Date.now(),
+        const target = await mockGet<MockUserRow>('users', grant.userId);
+        if (!target || !target.socialEnabled) return badAttempt('CODE_INVALID');
+        if (await this.friendshipBetween(caller.userId, grant.userId)) {
+          throw new ApiError('CONFLICT', 'already friends');
+        }
+        const pending = await mockGetAll<MockFriendRequestRow>('friendRequests');
+        const already = pending.find(
+          (r) => r.fromId === caller.userId && r.toId === grant.userId && r.expiresAt > Date.now(),
+        );
+        if (already) throw new ApiError('CONFLICT', 'request already pending');
+        // A pending request in the OPPOSITE direction means you're already mid-
+        // handshake — redeeming back would mint a mutual pair that both accept.
+        const inverse = pending.find(
+          (r) => r.fromId === grant.userId && r.toId === caller.userId && r.expiresAt > Date.now(),
+        );
+        if (inverse) throw new ApiError('CONFLICT', 'they already asked you');
+        const mine = (await mockGetAll<MockFriendshipRow>('friendships')).filter(
+          (f) => f.userA === caller.userId || f.userB === caller.userId,
+        );
+        if (mine.length >= LIMITS.maxFriends) throw new ApiError('LIMIT_EXCEEDED');
+
+        const now = Date.now();
+        // DETERMINISTIC id (the Lambda's law): a double-submit race lands the
+        // same key and the second write is a harmless overwrite, never a
+        // duplicate row (`freq-<seq>` allowed two pending requests to coexist).
+        const requestId = `freq-${caller.userId}~${grant.userId}`;
+        const request: MockFriendRequestRow = {
+          requestId,
+          fromId: caller.userId,
+          toId: grant.userId,
+          createdAt: now,
+          expiresAt: now + 14 * 24 * 3600 * 1000,
+        };
+        await mockPut('friendRequests', request);
+        return {
+          requestId,
+          user: this.publicOf(target, false),
+          createdAt: now,
+          expiresAt: request.expiresAt,
+        };
+      },
+      () => this.friendCodeParticipantIds(rawCode),
     );
-    if (already) throw new ApiError('CONFLICT', 'request already pending');
-    // A pending request in the OPPOSITE direction means you're already mid-
-    // handshake — redeeming back would mint a mutual pair that both accept.
-    const inverse = pending.find(
-      (r) => r.fromId === grant.userId && r.toId === caller.userId && r.expiresAt > Date.now(),
-    );
-    if (inverse) throw new ApiError('CONFLICT', 'they already asked you');
-    const mine = (await mockGetAll<MockFriendshipRow>('friendships')).filter(
-      (f) => f.userA === caller.userId || f.userB === caller.userId,
-    );
-    if (mine.length >= LIMITS.maxFriends) throw new ApiError('LIMIT_EXCEEDED');
-
-    const now = Date.now();
-    // DETERMINISTIC id (the Lambda's law): a double-submit race lands the
-    // same key and the second write is a harmless overwrite, never a
-    // duplicate row (`freq-<seq>` allowed two pending requests to coexist).
-    const requestId = `freq-${caller.userId}~${grant.userId}`;
-    const request: MockFriendRequestRow = {
-      requestId,
-      fromId: caller.userId,
-      toId: grant.userId,
-      createdAt: now,
-      expiresAt: now + 14 * 24 * 3600 * 1000,
-    };
-    await mockPut('friendRequests', request);
-    return {
-      requestId,
-      user: this.publicOf(target, false),
-      createdAt: now,
-      expiresAt: request.expiresAt,
-    };
   }
 
   async acceptFriendRequest(requestId: string): Promise<FriendView> {
     await simLatency('api.acceptFriendRequest');
-    const caller = await this.caller();
-    this.requireSocial(caller);
-    const request = await mockGet<MockFriendRequestRow>('friendRequests', requestId);
-    if (!request || request.toId !== caller.userId || request.expiresAt <= Date.now()) {
-      throw new ApiError('NOT_FOUND');
-    }
-    const other = await mockGet<MockUserRow>('users', request.fromId);
-    if (!other) throw new ApiError('NOT_FOUND');
-    // The cap holds on BOTH ends at accept time too — requests sit for days,
-    // and either side may have filled up since the request was sent.
-    const edges = await mockGetAll<MockFriendshipRow>('friendships');
-    const countOf = (id: string) => edges.filter((f) => f.userA === id || f.userB === id).length;
-    if (
-      countOf(caller.userId) >= LIMITS.maxFriends ||
-      countOf(request.fromId) >= LIMITS.maxFriends
-    ) {
-      throw new ApiError('LIMIT_EXCEEDED');
-    }
-    const [a, b] = [caller.userId, request.fromId].sort();
-    const friendship: MockFriendshipRow = {
-      friendshipId: `${a}~${b}`,
-      userA: a,
-      userB: b,
-      createdAt: Date.now(),
-    };
-    await mockPut('friendships', friendship);
-    await mockDelete('friendRequests', requestId);
-    return {
-      friendshipId: friendship.friendshipId,
-      user: this.publicOf(other, false),
-      since: friendship.createdAt,
-    };
+    return this.withAccountMutation(
+      async (caller) => {
+        this.requireSocial(caller);
+        const request = await mockGet<MockFriendRequestRow>('friendRequests', requestId);
+        if (!request || request.toId !== caller.userId || request.expiresAt <= Date.now()) {
+          throw new ApiError('NOT_FOUND');
+        }
+        const other = await mockGet<MockUserRow>('users', request.fromId);
+        if (!other) throw new ApiError('NOT_FOUND');
+        // The cap holds on BOTH ends at accept time too — requests sit for days,
+        // and either side may have filled up since the request was sent.
+        const edges = await mockGetAll<MockFriendshipRow>('friendships');
+        const countOf = (id: string) =>
+          edges.filter((f) => f.userA === id || f.userB === id).length;
+        if (
+          countOf(caller.userId) >= LIMITS.maxFriends ||
+          countOf(request.fromId) >= LIMITS.maxFriends
+        ) {
+          throw new ApiError('LIMIT_EXCEEDED');
+        }
+        const [a, b] = [caller.userId, request.fromId].sort();
+        const friendship: MockFriendshipRow = {
+          friendshipId: `${a}~${b}`,
+          userA: a,
+          userB: b,
+          createdAt: Date.now(),
+        };
+        await mockPut('friendships', friendship);
+        await mockDelete('friendRequests', requestId);
+        return {
+          friendshipId: friendship.friendshipId,
+          user: this.publicOf(other, false),
+          since: friendship.createdAt,
+        };
+      },
+      () => this.friendRequestParticipantIds(requestId),
+    );
   }
 
   /** Silent by design — the requester's pending item simply disappears. */
   async declineFriendRequest(requestId: string): Promise<void> {
     await simLatency('api.declineFriendRequest');
-    const caller = await this.caller();
-    this.requireSocial(caller);
-    const request = await mockGet<MockFriendRequestRow>('friendRequests', requestId);
-    if (!request || request.toId !== caller.userId) throw new ApiError('NOT_FOUND');
-    await mockDelete('friendRequests', requestId);
+    return this.withAccountMutation(
+      async (caller) => {
+        this.requireSocial(caller);
+        const request = await mockGet<MockFriendRequestRow>('friendRequests', requestId);
+        if (!request || request.toId !== caller.userId) throw new ApiError('NOT_FOUND');
+        await mockDelete('friendRequests', requestId);
+      },
+      () => this.friendRequestParticipantIds(requestId),
+    );
   }
 
   async cancelFriendRequest(requestId: string): Promise<void> {
     await simLatency('api.cancelFriendRequest');
-    const caller = await this.caller();
-    this.requireSocial(caller);
-    const request = await mockGet<MockFriendRequestRow>('friendRequests', requestId);
-    if (!request || request.fromId !== caller.userId) throw new ApiError('NOT_FOUND');
-    await mockDelete('friendRequests', requestId);
+    return this.withAccountMutation(
+      async (caller) => {
+        this.requireSocial(caller);
+        const request = await mockGet<MockFriendRequestRow>('friendRequests', requestId);
+        if (!request || request.fromId !== caller.userId) throw new ApiError('NOT_FOUND');
+        await mockDelete('friendRequests', requestId);
+      },
+      () => this.friendRequestParticipantIds(requestId),
+    );
   }
 
   async removeFriend(friendshipId: string): Promise<void> {
     await simLatency('api.removeFriend');
-    const caller = await this.caller();
-    this.requireSocial(caller);
-    await this.removeFriendshipAs(caller.userId, friendshipId);
+    return this.withAccountMutation(
+      async (caller) => {
+        this.requireSocial(caller);
+        await this.removeFriendshipAs(caller.userId, friendshipId);
+      },
+      () => this.friendshipParticipantIds(friendshipId),
+    );
   }
 
   // ── forests & sync ────────────────────────────────────────────────────────
@@ -641,18 +802,21 @@ export class MockApi implements ApiClient {
 
   async pushSync(req: SyncPushPayload): Promise<SyncPushResponse> {
     await simLatency('api.pushSync');
-    const caller = await this.caller();
-    return this.pushInto(caller.userId, req);
+    return this.withAccountMutation((caller) => this.pushInto(caller.userId, req));
   }
 
   /** Guardian write-through (co-gardening): same rev-LWW law as own pushes;
    *  records land in the minor's cloud store. */
   async pushSyncFor(userId: string, req: SyncPushPayload): Promise<SyncPushResponse> {
     await simLatency('api.pushSyncFor');
-    const caller = await this.caller();
-    const link = await this.linkBetween(caller.userId, userId);
-    if (!link) throw new ApiError('NOT_FOUND');
-    return this.pushInto(userId, req);
+    return this.withAccountMutation(
+      async (caller) => {
+        const link = await this.linkBetween(caller.userId, userId);
+        if (!link) throw new ApiError('NOT_FOUND');
+        return this.pushInto(userId, req);
+      },
+      async () => [userId],
+    );
   }
 
   /** Shared LWW write loop. v12 records remain independent singleton writes;
@@ -750,12 +914,143 @@ export class MockApi implements ApiClient {
 
   /** Bearer-token gate — same 401 semantics HttpApi will meet in production. */
   private async caller(): Promise<MockUserRow> {
-    const token = await this.auth.idToken();
+    return this.callerForIdentity(await this.callerIdentity());
+  }
+
+  private async callerIdentity(): Promise<MockCallerIdentity> {
+    return this.identityFromToken(await this.auth.idToken());
+  }
+
+  private async accountClosureIdentity(): Promise<MockCallerIdentity> {
+    const closureAuth = this.auth as AuthProvider & Partial<AccountClosureCredentialProvider>;
+    const accountClosureCredential = closureAuth.accountClosureCredential;
+    const hasClosureCredential = typeof accountClosureCredential === 'function';
+    const token = hasClosureCredential
+      ? await accountClosureCredential.call(closureAuth)
+      : await this.auth.idToken();
+    return { ...this.identityFromToken(token), closureOnly: hasClosureCredential };
+  }
+
+  private identityFromToken(token: string | null): MockCallerIdentity {
     const payload = token ? parseMockToken(token) : null;
-    if (!payload) throw new ApiError('UNAUTHENTICATED');
-    const user = await mockGet<MockUserRow>('users', payload.sub);
-    if (!user) throw new ApiError('UNAUTHENTICATED');
+    if (
+      !payload ||
+      typeof payload.accountInstanceId !== 'string' ||
+      !payload.accountInstanceId.trim()
+    ) {
+      throw new ApiError('UNAUTHENTICATED');
+    }
+    return { sub: payload.sub, accountInstanceId: payload.accountInstanceId };
+  }
+
+  private async callerForIdentity(identity: MockCallerIdentity): Promise<MockUserRow> {
+    const user = await mockGet<MockUserRow>('users', identity.sub);
+    if (!user || user.accountInstanceId !== identity.accountInstanceId) {
+      throw new ApiError('UNAUTHENTICATED');
+    }
     return user;
+  }
+
+  /** All mock writes linearize against terminal closure for this incarnation. */
+  private async withAccountMutation<T>(
+    operation: (caller: MockUserRow) => Promise<T>,
+    participantIds: () => Promise<readonly string[]> = async () => [],
+    lockOnlyIds: () => Promise<readonly string[]> = async () => [],
+  ): Promise<T> {
+    const identity = await this.callerIdentity();
+    await this.callerForIdentity(identity);
+    const normalize = (ids: readonly string[]) => [...new Set(ids)].sort();
+    const initialParticipants = normalize(await participantIds());
+    const initialLockOnly = normalize(await lockOnlyIds());
+    const targetIdentities = await Promise.all(
+      initialParticipants
+        .filter((userId) => userId !== identity.sub)
+        .map((userId) => this.activeAccountIdentity(userId)),
+    );
+    const identities = [identity, ...targetIdentities];
+
+    return withMockAccountLocks(
+      [...identities.map((participant) => participant.sub), ...initialLockOnly],
+      async () => {
+        const liveParticipants = normalize(await participantIds());
+        const liveLockOnly = normalize(await lockOnlyIds());
+        if (
+          liveParticipants.join('\u0000') !== initialParticipants.join('\u0000') ||
+          liveLockOnly.join('\u0000') !== initialLockOnly.join('\u0000')
+        ) {
+          throw new ApiError('NOT_FOUND');
+        }
+        let caller: MockUserRow | null = null;
+        for (const participant of identities) {
+          const tombstone = await mockGet<MockAccountClosureRow>(
+            'kv',
+            mockAccountClosureKey(participant.sub, participant.accountInstanceId),
+          );
+          const user = await mockGet<MockUserRow>('users', participant.sub);
+          if (tombstone || user?.accountInstanceId !== participant.accountInstanceId) {
+            throw new ApiError(participant.sub === identity.sub ? 'UNAUTHENTICATED' : 'NOT_FOUND');
+          }
+          if (participant.sub === identity.sub) caller = user;
+        }
+        if (!caller) throw new ApiError('UNAUTHENTICATED');
+        return operation(caller);
+      },
+    );
+  }
+
+  private async familyLinkParticipantIds(linkId: string): Promise<string[]> {
+    const link = await mockGet<MockGuardianLinkRow>('guardianLinks', linkId);
+    return this.existingParticipantIds(link ? [link.guardianId, link.minorId] : []);
+  }
+
+  private async familyInviteParticipantIds(rawCode: string): Promise<string[]> {
+    const code = rawCode?.trim().toUpperCase().replace(/-/g, '') ?? '';
+    const invite = await mockGet<MockCodeRow>('codes', code);
+    return this.existingParticipantIds(
+      invite && invite.kind !== 'friend'
+        ? [invite.userId, ...(invite.minorId ? [invite.minorId] : [])]
+        : [],
+    );
+  }
+
+  private async friendCodeParticipantIds(rawCode: string): Promise<string[]> {
+    const code = rawCode?.trim().toUpperCase().replace(/-/g, '') ?? '';
+    const grant = await mockGet<MockCodeRow>('codes', code);
+    return this.existingParticipantIds(grant?.kind === 'friend' ? [grant.userId] : []);
+  }
+
+  private async friendRequestParticipantIds(requestId: string): Promise<string[]> {
+    const request = await mockGet<MockFriendRequestRow>('friendRequests', requestId);
+    return this.existingParticipantIds(request ? [request.fromId, request.toId] : []);
+  }
+
+  private async friendshipParticipantIds(friendshipId: string): Promise<string[]> {
+    const friendship = await mockGet<MockFriendshipRow>('friendships', friendshipId);
+    return this.existingParticipantIds(friendship ? [friendship.userA, friendship.userB] : []);
+  }
+
+  private async existingParticipantIds(userIds: readonly string[]): Promise<string[]> {
+    const unique = [...new Set(userIds)].sort();
+    const users = await Promise.all(unique.map((userId) => mockGet<MockUserRow>('users', userId)));
+    return unique.filter((_, index) => !!users[index]);
+  }
+
+  private async activeAccountIdentity(userId: string): Promise<MockCallerIdentity> {
+    const user = await mockGet<MockUserRow>('users', userId);
+    if (!user) throw new ApiError('NOT_FOUND');
+    if (user.accountInstanceId) {
+      return { sub: userId, accountInstanceId: user.accountInstanceId };
+    }
+    return withMockAccountLock(userId, async () => {
+      const current = await mockGet<MockUserRow>('users', userId);
+      if (!current) throw new ApiError('NOT_FOUND');
+      if (current.accountInstanceId) {
+        return { sub: userId, accountInstanceId: current.accountInstanceId };
+      }
+      const upgraded = { ...current, accountInstanceId: crypto.randomUUID() };
+      await mockPut('users', upgraded);
+      return { sub: userId, accountInstanceId: upgraded.accountInstanceId };
+    });
   }
 
   private profileOf(user: MockUserRow): UserProfile {

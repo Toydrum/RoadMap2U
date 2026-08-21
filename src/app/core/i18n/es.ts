@@ -834,6 +834,7 @@ export const ES = {
     accountGuestHint: 'Tu bosque aún no tiene llave. Cuando quieras, puedes crear una cuenta.',
     accountOpen: 'Abrir mi cuenta',
     accountSignedInAs: 'Estás aquí como',
+    accountClosureResume: 'Revisar la baja de mi cuenta',
     mockReset: 'Restablecer la nube de prueba',
     mockResetHint: 'Solo en modo ensayo: reinicia la familia demo (rocio, nico, val, ambar).',
     mockResetDone: 'La nube de prueba volvió a empezar 🌱',
@@ -903,8 +904,25 @@ export const ES = {
     deleteCta: 'Borrar mi cuenta',
     deleteTitle: '¿Borrar tu cuenta?',
     deleteBody:
-      'Se borra la llave, no el bosque: tus árboles siguen viviendo en este dispositivo. Esta acción no se puede deshacer.',
-    deleteConfirm: 'Sí, borrar mi cuenta',
+      'Primero descargaremos una copia completa. Mientras la baja siga en proceso, tu bosque y tu sesión se quedan intactos aquí. Sólo al confirmarse el final borraremos la copia de esta app y cerraremos sesión.',
+    deleteConfirm: 'Descargar copia y comenzar',
+    closureStatusTitle: 'Tu baja está en camino',
+    closureRequested:
+      'El servidor recibió tu solicitud. Tu copia local sigue aquí mientras termina.',
+    closurePurging:
+      'La nube está retirando tus datos con cuidado. Tu copia local todavía no se toca.',
+    closurePurgeComplete:
+      'La nube ya quedó vacía y está terminando de cerrar tu llave. Tu copia local sigue aquí.',
+    closureCompleted: 'La baja terminó y esta copia local ya puede cerrarse.',
+    closurePendingHint:
+      'Puedes revisar el estado otra vez. No cierres sesión mientras esperamos la confirmación final.',
+    closureRetry: 'Revisar el estado',
+    closureOffline: 'No pudimos revisar ahora. Tu copia local y tu sesión siguen intactas.',
+    closureRetryError:
+      'No pudimos terminar este paso. Puedes reintentar para continuar desde el estado de baja que ya quedó guardado.',
+    closureSessionExpired:
+      'Tu sesión venció antes de confirmar el final. Por seguridad no borramos nada de este dispositivo; el contrato actual no permite consultar la baja sin una sesión válida.',
+    closureSupport: 'Pedir ayuda para confirmar la baja',
     errors: {
       invalidUsername:
         'El nombre de usuario solo puede tener minúsculas, números y guion bajo; sin espacios. Por ejemplo: lynx_pardelle.',

@@ -172,11 +172,18 @@ function user(userId: string, accountType: MockUserRow['accountType']): MockUser
     socialEnabled: accountType === 'adult',
     createdAt: NOW,
     email: accountType === 'adult' ? `${userId}@example.com` : null,
+    accountInstanceId: `instance:${userId}:1`,
   };
 }
 
 function tokenFor(caller: MockUserRow): string {
-  const encoded = btoa(JSON.stringify({ sub: caller.userId, username: caller.username }));
+  const encoded = btoa(
+    JSON.stringify({
+      sub: caller.userId,
+      username: caller.username,
+      accountInstanceId: caller.accountInstanceId,
+    }),
+  );
   return `mock.${encoded}.token`;
 }
 

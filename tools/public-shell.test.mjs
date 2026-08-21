@@ -69,6 +69,22 @@ test('the account route hydrates only auth and the product route owns all produc
   assert.match(initializer, /markProductActive/);
 });
 
+test('adult account closure has no browser-side Cognito deletion seam', () => {
+  const provider = source('src/app/core/auth/auth-provider.ts');
+  const authFacade = source('src/app/core/auth/auth.service.ts');
+  const cognito = source('src/app/core/auth/cognito-auth.provider.ts');
+  const mockAuth = source('src/app/core/auth/mock-auth.provider.ts');
+  const closure = source('src/app/core/account-closure.service.ts');
+
+  for (const authSource of [provider, authFacade, cognito, mockAuth]) {
+    assert.doesNotMatch(authSource, /deleteAccount|deleteUser/);
+  }
+  assert.match(closure, /\.deleteMe\(/);
+  assert.match(closure, /import\('\.\/repos\/backup\.service'\)/);
+  assert.match(closure, /import\('\.\/local-account-data\.service'\)/);
+  assert.doesNotMatch(closure, /^import .*BackupService|^import .*LocalAccountDataService/m);
+});
+
 test('the install entrypoint opens Ahora and index uses the approved favicon variants', () => {
   const manifest = JSON.parse(source('public/manifest.webmanifest'));
   assert.equal(manifest.id, '/');

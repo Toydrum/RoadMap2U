@@ -318,6 +318,18 @@ export class SyncConflictStore {
     await this.persist(scope);
   }
 
+  /** Terminal account closure only. Invalidate new work, then wait for every
+   * older per-scope write to finish before LocalAccountDataService wipes meta;
+   * otherwise a delayed conflict envelope could resurrect after the wipe. */
+  async resetAfterAccountClosure(): Promise<void> {
+    ++this.generation;
+    this.openInFlight = null;
+    this.activeKey = null;
+    this.conflictsSignal.set([]);
+    await Promise.allSettled([...this.persistTails.values()]);
+    this.persistTails.clear();
+  }
+
   private async ensureScope(ownerId: string): Promise<{ key: string; generation: number }> {
     const key = scopeKey(ownerId);
     if (this.activeKey !== key) await this.open(ownerId);

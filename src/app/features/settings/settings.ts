@@ -21,6 +21,8 @@ import { FamiliaCard } from '../familia/familia-card';
 import { AmigosCard } from '../amigos/amigos-card';
 import { SyncService } from '../../core/sync/sync.service';
 import { FamilyService } from '../../core/family.service';
+import { AccountClosureService } from '../../core/account-closure.service';
+import type { AccountClosureState } from '../../core/api/contracts';
 
 @Component({
   selector: 'app-settings',
@@ -72,11 +74,29 @@ export class SettingsPage {
   protected readonly theme = inject(ThemeService);
   protected readonly trees = inject(TreesRepo);
   protected readonly auth = inject(AuthService);
+  protected readonly closure = inject(AccountClosureService);
   protected readonly sync = inject(SyncService);
   private readonly fam = inject(FamilyService);
   protected readonly isMock = APP_CONFIG.backend === 'mock';
   private readonly backup = inject(BackupService);
   private readonly toast = inject(ToastService);
+
+  constructor() {
+    void this.closure.hydrate();
+  }
+
+  protected closureStateText(state: AccountClosureState): string {
+    switch (state) {
+      case 'requested':
+        return this.i18n.t().account.closureRequested;
+      case 'purging':
+        return this.i18n.t().account.closurePurging;
+      case 'purgeComplete':
+        return this.i18n.t().account.closurePurgeComplete;
+      case 'completed':
+        return this.i18n.t().account.closureCompleted;
+    }
+  }
 
   protected async doConnect(): Promise<void> {
     if (await this.sync.connect()) {

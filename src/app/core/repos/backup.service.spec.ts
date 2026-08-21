@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { onLocalWrite, type DbChangeMessage } from '../db/broadcast';
-import type { Tree, TreeNode } from '../db/schema';
+import { DEFAULT_SETTINGS, type Tree, type TreeNode } from '../db/schema';
 import { SyncService } from '../sync/sync.service';
 import { BackupService } from './backup.service';
 import { CheckinsRepo } from './checkins.repo';
@@ -124,6 +124,48 @@ function configure(
 
 describe('commercial backup replacement', () => {
   beforeEach(() => TestBed.resetTestingModule());
+
+  it('uses a supplied stable settings snapshot for a terminal copy', async () => {
+    const { service, settings } = configure(
+      replacementStorage(vi.fn(async () => undefined)),
+    );
+    settings.settings.set({ ...DEFAULT_SETTINGS, lang: 'es', theme: 'organic' });
+    const stableSettings = { ...DEFAULT_SETTINGS, lang: 'en' as const, theme: 'terminal' as const };
+    const buildEnvelope = vi.spyOn(service, 'buildEnvelope').mockResolvedValue({
+      app: 'roadmap2u',
+      schemaVersion: 13,
+      exportedAt: '2026-08-20T00:00:00.000Z',
+      data: {
+        trees: [],
+        nodes: [],
+        checkins: [],
+        sessions: [],
+        harvests: [],
+        preserves: [],
+        settings: stableSettings,
+      },
+    });
+    const anchor = { href: '', download: '', click: vi.fn() };
+    vi.spyOn(document, 'createElement').mockReturnValue(anchor as unknown as HTMLAnchorElement);
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:stable-copy'),
+      revokeObjectURL: vi.fn(),
+    });
+
+    try {
+      await service.download('roadmap2u-final-account-closure', {
+        recordCopy: false,
+        settingsSnapshot: stableSettings,
+      });
+
+      expect(buildEnvelope).toHaveBeenCalledWith(stableSettings);
+      expect(anchor.click).toHaveBeenCalledOnce();
+      expect(settings.patch).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    }
+  });
 
   it('migrates and preflights once, then resets memory and broadcasts only after commit', async () => {
     let release!: () => void;

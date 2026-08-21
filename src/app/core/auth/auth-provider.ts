@@ -29,7 +29,6 @@ export interface AuthProvider {
   currentSession(): Promise<AuthSession | null>;
   /** Bearer token for the ApiClient; forceRefresh drives the 401-retry path. */
   idToken(opts?: { forceRefresh?: boolean }): Promise<string | null>;
-  deleteAccount(): Promise<void>;
 }
 
 export const AUTH_PROVIDER = new InjectionToken<AuthProvider>('AUTH_PROVIDER');

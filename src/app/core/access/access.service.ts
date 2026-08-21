@@ -10,6 +10,7 @@ import {
   createFreeAccessSummary,
 } from '../api/contracts';
 import { AuthService } from '../auth/auth.service';
+import { onAccountClosureQuiesce } from '../db/account-closure-fence';
 import { get, put } from '../db/idb';
 
 export const ACCESS_REFRESH_MS = 15 * 60 * 1000;
@@ -174,12 +175,7 @@ function normalizeSummary(value: unknown, now: number): AccessSummary {
     !isLimit(usage['activeTrees']) ||
     usage['activeTrees'] === null ||
     !validBranches ||
-    !hasCanonicalEntitlements(
-      value['effectivePlanKey'],
-      sources,
-      limits,
-      capabilities,
-    ) ||
+    !hasCanonicalEntitlements(value['effectivePlanKey'], sources, limits, capabilities) ||
     !Number.isSafeInteger(value['revision']) ||
     (value['revision'] as number) < 0 ||
     (nextRecomputeAt !== null && !isTimestamp(nextRecomputeAt)) ||
@@ -257,6 +253,12 @@ export class AccessService {
   private cleanup: Array<() => void> = [];
   private stopLeaseTimer: (() => void) | null = null;
   private pendingRequests = 0;
+  private readonly pendingCacheWrites = new Set<Promise<void>>();
+  /** Invalidates responses that were already in flight when terminal account
+   * cleanup began. Without it, an Access refresh could recreate PII meta just
+   * after the coordinated wipe and before identity sign-out. */
+  private generation = 0;
+  private accountClosureQuiesced = false;
 
   readonly access = computed(() => {
     const now = this.nowSignal();
@@ -280,7 +282,10 @@ export class AccessService {
   readonly lastError = this.lastErrorSignal.asReadonly();
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => {
+    const destroyRef = inject(DestroyRef);
+    const stopAccountClosure = onAccountClosureQuiesce(() => this.beginAccountClosureReset());
+    destroyRef.onDestroy(() => {
+      stopAccountClosure();
       for (const stop of this.cleanup.splice(0)) stop();
       this.stopLeaseTimer?.();
       this.stopLeaseTimer = null;
@@ -309,6 +314,7 @@ export class AccessService {
   private async hydrate(): Promise<void> {
     this.tick();
     const userId = this.auth.user()?.userId;
+    const generation = this.generation;
     if (!userId) {
       this.stopLeaseTimer?.();
       this.stopLeaseTimer = null;
@@ -318,7 +324,7 @@ export class AccessService {
     }
     try {
       const cached = await this.cache.read(userId);
-      if (this.auth.user()?.userId === userId && cached) {
+      if (generation === this.generation && this.auth.user()?.userId === userId && cached) {
         try {
           this.setCached(userId, normalizeSummary(cached, this.nowSignal()));
         } catch {
@@ -332,7 +338,9 @@ export class AccessService {
 
   refresh(): Promise<AccessSummary> {
     this.tick();
+    if (this.accountClosureQuiesced) return Promise.resolve(this.access());
     const userId = this.auth.user()?.userId;
+    const generation = this.generation;
     if (!userId) {
       this.cachedSignal.set(null);
       this.lastErrorSignal.set(null);
@@ -344,9 +352,9 @@ export class AccessService {
     this.lastErrorSignal.set(null);
     const request = this.api
       .getAccess()
-      .then((summary) => this.accept(userId, summary))
+      .then((summary) => this.accept(userId, summary, generation))
       .catch((error: unknown) => {
-        if (this.auth.user()?.userId === userId) {
+        if (generation === this.generation && this.auth.user()?.userId === userId) {
           this.lastErrorSignal.set(error instanceof ApiError ? error.code : 'unknown');
         }
         return this.access();
@@ -361,27 +369,45 @@ export class AccessService {
 
   async redeem(code: string): Promise<AccessSummary> {
     this.tick();
+    if (this.accountClosureQuiesced) throw new ApiError('UNAUTHENTICATED');
     const userId = this.auth.user()?.userId;
+    const generation = this.generation;
     if (!userId) throw new ApiError('UNAUTHENTICATED');
     this.beginRequest();
     this.lastErrorSignal.set(null);
     try {
-      return await this.accept(userId, await this.api.redeemAccessCode(code));
+      return await this.accept(userId, await this.api.redeemAccessCode(code), generation);
     } catch (error) {
-      this.lastErrorSignal.set(error instanceof ApiError ? error.code : 'unknown');
+      if (generation === this.generation) {
+        this.lastErrorSignal.set(error instanceof ApiError ? error.code : 'unknown');
+      }
       throw error;
     } finally {
       this.endRequest();
     }
   }
 
-  private async accept(userId: string, value: unknown): Promise<AccessSummary> {
-    if (this.auth.user()?.userId !== userId) return this.access();
+  private async accept(
+    userId: string,
+    value: unknown,
+    generation = this.generation,
+  ): Promise<AccessSummary> {
+    if (generation !== this.generation || this.auth.user()?.userId !== userId) {
+      return this.access();
+    }
     const summary = normalizeSummary(value, this.nowSignal());
-    if (this.auth.user()?.userId !== userId) return this.access();
+    if (generation !== this.generation || this.auth.user()?.userId !== userId) {
+      return this.access();
+    }
     this.setCached(userId, summary);
     try {
-      await this.cache.write(userId, summary);
+      const write = this.cache.write(userId, summary);
+      this.pendingCacheWrites.add(write);
+      try {
+        await write;
+      } finally {
+        this.pendingCacheWrites.delete(write);
+      }
     } catch {
       // IndexedDB can be unavailable; the bounded memory lease remains valid.
     }
@@ -421,5 +447,28 @@ export class AccessService {
   private endRequest(): void {
     this.pendingRequests = Math.max(0, this.pendingRequests - 1);
     this.loadingSignal.set(this.pendingRequests > 0);
+  }
+
+  /** Terminal account closure only: discard cached identity-scoped access and
+   * make every already-running response unable to persist after the wipe. */
+  async resetAfterAccountClosure(): Promise<void> {
+    this.beginAccountClosureReset();
+    while (this.pendingCacheWrites.size) {
+      await Promise.allSettled([...this.pendingCacheWrites]);
+    }
+    this.beginAccountClosureReset();
+  }
+
+  private beginAccountClosureReset(): void {
+    this.accountClosureQuiesced = true;
+    this.generation += 1;
+    for (const stop of this.cleanup.splice(0)) stop();
+    this.inFlight = null;
+    this.cachedSignal.set(null);
+    this.lastErrorSignal.set(null);
+    this.pendingRequests = 0;
+    this.loadingSignal.set(false);
+    this.stopLeaseTimer?.();
+    this.stopLeaseTimer = null;
   }
 }

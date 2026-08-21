@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, InjectionToken, inject, signal } from '@angular/core';
 import { AUTH_PROVIDER } from './auth-provider';
 import {
   AuthError,
@@ -9,7 +9,7 @@ import {
   AuthUser,
   META_AUTH_IDENTITY,
 } from './auth-types';
-import { get, put } from '../db/idb';
+import { deleteAuthIdentitySnapshot, get, put } from '../db/idb';
 
 /**
  * The app-facing identity facade — components talk to these signals, never to
@@ -28,9 +28,30 @@ export type AuthFlowResult = 'done' | 'confirmSignUp' | 'newPasswordRequired' | 
 const AUTH_CHANNEL = 'roadmap2u-auth';
 const VALIDATE_DELAY_MS = 4000;
 
+/** @internal Injectable seam for deterministic auth/storage race tests. */
+export interface AuthIdentityPersistence {
+  read(): Promise<AuthIdentitySnapshot | undefined>;
+  write(snapshot: AuthIdentitySnapshot): Promise<void>;
+  clear(): Promise<void>;
+}
+
+/** @internal */
+export const AUTH_IDENTITY_PERSISTENCE = new InjectionToken<AuthIdentityPersistence>(
+  'AUTH_IDENTITY_PERSISTENCE',
+  {
+    providedIn: 'root',
+    factory: () => ({
+      read: () => get<AuthIdentitySnapshot>('meta', META_AUTH_IDENTITY),
+      write: (snapshot) => put('meta', snapshot),
+      clear: () => deleteAuthIdentitySnapshot(),
+    }),
+  },
+);
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly provider = inject(AUTH_PROVIDER);
+  private readonly identityPersistence = inject(AUTH_IDENTITY_PERSISTENCE);
 
   private readonly statusSignal = signal<'guest' | 'signedIn'>('guest');
   private readonly userSignal = signal<AuthUser | null>(null);
@@ -53,34 +74,47 @@ export class AuthService {
   private pendingUsername: string | null = null;
   /** Credentials held IN MEMORY for the sign-up → confirm → sign-in hop only. */
   private heldCredentials: { username: string; password: string } | null = null;
+  /** Invalidates any async identity read that started in an older auth state. */
+  private identityEpoch = 0;
+  private channelSubscribed = false;
+  /**
+   * Cognito session mutations are ordered by invocation. A sign-out requested
+   * behind a pending login must clear that login before a newer login starts.
+  */
+  private providerSessionTail: Promise<void> = Promise.resolve();
+  /** Orders a started identity write before a later sign-out delete. */
+  private identityPersistenceTail: Promise<void> = Promise.resolve();
 
   private readonly channel: BroadcastChannel | null =
     typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(AUTH_CHANNEL) : null;
 
   /** App initializer — one IDB read, zero network, any failure ⇒ guest. */
   async hydrate(): Promise<void> {
+    // Subscribe before the read. Otherwise a sibling can sign out while this
+    // tab is awaiting IndexedDB and the missed message lets stale identity win.
+    this.subscribeToChannel();
+    const epoch = this.identityEpoch;
     try {
-      const snapshot = await get<AuthIdentitySnapshot>('meta', META_AUTH_IDENTITY);
-      if (snapshot?.user) {
-        this.userSignal.set(snapshot.user);
-        this.statusSignal.set('signedIn');
-      }
+      const snapshot = await this.identityPersistence.read();
+      if (epoch === this.identityEpoch) this.applySnapshot(snapshot);
     } catch {
       // Storage unavailable — the session runs as guest.
     }
-
-    this.channel?.addEventListener('message', () => void this.mirrorFromMeta());
 
     // Background validation — never at boot, never offline, never blocking.
     setTimeout(() => void this.validateQuietly(), VALIDATE_DELAY_MS);
   }
 
   async signIn(username: string, password: string): Promise<AuthFlowResult> {
+    const epoch = ++this.identityEpoch;
     return this.run(async () => {
-      const next = await this.provider.signIn(username, password);
+      const next = await this.queueProviderSessionOperation(() =>
+        this.provider.signIn(username, password),
+      );
+      if (epoch !== this.identityEpoch) return 'error';
       // Held only while a confirm step might need to finish the sign-in.
       this.heldCredentials = { username, password };
-      return this.applyNext(next);
+      return this.applyNext(next, epoch);
     });
   }
 
@@ -90,25 +124,29 @@ export class AuthService {
     email: string;
     displayName: string;
   }): Promise<AuthFlowResult> {
+    const epoch = ++this.identityEpoch;
     return this.run(async () => {
-      const next = await this.provider.signUp(input);
+      const next = await this.queueProviderSessionOperation(() => this.provider.signUp(input));
+      if (epoch !== this.identityEpoch) return 'error';
       this.heldCredentials = { username: input.username, password: input.password };
-      return this.applyNext(next);
+      return this.applyNext(next, epoch);
     });
   }
 
   /** Finishes confirmSignUp; if we hold credentials, completes the sign-in. */
   async confirmCode(code: string): Promise<AuthFlowResult> {
+    const epoch = ++this.identityEpoch;
     return this.run(async () => {
-      if (!this.pendingUsername) throw new AuthError('unknown', 'no pending confirmation');
-      await this.provider.confirmSignUp(this.pendingUsername, code);
-      if (this.heldCredentials) {
-        const next = await this.provider.signIn(
-          this.heldCredentials.username,
-          this.heldCredentials.password,
-        );
-        return this.applyNext(next);
-      }
+      const pendingUsername = this.pendingUsername;
+      const heldCredentials = this.heldCredentials;
+      if (!pendingUsername) throw new AuthError('unknown', 'no pending confirmation');
+      const next = await this.queueProviderSessionOperation(async () => {
+        await this.provider.confirmSignUp(pendingUsername, code);
+        if (epoch !== this.identityEpoch || !heldCredentials) return null;
+        return this.provider.signIn(heldCredentials.username, heldCredentials.password);
+      });
+      if (epoch !== this.identityEpoch) return 'error';
+      if (next) return this.applyNext(next, epoch);
       this.challengeSignal.set(null);
       return 'done';
     });
@@ -123,7 +161,13 @@ export class AuthService {
   }
 
   async completeNewPassword(newPassword: string): Promise<AuthFlowResult> {
-    return this.run(async () => this.applyNext(await this.provider.completeNewPassword(newPassword)));
+    const epoch = ++this.identityEpoch;
+    return this.run(async () => {
+      const next = await this.queueProviderSessionOperation(() =>
+        this.provider.completeNewPassword(newPassword),
+      );
+      return this.applyNext(next, epoch);
+    });
   }
 
   async forgotPassword(username: string): Promise<AuthFlowResult> {
@@ -145,21 +189,30 @@ export class AuthService {
 
   /** Clears identity only — local forests are NEVER touched by sign-out. */
   async signOut(): Promise<void> {
-    try {
-      await this.provider.signOut();
-    } catch {
-      // Provider hiccups must not trap the user in a session.
-    }
-    await this.clearIdentity();
-  }
-
-  async deleteAccount(): Promise<AuthFlowResult> {
-    const result = await this.run(async () => {
-      await this.provider.deleteAccount();
-      return 'done' as const;
+    // Invalidate validation/hydration and the visible local session before
+    // the provider can yield. The queued provider operation runs after every
+    // older login but before any newer login invoked after this sign-out.
+    this.identityEpoch += 1;
+    this.applySnapshot(undefined);
+    this.challengeSignal.set(null);
+    this.heldCredentials = null;
+    this.pendingUsername = null;
+    const clearPersistedIdentity = this.queueIdentityPersistenceOperation(async () => {
+      try {
+        await this.identityPersistence.clear();
+      } catch {
+        /* nothing to clear */
+      }
     });
-    if (result === 'done') await this.clearIdentity();
-    return result;
+    await this.queueProviderSessionOperation(async () => {
+      try {
+        await this.provider.signOut();
+      } catch {
+        // Provider hiccups must not trap the user in a session.
+      }
+      await clearPersistedIdentity;
+      this.channel?.postMessage('changed');
+    });
   }
 
   /** Leaves a challenge flow without finishing it (UI "volver"). */
@@ -185,9 +238,10 @@ export class AuthService {
     }
   }
 
-  private applyNext(next: AuthNext): AuthFlowResult {
+  private applyNext(next: AuthNext, epoch: number): AuthFlowResult {
+    if (epoch !== this.identityEpoch) return 'error';
     if (next.kind === 'done') {
-      void this.commit(next.session);
+      void this.commit(next.session, epoch);
       return 'done';
     }
     if (next.kind === 'confirmSignUp') {
@@ -200,7 +254,8 @@ export class AuthService {
     return 'newPasswordRequired';
   }
 
-  private async commit(session: AuthSession): Promise<void> {
+  private async commit(session: AuthSession, epoch: number): Promise<void> {
+    if (epoch !== this.identityEpoch) return;
     this.userSignal.set(session.user);
     this.statusSignal.set('signedIn');
     this.challengeSignal.set(null);
@@ -208,43 +263,24 @@ export class AuthService {
     this.heldCredentials = null;
     this.pendingUsername = null;
     try {
-      await put('meta', {
-        key: META_AUTH_IDENTITY,
-        user: session.user,
-        cachedAt: Date.now(),
-      } satisfies AuthIdentitySnapshot);
+      await this.queueIdentityPersistenceOperation(() =>
+        this.identityPersistence.write({
+          key: META_AUTH_IDENTITY,
+          user: session.user,
+          cachedAt: Date.now(),
+        } satisfies AuthIdentitySnapshot),
+      );
     } catch {
       // Memory-only session — identity still works until the app closes.
     }
-    this.channel?.postMessage('changed');
-  }
-
-  private async clearIdentity(): Promise<void> {
-    this.userSignal.set(null);
-    this.statusSignal.set('guest');
-    this.challengeSignal.set(null);
-    this.sessionStaleSignal.set(false);
-    this.heldCredentials = null;
-    this.pendingUsername = null;
-    try {
-      await put('meta', { key: META_AUTH_IDENTITY, user: null, cachedAt: Date.now() });
-    } catch {
-      /* nothing to clear */
-    }
-    this.channel?.postMessage('changed');
+    if (epoch === this.identityEpoch) this.channel?.postMessage('changed');
   }
 
   /** Another tab signed in/out — mirror whatever meta now says. */
-  private async mirrorFromMeta(): Promise<void> {
+  private async mirrorFromMeta(epoch: number): Promise<void> {
     try {
-      const snapshot = await get<AuthIdentitySnapshot>('meta', META_AUTH_IDENTITY);
-      if (snapshot?.user) {
-        this.userSignal.set(snapshot.user);
-        this.statusSignal.set('signedIn');
-      } else {
-        this.userSignal.set(null);
-        this.statusSignal.set('guest');
-      }
+      const snapshot = await this.identityPersistence.read();
+      if (epoch === this.identityEpoch) this.applySnapshot(snapshot);
     } catch {
       /* keep current state */
     }
@@ -254,10 +290,14 @@ export class AuthService {
   private async validateQuietly(): Promise<void> {
     if (this.statusSignal() !== 'signedIn') return;
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    const epoch = this.identityEpoch;
     try {
-      const session = await this.provider.currentSession();
+      const session = await this.queueProviderSessionOperation(() =>
+        this.provider.currentSession(),
+      );
+      if (epoch !== this.identityEpoch || this.statusSignal() !== 'signedIn') return;
       if (session) {
-        await this.commit(session);
+        await this.commit(session, epoch);
       } else {
         // Definitively no live session (revoked/expired refresh) — keep the
         // identity visible, demand re-auth only when a cloud feature needs it.
@@ -266,5 +306,38 @@ export class AuthService {
     } catch {
       // Network or SDK-load failure — cached identity stands, try next boot.
     }
+  }
+
+  private subscribeToChannel(): void {
+    if (!this.channel || this.channelSubscribed) return;
+    this.channelSubscribed = true;
+    this.channel.addEventListener('message', () => {
+      const epoch = ++this.identityEpoch;
+      void this.mirrorFromMeta(epoch);
+    });
+  }
+
+  private applySnapshot(snapshot: AuthIdentitySnapshot | undefined): void {
+    this.userSignal.set(snapshot?.user ?? null);
+    this.statusSignal.set(snapshot?.user ? 'signedIn' : 'guest');
+    this.sessionStaleSignal.set(false);
+  }
+
+  private queueProviderSessionOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.providerSessionTail.then(operation);
+    this.providerSessionTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  private queueIdentityPersistenceOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.identityPersistenceTail.then(operation);
+    this.identityPersistenceTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
   }
 }

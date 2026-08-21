@@ -1,4 +1,12 @@
-import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
+import {
+  DestroyRef,
+  Injectable,
+  InjectionToken,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { API_CLIENT } from '../api/api-client';
 import {
   ApiError,
@@ -20,6 +28,7 @@ import {
   TreeNode,
 } from '../db/schema';
 import { get, put } from '../db/idb';
+import { LocalWritesQuiescedError, onAccountClosureQuiesce } from '../db/account-closure-fence';
 import { broadcastRemote, createMutationGroupId, onLocalWrite } from '../db/broadcast';
 import { AuthService } from '../auth/auth.service';
 import { AccountLinkSnapshot, META_ACCOUNT_LINK } from '../auth/auth-types';
@@ -88,6 +97,19 @@ interface SyncStateSnapshot {
   mutationGroups?: MutationMembership[];
 }
 
+export interface SyncMetaStorage {
+  read(key: string): Promise<unknown>;
+  write(value: unknown): Promise<void>;
+}
+
+export const SYNC_META_STORAGE = new InjectionToken<SyncMetaStorage>('SYNC_META_STORAGE', {
+  providedIn: 'root',
+  factory: () => ({
+    read: (key) => get<unknown>('meta', key),
+    write: (value) => put('meta', value),
+  }),
+});
+
 export type SyncPhase = 'off' | 'mismatch' | 'idle' | 'syncing' | 'offline' | 'error';
 
 @Injectable({ providedIn: 'root' })
@@ -102,6 +124,7 @@ export class SyncService {
   private readonly preserves = inject(PreservesRepo);
   private readonly conflicts = inject(SyncConflictStore);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly metaStorage = inject(SYNC_META_STORAGE);
 
   private readonly linkSignal = signal<AccountLinkSnapshot | null>(null);
   private readonly busySignal = signal(false);
@@ -142,8 +165,12 @@ export class SyncService {
    *  cursor/watermark over a reset. */
   private epoch = 0;
   private initialized = false;
+  private accountClosureQuiesced = false;
+  private readonly pendingMetaWrites = new Set<Promise<void>>();
+  private readonly activeSyncPasses = new Set<Promise<boolean>>();
 
   constructor() {
+    this.destroyRef.onDestroy(onAccountClosureQuiesce(() => this.beginAccountClosureReset()));
     let conflictOwner: string | null | undefined;
     effect(() => {
       const ownerId = this.auth.user()?.userId ?? null;
@@ -170,19 +197,20 @@ export class SyncService {
     this.initialized = true;
     try {
       const [link, state] = await Promise.all([
-        get<AccountLinkSnapshot>('meta', META_ACCOUNT_LINK),
-        get<SyncStateSnapshot>('meta', META_SYNC_STATE),
+        this.metaStorage.read(META_ACCOUNT_LINK),
+        this.metaStorage.read(META_SYNC_STATE),
       ]);
-      if (link) this.linkSignal.set(link);
+      if (link) this.linkSignal.set(link as AccountLinkSnapshot);
       if (state) {
-        this.watermark = state.watermark ?? 0;
-        this.cursor = state.cursor ?? '0';
-        this.forcePending = state.forcePending ?? false;
-        this.lastSyncAtSignal.set(state.lastSyncAt ?? null);
-        for (const [store, ids] of Object.entries(state.dirty ?? {})) {
+        const snapshot = state as SyncStateSnapshot;
+        this.watermark = snapshot.watermark ?? 0;
+        this.cursor = snapshot.cursor ?? '0';
+        this.forcePending = snapshot.forcePending ?? false;
+        this.lastSyncAtSignal.set(snapshot.lastSyncAt ?? null);
+        for (const [store, ids] of Object.entries(snapshot.dirty ?? {})) {
           this.dirtyIds.set(store as SyncStore, new Set(ids));
         }
-        for (const membership of state.mutationGroups ?? []) {
+        for (const membership of snapshot.mutationGroups ?? []) {
           this.restoreMembership(membership);
         }
       }
@@ -193,6 +221,7 @@ export class SyncService {
     await this.conflicts.open(this.auth.user()?.userId ?? null);
 
     const stopLocalWrites = onLocalWrite((message) => {
+      if (this.accountClosureQuiesced) return;
       // No applyingRemote gate here: pulls broadcast via broadcastRemote
       // (cross-tab only), so everything that reaches this handler is a
       // GENUINE local write — the old gate silently dropped user writes
@@ -234,6 +263,7 @@ export class SyncService {
   /** The explicit opt-in: full push of this device's forest, then adoption of
    *  whatever the account's cloud already holds (LWW merges both ways). */
   async connect(): Promise<boolean> {
+    if (this.accountClosureQuiesced) return false;
     const user = this.auth.user();
     if (!user) return false;
     const link: AccountLinkSnapshot = {
@@ -255,6 +285,7 @@ export class SyncService {
 
   /** Lets go of the device↔account link. Local data is untouched. */
   async disconnect(): Promise<void> {
+    if (this.accountClosureQuiesced) return;
     const current = this.linkSignal();
     await this.persistLink({
       key: META_ACCOUNT_LINK,
@@ -265,11 +296,29 @@ export class SyncService {
     this.lastErrorSignal.set(null);
   }
 
-  async syncNow(): Promise<boolean> {
-    if (this.phase() === 'off' || this.phase() === 'mismatch' || this.busySignal()) return false;
+  syncNow(): Promise<boolean> {
+    if (
+      this.accountClosureQuiesced ||
+      this.phase() === 'off' ||
+      this.phase() === 'mismatch' ||
+      this.busySignal()
+    ) {
+      return Promise.resolve(false);
+    }
     const ownerId = this.auth.user()?.userId;
-    if (!ownerId) return false;
+    if (!ownerId) return Promise.resolve(false);
+    const pass = this.runSyncPass(ownerId);
+    this.activeSyncPasses.add(pass);
+    void pass.then(
+      () => this.activeSyncPasses.delete(pass),
+      () => this.activeSyncPasses.delete(pass),
+    );
+    return pass;
+  }
+
+  private async runSyncPass(ownerId: string): Promise<boolean> {
     await this.conflicts.open(ownerId);
+    if (this.accountClosureQuiesced) return false;
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       this.lastErrorSignal.set('offline');
       return false;
@@ -294,17 +343,19 @@ export class SyncService {
       await this.persistState();
       return true;
     } catch (error) {
+      if (epoch !== this.epoch || this.accountClosureQuiesced) return false;
       this.lastErrorSignal.set(error instanceof ApiError ? error.code : 'unknown');
       if (epoch === this.epoch) await this.persistState();
       return false;
     } finally {
-      this.busySignal.set(false);
+      if (!this.accountClosureQuiesced) this.busySignal.set(false);
     }
   }
 
   /** Dirty marks reach disk shortly after they're made — not only after a
    *  successful sync (a tab closed offline used to lose them all). */
   private schedulePersistState(): void {
+    if (this.accountClosureQuiesced) return;
     if (this.persistTimer) return;
     this.persistTimer = setTimeout(() => {
       this.persistTimer = null;
@@ -318,6 +369,7 @@ export class SyncService {
    *  not-yet-connected) import still gets its restore-wins pass on the next
    *  successful sync or connect. */
   async noteRestore(): Promise<void> {
+    if (this.accountClosureQuiesced) return;
     this.forcePending = true;
     this.watermark = 0;
     await this.persistState();
@@ -327,6 +379,7 @@ export class SyncService {
   // ── outbound ──────────────────────────────────────────────────────────────
 
   private schedulePush(): void {
+    if (this.accountClosureQuiesced) return;
     if (this.pushTimer) clearTimeout(this.pushTimer);
     this.pushTimer = setTimeout(() => {
       this.pushTimer = null;
@@ -502,9 +555,11 @@ export class SyncService {
           };
           try {
             await put(entry.store, stamped);
-          } catch {
+          } catch (error) {
+            if (error instanceof LocalWritesQuiescedError || this.accountClosureQuiesced) return;
             /* memory-only session */
           }
+          if (this.accountClosureQuiesced) return;
           this.repoOf(entry.store).applyExternal(stamped as never);
           retryRecords.push({ store: entry.store, record: stamped });
         }
@@ -689,6 +744,7 @@ export class SyncService {
   }
 
   private async recordConflict(code: ApiErrorCode, group: SyncMutationGroup): Promise<void> {
+    if (this.accountClosureQuiesced) return;
     if (!isSyncConflictCode(code)) return;
     await this.conflicts.record(this.ownerIdOrThrow(), {
       mutationGroupId: group.id,
@@ -794,15 +850,18 @@ export class SyncService {
    *  Shared law (contracts.lwwBeats): exact ties go to the server's copy, so
    *  two replicas that stamped the same rev converge instead of diverging. */
   private async acceptRemote(change: SyncRecord): Promise<boolean> {
+    if (this.accountClosureQuiesced) return false;
     const repo = this.repoOf(change.store);
     const incoming = change.record;
     const current = repo.byId().get(incoming.id);
     if (current && lwwBeats(current, incoming)) return false;
     try {
       await put(change.store, incoming);
-    } catch {
+    } catch (error) {
+      if (error instanceof LocalWritesQuiescedError || this.accountClosureQuiesced) return false;
       /* memory-only session still benefits from the in-memory apply */
     }
+    if (this.accountClosureQuiesced) return false;
     repo.applyExternal(incoming as never);
     // The server's copy IS our copy now — nothing left to push for this id.
     this.dirtyIds.get(change.store)?.delete(incoming.id);
@@ -830,17 +889,19 @@ export class SyncService {
   // ── persistence ───────────────────────────────────────────────────────────
 
   private async persistLink(link: AccountLinkSnapshot): Promise<void> {
+    if (this.accountClosureQuiesced) return;
     this.linkSignal.set(link);
     try {
-      await put('meta', link);
+      await this.writeMeta(link);
     } catch {
       /* memory-only session */
     }
   }
 
   private async persistState(): Promise<void> {
+    if (this.accountClosureQuiesced) return;
     try {
-      await put('meta', {
+      await this.writeMeta({
         key: META_SYNC_STATE,
         watermark: this.watermark,
         cursor: this.cursor,
@@ -853,6 +914,16 @@ export class SyncService {
       } satisfies SyncStateSnapshot);
     } catch {
       /* memory-only session */
+    }
+  }
+
+  private async writeMeta(value: unknown): Promise<void> {
+    const write = this.metaStorage.write(value);
+    this.pendingMetaWrites.add(write);
+    try {
+      await write;
+    } finally {
+      this.pendingMetaWrites.delete(write);
     }
   }
 
@@ -869,5 +940,35 @@ export class SyncService {
     this.pendingGroups.clear();
     this.lastSyncAtSignal.set(null);
     await this.persistState();
+  }
+
+  /** Terminal account closure only. Unlike the practice-cloud reset this must
+   * not persist anything: LocalAccountDataService clears user meta atomically
+   * immediately afterwards. The epoch/timers prevent an older pass from
+   * recreating sync.state after that wipe. */
+  async resetAfterAccountClosure(): Promise<void> {
+    this.beginAccountClosureReset();
+    while (this.activeSyncPasses.size || this.pendingMetaWrites.size) {
+      await Promise.allSettled([...this.activeSyncPasses, ...this.pendingMetaWrites]);
+    }
+    this.beginAccountClosureReset();
+  }
+
+  private beginAccountClosureReset(): void {
+    this.accountClosureQuiesced = true;
+    this.epoch += 1;
+    if (this.pushTimer) clearTimeout(this.pushTimer);
+    if (this.persistTimer) clearTimeout(this.persistTimer);
+    this.pushTimer = null;
+    this.persistTimer = null;
+    this.linkSignal.set(null);
+    this.busySignal.set(false);
+    this.lastErrorSignal.set(null);
+    this.lastSyncAtSignal.set(null);
+    this.watermark = 0;
+    this.cursor = '0';
+    this.forcePending = false;
+    this.dirtyIds.clear();
+    this.pendingGroups.clear();
   }
 }

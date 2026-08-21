@@ -228,15 +228,6 @@ export class CognitoAuthProvider implements AuthProvider {
     }
   }
 
-  async deleteAccount(): Promise<void> {
-    const auth = await this.lib();
-    try {
-      await auth.deleteUser();
-    } catch (error) {
-      throw mapCognitoError(error);
-    }
-  }
-
   // ── internals ─────────────────────────────────────────────────────────────
 
   private async nextFromSignIn(

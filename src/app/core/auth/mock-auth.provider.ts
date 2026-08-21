@@ -9,10 +9,11 @@ import {
 import {
   MockCredentialRow,
   MockUserRow,
-  mockDelete,
+  mockAccountClosureKey,
   mockGet,
   mockPut,
   simLatency,
+  withMockAccountLock,
 } from '../api/mock-cloud';
 
 /**
@@ -30,18 +31,27 @@ const MOCK_CODE = '123456';
 interface MockTokenPayload {
   sub: string;
   username: string;
+  /** Absent only on pre-account-instance tokens, which are upgraded once. */
+  accountInstanceId?: string;
   'custom:accountType': string;
   iat: number;
   exp: number;
 }
 
+interface LiveMockIdentity {
+  token: string;
+  user: MockUserRow;
+}
+
 function mintToken(user: MockUserRow, now = Date.now()): string {
+  if (!user.accountInstanceId) throw new AuthError('unknown', 'account instance missing');
   const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
   // ASCII-safe by construction: username is [a-z0-9_], no display text here.
   const payload = btoa(
     JSON.stringify({
       sub: user.userId,
       username: user.username,
+      accountInstanceId: user.accountInstanceId,
       'custom:accountType': user.accountType,
       iat: now,
       exp: now + TOKEN_TTL_MS,
@@ -65,27 +75,45 @@ function maskEmail(email: string): string {
 
 export class MockAuthProvider implements AuthProvider {
   /** Username mid-newPasswordRequired — in memory only, like Cognito's flow. */
-  private pendingChallenge: string | null = null;
+  private pendingChallenge: {
+    username: string;
+    userId: string;
+    accountInstanceId: string;
+  } | null = null;
+  /** Account incarnation that received the current recovery code. */
+  private pendingRecovery: {
+    username: string;
+    userId: string;
+    accountInstanceId: string;
+  } | null = null;
+  /** Revoked bearer retained in memory only for the matching closure receipt. */
+  private closureRetryToken: string | null = null;
 
   async signIn(username: string, password: string): Promise<AuthNext> {
     await simLatency('auth.signIn');
     const handle = username.trim().toLowerCase();
-    const cred = await mockGet<MockCredentialRow>('credentials', handle);
-    if (!cred) throw new AuthError('userNotFound');
-    if (cred.password !== password) throw new AuthError('wrongCredentials');
-    const user = await this.userOf(cred.userId);
-    if (cred.pendingConfirm) {
-      return {
-        kind: 'confirmSignUp',
-        username: handle,
-        deliveryHint: user.email ? maskEmail(user.email) : null,
-      };
-    }
-    if (cred.mustChangePassword) {
-      this.pendingChallenge = handle;
-      return { kind: 'newPasswordRequired' };
-    }
-    return this.establish(user);
+    const initialCredential = await mockGet<MockCredentialRow>('credentials', handle);
+    if (!initialCredential) throw new AuthError('userNotFound');
+    if (initialCredential.password !== password) throw new AuthError('wrongCredentials');
+    return this.withCredentialMutation(handle, async (credential, user) => {
+      if (credential.password !== password) throw new AuthError('wrongCredentials');
+      if (credential.pendingConfirm) {
+        return {
+          kind: 'confirmSignUp',
+          username: handle,
+          deliveryHint: user.email ? maskEmail(user.email) : null,
+        };
+      }
+      if (credential.mustChangePassword) {
+        this.pendingChallenge = {
+          username: handle,
+          userId: user.userId,
+          accountInstanceId: user.accountInstanceId!,
+        };
+        return { kind: 'newPasswordRequired' };
+      }
+      return this.establish(user);
+    });
   }
 
   async signUp(input: {
@@ -98,35 +126,42 @@ export class MockAuthProvider implements AuthProvider {
     const handle = input.username.trim().toLowerCase();
     if (!USERNAME_PATTERN.test(handle)) throw new AuthError('unknown', 'invalid username');
     if (!passwordMeetsPolicy(input.password)) throw new AuthError('passwordPolicy');
-    if (await mockGet<MockCredentialRow>('credentials', handle)) {
-      throw new AuthError('userExists');
-    }
-    const user: MockUserRow = {
-      userId: `u-${handle}`,
-      username: handle,
-      displayName: input.displayName.trim() || handle,
-      accountType: 'adult', // minors never self-sign-up; guardians create them
-      socialEnabled: true,
-      createdAt: Date.now(),
-      email: input.email.trim(),
-    };
-    await mockPut('users', user);
-    await mockPut('credentials', {
-      username: handle,
-      userId: user.userId,
-      password: input.password,
-      mustChangePassword: false,
-      pendingConfirm: true,
-    } satisfies MockCredentialRow);
-    return { kind: 'confirmSignUp', username: handle, deliveryHint: maskEmail(user.email!) };
+    const userId = `u-${handle}`;
+    return withMockAccountLock(userId, async () => {
+      if (
+        (await mockGet<MockCredentialRow>('credentials', handle)) ||
+        (await mockGet<MockUserRow>('users', userId))
+      ) {
+        throw new AuthError('userExists');
+      }
+      const user: MockUserRow = {
+        userId,
+        username: handle,
+        displayName: input.displayName.trim() || handle,
+        accountType: 'adult', // minors never self-sign-up; guardians create them
+        socialEnabled: true,
+        createdAt: Date.now(),
+        email: input.email.trim(),
+        accountInstanceId: crypto.randomUUID(),
+      };
+      await mockPut('users', user);
+      await mockPut('credentials', {
+        username: handle,
+        userId: user.userId,
+        password: input.password,
+        mustChangePassword: false,
+        pendingConfirm: true,
+      } satisfies MockCredentialRow);
+      return { kind: 'confirmSignUp', username: handle, deliveryHint: maskEmail(user.email!) };
+    });
   }
 
   async confirmSignUp(username: string, code: string): Promise<void> {
     await simLatency('auth.confirmSignUp');
-    const cred = await mockGet<MockCredentialRow>('credentials', username.trim().toLowerCase());
-    if (!cred) throw new AuthError('userNotFound');
-    if (code.trim() !== MOCK_CODE) throw new AuthError('codeMismatch');
-    await mockPut('credentials', { ...cred, pendingConfirm: false });
+    return this.withCredentialMutation(username, async (credential) => {
+      if (code.trim() !== MOCK_CODE) throw new AuthError('codeMismatch');
+      await mockPut('credentials', { ...credential, pendingConfirm: false });
+    });
   }
 
   async resendCode(username: string): Promise<void> {
@@ -140,94 +175,236 @@ export class MockAuthProvider implements AuthProvider {
     await simLatency('auth.completeNewPassword');
     if (!this.pendingChallenge) throw new AuthError('unknown', 'no pending challenge');
     if (!passwordMeetsPolicy(newPassword)) throw new AuthError('passwordPolicy');
-    const cred = await mockGet<MockCredentialRow>('credentials', this.pendingChallenge);
-    if (!cred) throw new AuthError('userNotFound');
-    await mockPut('credentials', { ...cred, password: newPassword, mustChangePassword: false });
-    this.pendingChallenge = null;
-    return this.establish(await this.userOf(cred.userId));
+    const challenge = this.pendingChallenge;
+    return this.withCredentialMutation(
+      challenge.username,
+      async (credential, user) => {
+        await mockPut('credentials', {
+          ...credential,
+          password: newPassword,
+          mustChangePassword: false,
+        });
+        this.pendingChallenge = null;
+        return this.establish(user);
+      },
+      challenge,
+    );
   }
 
   async forgotPassword(username: string): Promise<{ deliveryHint: string | null }> {
     await simLatency('auth.forgotPassword');
-    const cred = await mockGet<MockCredentialRow>('credentials', username.trim().toLowerCase());
-    if (!cred) throw new AuthError('userNotFound');
-    const user = await this.userOf(cred.userId);
-    if (!user.email) {
-      // Username-only minors recover through their guardian, never a code.
-      throw new AuthError('unknown', 'no recovery email on this account');
-    }
-    return { deliveryHint: maskEmail(user.email) };
+    const handle = username.trim().toLowerCase();
+    return this.withCredentialMutation(handle, async (_credential, user) => {
+      if (!user.email) {
+        // Username-only minors recover through their guardian, never a code.
+        throw new AuthError('unknown', 'no recovery email on this account');
+      }
+      this.pendingRecovery = {
+        username: handle,
+        userId: user.userId,
+        accountInstanceId: user.accountInstanceId!,
+      };
+      return { deliveryHint: maskEmail(user.email) };
+    });
   }
 
   async confirmForgotPassword(username: string, code: string, newPassword: string): Promise<void> {
     await simLatency('auth.confirmForgotPassword');
-    const cred = await mockGet<MockCredentialRow>('credentials', username.trim().toLowerCase());
-    if (!cred) throw new AuthError('userNotFound');
-    if (code.trim() !== MOCK_CODE) throw new AuthError('codeMismatch');
-    if (!passwordMeetsPolicy(newPassword)) throw new AuthError('passwordPolicy');
-    await mockPut('credentials', { ...cred, password: newPassword, mustChangePassword: false });
+    const handle = username.trim().toLowerCase();
+    const recovery = this.pendingRecovery;
+    if (!recovery || recovery.username !== handle) {
+      throw new AuthError('userNotFound');
+    }
+    return this.withCredentialMutation(
+      handle,
+      async (credential) => {
+        if (code.trim() !== MOCK_CODE) throw new AuthError('codeMismatch');
+        if (!passwordMeetsPolicy(newPassword)) throw new AuthError('passwordPolicy');
+        await mockPut('credentials', {
+          ...credential,
+          password: newPassword,
+          mustChangePassword: false,
+        });
+        this.pendingRecovery = null;
+      },
+      recovery,
+    );
   }
 
   async signOut(): Promise<void> {
     await simLatency('auth.signOut');
     localStorage.removeItem(TOKEN_KEY);
     this.pendingChallenge = null;
+    this.pendingRecovery = null;
+    this.closureRetryToken = null;
   }
 
   async currentSession(): Promise<AuthSession | null> {
-    const token = await this.liveToken(false);
-    if (!token) return null;
-    const payload = parseMockToken(token)!;
-    const user = await mockGet<MockUserRow>('users', payload.sub);
-    if (!user) {
-      localStorage.removeItem(TOKEN_KEY);
-      return null;
-    }
-    return this.sessionOf(user);
+    const identity = await this.liveIdentity(false);
+    return identity ? this.sessionOf(identity.user) : null;
   }
 
   async idToken(opts?: { forceRefresh?: boolean }): Promise<string | null> {
-    return this.liveToken(opts?.forceRefresh ?? false);
+    return (await this.liveIdentity(opts?.forceRefresh ?? false))?.token ?? null;
   }
 
-  async deleteAccount(): Promise<void> {
-    await simLatency('auth.deleteAccount');
-    const token = await this.liveToken(false);
+  /** Dedicated credential for idempotent DELETE /me retries after closure. */
+  async accountClosureCredential(): Promise<string | null> {
+    const live = await this.liveIdentity(false);
+    if (live) return live.token;
+
+    const token = this.closureRetryToken;
     const payload = token ? parseMockToken(token) : null;
-    if (!payload) throw new AuthError('unknown', 'not signed in');
-    // Links/friendships/cloud records cascade when the familia phase defines
-    // the server-side rules; identity removal is enough to rehearse the flow.
-    await mockDelete('credentials', payload.username);
-    await mockDelete('users', payload.sub);
-    localStorage.removeItem(TOKEN_KEY);
+    if (!payload?.accountInstanceId) return null;
+    return withMockAccountLock(payload.sub, async () => {
+      const key = mockAccountClosureKey(payload.sub, payload.accountInstanceId!);
+      const closure = await mockGet<{
+        key?: unknown;
+        value?: {
+          receipt?: { closureId?: unknown; state?: unknown };
+          userId?: unknown;
+          accountInstanceId?: unknown;
+          purgeCompleted?: unknown;
+        };
+      }>('kv', key);
+      const receipt = closure?.value?.receipt;
+      const canonical =
+        closure?.key === key &&
+        closure.value?.userId === payload.sub &&
+        closure.value?.accountInstanceId === payload.accountInstanceId &&
+        typeof closure.value?.purgeCompleted === 'boolean' &&
+        typeof receipt?.closureId === 'string' &&
+        receipt.closureId.startsWith('mock:') &&
+        receipt.closureId.length > 'mock:'.length &&
+        receipt.state === 'completed';
+      if (!canonical) {
+        this.closureRetryToken = null;
+        return null;
+      }
+      return this.closureRetryToken === token ? token : null;
+    });
   }
 
   // ── internals ─────────────────────────────────────────────────────────────
 
-  /** Valid token or null; expired tokens re-mint freely (mock refresh). */
-  private async liveToken(forceRefresh: boolean): Promise<string | null> {
+  /** Valid identity or null; expired tokens re-mint freely (mock refresh). */
+  private async liveIdentity(forceRefresh: boolean): Promise<LiveMockIdentity | null> {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) return null;
     const payload = parseMockToken(token);
     if (!payload) {
-      localStorage.removeItem(TOKEN_KEY);
+      this.clearTokenIfCurrent(token);
       return null;
     }
-    if (!forceRefresh && payload.exp > Date.now()) return token;
-    const user = await mockGet<MockUserRow>('users', payload.sub);
-    if (!user) {
-      localStorage.removeItem(TOKEN_KEY);
-      return null;
+    if (!payload.accountInstanceId) {
+      return this.upgradeLegacyTokenIdentity(token, payload);
     }
-    const fresh = mintToken(user);
-    localStorage.setItem(TOKEN_KEY, fresh);
-    return fresh;
+
+    return withMockAccountLock(payload.sub, async () => {
+      const user = await mockGet<MockUserRow>('users', payload.sub);
+      const closure = await mockGet<{ key: string; value: unknown }>(
+        'kv',
+        mockAccountClosureKey(payload.sub, payload.accountInstanceId!),
+      );
+      if (closure) {
+        this.closureRetryToken = token;
+        this.clearTokenIfCurrent(token);
+        return null;
+      }
+      if (!user || user.accountInstanceId !== payload.accountInstanceId) {
+        this.clearTokenIfCurrent(token);
+        return null;
+      }
+      if (!forceRefresh && payload.exp > Date.now()) {
+        return localStorage.getItem(TOKEN_KEY) === token ? { token, user } : null;
+      }
+      const fresh = mintToken(user);
+      return this.replaceTokenIfCurrent(token, fresh) ? { token: fresh, user } : null;
+    });
+  }
+
+  private async upgradeLegacyTokenIdentity(
+    token: string,
+    payload: MockTokenPayload,
+  ): Promise<LiveMockIdentity | null> {
+    return withMockAccountLock(payload.sub, async () => {
+      const current = await mockGet<MockUserRow>('users', payload.sub);
+      if (
+        !current ||
+        current.accountInstanceId ||
+        current.username !== payload.username ||
+        current.accountType !== payload['custom:accountType']
+      ) {
+        this.clearTokenIfCurrent(token);
+        return null;
+      }
+      const upgraded = { ...current, accountInstanceId: crypto.randomUUID() };
+      await mockPut('users', upgraded);
+      const upgradedToken = mintToken(upgraded);
+      return this.replaceTokenIfCurrent(token, upgradedToken)
+        ? { token: upgradedToken, user: upgraded }
+        : null;
+    });
+  }
+
+  private clearTokenIfCurrent(expected: string): void {
+    if (localStorage.getItem(TOKEN_KEY) === expected) localStorage.removeItem(TOKEN_KEY);
+  }
+
+  private replaceTokenIfCurrent(expected: string, replacement: string): boolean {
+    if (localStorage.getItem(TOKEN_KEY) !== expected) return false;
+    localStorage.setItem(TOKEN_KEY, replacement);
+    return true;
+  }
+
+  private async withCredentialMutation<T>(
+    username: string,
+    operation: (credential: MockCredentialRow, user: MockUserRow) => Promise<T>,
+    expectedIdentity?: { userId: string; accountInstanceId: string },
+  ): Promise<T> {
+    const handle = username.trim().toLowerCase();
+    const initialCredential = await mockGet<MockCredentialRow>('credentials', handle);
+    if (!initialCredential) throw new AuthError('userNotFound');
+
+    const identity = expectedIdentity ?? (await this.userOf(initialCredential.userId));
+    const userId = expectedIdentity?.userId ?? identity.userId;
+    const accountInstanceId = identity.accountInstanceId;
+    if (!accountInstanceId || initialCredential.userId !== userId) {
+      throw new AuthError('userNotFound');
+    }
+
+    return withMockAccountLock(userId, async () => {
+      const credential = await mockGet<MockCredentialRow>('credentials', handle);
+      const user = await mockGet<MockUserRow>('users', userId);
+      if (
+        !credential ||
+        credential.userId !== userId ||
+        !user ||
+        user.accountInstanceId !== accountInstanceId
+      ) {
+        throw new AuthError('userNotFound');
+      }
+      const closure = await mockGet<{ key: string; value: unknown }>(
+        'kv',
+        mockAccountClosureKey(userId, accountInstanceId),
+      );
+      if (closure) throw new AuthError('userNotFound');
+      return operation(credential, user);
+    });
   }
 
   private async userOf(userId: string): Promise<MockUserRow> {
     const user = await mockGet<MockUserRow>('users', userId);
     if (!user) throw new AuthError('userNotFound');
-    return user;
+    if (user.accountInstanceId) return user;
+    return withMockAccountLock(userId, async () => {
+      const current = await mockGet<MockUserRow>('users', userId);
+      if (!current) throw new AuthError('userNotFound');
+      if (current.accountInstanceId) return current;
+      const upgraded = { ...current, accountInstanceId: crypto.randomUUID() };
+      await mockPut('users', upgraded);
+      return upgraded;
+    });
   }
 
   private sessionOf(user: MockUserRow): AuthSession {
@@ -244,6 +421,7 @@ export class MockAuthProvider implements AuthProvider {
   }
 
   private establish(user: MockUserRow): AuthNext {
+    this.closureRetryToken = null;
     localStorage.setItem(TOKEN_KEY, mintToken(user));
     return { kind: 'done', session: this.sessionOf(user) };
   }

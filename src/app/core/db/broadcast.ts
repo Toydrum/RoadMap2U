@@ -75,6 +75,8 @@ export function broadcastRemote(message: DbChangeMessage): void {
   channel?.postMessage(message);
 }
 
-export function onDbChange(handler: (message: DbChangeMessage) => void): void {
-  channel?.addEventListener('message', (event) => handler(event.data as DbChangeMessage));
+export function onDbChange(handler: (message: DbChangeMessage) => void): () => void {
+  const listener = (event: MessageEvent) => handler(event.data as DbChangeMessage);
+  channel?.addEventListener('message', listener);
+  return () => channel?.removeEventListener('message', listener);
 }

@@ -29,6 +29,8 @@ export type MockStore =
 /** Cloud-side user row — profile plus the private email attribute. */
 export interface MockUserRow extends UserProfile {
   email: string | null;
+  /** Opaque account incarnation. Legacy rows are upgraded on first auth read. */
+  accountInstanceId?: string;
 }
 
 export interface MockCredentialRow {
@@ -84,6 +86,10 @@ export interface MockRecordRow {
   syncedAt: number;
 }
 
+export function mockAccountClosureKey(userId: string, accountInstanceId: string): string {
+  return `accountClosure:${encodeURIComponent(userId)}:${encodeURIComponent(accountInstanceId)}`;
+}
+
 export function recordKey(ownerId: string, store: SyncStore, id: string): string {
   return `${ownerId}|${store}|${id}`;
 }
@@ -100,6 +106,43 @@ const KEY_PATH: Record<MockStore, string> = {
 };
 
 let mockDbPromise: Promise<IDBDatabase> | null = null;
+const localAccountLockTails = new Map<string, Promise<void>>();
+
+async function withLocalAccountLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = localAccountLockTails.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const tail = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  localAccountLockTails.set(key, tail);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (localAccountLockTails.get(key) === tail) localAccountLockTails.delete(key);
+  }
+}
+
+/** Cross-tab account linearization seam shared by auth, writes and closure. */
+export function withMockAccountLock<T>(subject: string, operation: () => Promise<T>): Promise<T> {
+  const lockName = `roadmap2u-mock-account:${encodeURIComponent(subject)}`;
+  const locks = globalThis.navigator?.locks;
+  return locks ? locks.request(lockName, operation) : withLocalAccountLock(lockName, operation);
+}
+
+/** Canonical acquisition prevents A→B / B→A deadlocks across tabs. */
+export function withMockAccountLocks<T>(
+  subjects: readonly string[],
+  operation: () => Promise<T>,
+): Promise<T> {
+  const ordered = [...new Set(subjects)].sort();
+  const acquire = (index: number): Promise<T> =>
+    index >= ordered.length
+      ? operation()
+      : withMockAccountLock(ordered[index], () => acquire(index + 1));
+  return acquire(0);
+}
 
 function openMockDb(): Promise<IDBDatabase> {
   if (mockDbPromise) return mockDbPromise;
@@ -237,9 +280,7 @@ export interface MockReplacementEntry {
 
 /** Seeder-only whole-cloud transaction. The seeded sentinel cannot land
  * unless every identity, relationship and forest row lands with it. */
-export async function mockReplaceAllRaw(
-  entries: readonly MockReplacementEntry[],
-): Promise<void> {
+export async function mockReplaceAllRaw(entries: readonly MockReplacementEntry[]): Promise<void> {
   if (!entries.length) return;
   const db = await openMockDb();
   const tx = db.transaction([...new Set(entries.map((entry) => entry.store))], 'readwrite');

@@ -349,6 +349,29 @@
       </section>
     }
 
+    @case ('closureRecovery') {
+      <section class="stage closure-recovery" aria-live="polite">
+        <h1>{{ i18n.t().account.closureStatusTitle }}</h1>
+        @if (closure.receipt(); as receipt) {
+          <div class="card closure-card" role="status" aria-live="polite">
+            <p>{{ closureStateText(receipt.state) }}</p>
+            <p class="hint">{{ i18n.t().account.closurePendingHint }}</p>
+            @if (closureErrorText()) {
+              <p class="error-line" role="alert">{{ closureErrorText() }}</p>
+            }
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="retryClosure()"
+              [disabled]="closure.busy()"
+            >
+              {{ closure.busy() ? i18n.t().common.loading : i18n.t().account.closureRetry }}
+            </button>
+          </div>
+        }
+      </section>
+    }
+
     @case ('profile') {
       <section class="stage" aria-live="polite">
         <h1>{{ i18n.t().account.profileTitle }}</h1>
@@ -375,43 +398,75 @@
           </button>
         }
 
-        <div class="profile-actions">
-          <button type="button" class="btn btn-soft" (click)="doSignOut()" [disabled]="auth.busy()">
-            {{ i18n.t().account.signOutCta }}
-          </button>
-          <p class="hint">{{ i18n.t().account.signOutHint }}</p>
-
-          <a class="btn btn-ghost" routerLink="/forest">{{ i18n.t().common.goForest }}</a>
-        </div>
-
-        @if (!confirmingDelete()) {
-          <button type="button" class="btn btn-ghost danger" (click)="confirmingDelete.set(true)">
-            {{ i18n.t().account.deleteCta }}
-          </button>
-        } @else {
-          <div class="card danger-card">
-            <h2>{{ i18n.t().account.deleteTitle }}</h2>
-            <p>{{ i18n.t().account.deleteBody }}</p>
-            @if (errorText()) {
-              <p class="error-line" role="alert">{{ errorText() }}</p>
+        @if (closure.receipt(); as receipt) {
+          <div class="card closure-card" role="status" aria-live="polite">
+            <h2>{{ i18n.t().account.closureStatusTitle }}</h2>
+            <p>{{ closureStateText(receipt.state) }}</p>
+            <p class="hint">{{ i18n.t().account.closurePendingHint }}</p>
+            @if (closureErrorText()) {
+              <p class="error-line" role="alert">{{ closureErrorText() }}</p>
+            }
+            <button
+              type="button"
+              class="btn btn-soft closure-retry"
+              (click)="retryClosure()"
+              [disabled]="closure.busy()"
+            >
+              {{ closure.busy() ? i18n.t().common.loading : i18n.t().account.closureRetry }}
+            </button>
+            @if (closure.lastError() === 'UNAUTHENTICATED') {
               <a class="error-report" [href]="bugReportUrl" target="_blank" rel="noopener">
-                {{ i18n.t().account.reportBugCta }}
+                {{ i18n.t().account.closureSupport }}
               </a>
             }
-            <div class="danger-actions">
-              <button type="button" class="btn btn-soft" (click)="confirmingDelete.set(false)">
-                {{ i18n.t().common.cancel }}
-              </button>
-              <button
-                type="button"
-                class="btn btn-primary danger-cta"
-                (click)="doDelete()"
-                [disabled]="auth.busy()"
-              >
-                {{ i18n.t().account.deleteConfirm }}
-              </button>
-            </div>
           </div>
+        } @else {
+          <div class="profile-actions">
+            <button
+              type="button"
+              class="btn btn-soft"
+              (click)="doSignOut()"
+              [disabled]="auth.busy()"
+            >
+              {{ i18n.t().account.signOutCta }}
+            </button>
+            <p class="hint">{{ i18n.t().account.signOutHint }}</p>
+
+            <a class="btn btn-ghost" routerLink="/forest">{{ i18n.t().common.goForest }}</a>
+          </div>
+
+          @if (auth.user()?.accountType === 'adult' && !confirmingDelete()) {
+            <button type="button" class="btn btn-ghost danger" (click)="confirmingDelete.set(true)">
+              {{ i18n.t().account.deleteCta }}
+            </button>
+          } @else if (auth.user()?.accountType === 'adult') {
+            <div class="card danger-card">
+              <h2>{{ i18n.t().account.deleteTitle }}</h2>
+              <p>{{ i18n.t().account.deleteBody }}</p>
+              @if (closureErrorText()) {
+                <p class="error-line" role="alert">{{ closureErrorText() }}</p>
+              }
+              @if (errorText()) {
+                <p class="error-line" role="alert">{{ errorText() }}</p>
+                <a class="error-report" [href]="bugReportUrl" target="_blank" rel="noopener">
+                  {{ i18n.t().account.reportBugCta }}
+                </a>
+              }
+              <div class="danger-actions">
+                <button type="button" class="btn btn-soft" (click)="confirmingDelete.set(false)">
+                  {{ i18n.t().common.cancel }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-primary danger-cta"
+                  (click)="doDelete()"
+                  [disabled]="closure.busy()"
+                >
+                  {{ closure.busy() ? i18n.t().common.loading : i18n.t().account.deleteConfirm }}
+                </button>
+              </div>
+            </div>
+          }
         }
       </section>
     }

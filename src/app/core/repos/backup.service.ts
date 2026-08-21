@@ -36,7 +36,7 @@ export class BackupService {
   private readonly mutations = inject(ForestMutationsService);
   private readonly replacement = inject(FOREST_REPLACEMENT_STORAGE);
 
-  async buildEnvelope(): Promise<ExportEnvelope> {
+  async buildEnvelope(settingsSnapshot?: Settings): Promise<ExportEnvelope> {
     // Read from disk (includes tombstones — a backup is a full copy).
     const [trees, nodes, checkins, sessions, harvests, preserves] = await Promise.all([
       getAll<Tree>('trees'),
@@ -57,16 +57,16 @@ export class BackupService {
         sessions,
         harvests,
         preserves,
-        settings: this.settings.settings(),
+        settings: settingsSnapshot ?? this.settings.settings(),
       },
     };
   }
 
   async download(
     filenamePrefix = 'roadmap2u-backup',
-    options: { recordCopy?: boolean } = {},
+    options: { recordCopy?: boolean; settingsSnapshot?: Settings } = {},
   ): Promise<void> {
-    const envelope = await this.buildEnvelope();
+    const envelope = await this.buildEnvelope(options.settingsSnapshot);
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
