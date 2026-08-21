@@ -1,10 +1,8 @@
 // Co-gardening (0.0.50): the guardian enters a kid's forest, the whole tree
 // toolkit works on the KID'S cloud copy, and not one byte lands in the
 // visitor's local IndexedDB.
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+import { BASE, launchPage, signInAs } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 1280, height: 900 });
 
 const pageErrors = [];
 page.on('pageerror', (error) => pageErrors.push(String(error)));
@@ -38,13 +36,8 @@ const idbAll = (db, store) =>
     [db, store],
   );
 
-// Sign in as the guardian.
-await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
-await page.locator('button', { hasText: 'Ya tengo mi llave' }).click();
-await page.fill('.auth-form input[autocomplete="username"]', 'rocio');
-await page.fill('.auth-form input[type="password"]', 'Bosque123');
-await page.locator('.auth-form button[type=submit]').click();
-await page.locator('h1', { hasText: 'Tu cuenta' }).waitFor({ timeout: 6000 });
+// Sign in as the guardian with the same bounded lease as every mutation probe.
+await signInAs(page, 'rocio', 'Bosque123');
 
 const localNodesBefore = (await idbAll('roadmap2u', 'nodes')).length;
 const localTreesBefore = (await idbAll('roadmap2u', 'trees')).length;

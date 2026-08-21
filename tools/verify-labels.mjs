@@ -1,9 +1,7 @@
 // Labels (0.0.59): every branch name always visible, never overlapping,
 // never "…"-cut — identical at every zoom (tree-labels.ts law).
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 1200, height: 850 } });
+import { BASE, launchPage } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 1200, height: 850 });
 
 const pageErrors = [];
 page.on('pageerror', (error) => pageErrors.push(String(error)));

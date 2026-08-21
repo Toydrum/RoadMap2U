@@ -2,10 +2,8 @@
 // flow plants exactly the non-empty answers. B: skipping everything plants
 // nothing. C: Ahora's 2-minutitos on a BARE goal asks for the first pasito and
 // starts the session ON it; skipping starts on the goal itself.
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 900, height: 800 } });
+import { BASE, launchPage } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 900, height: 800 });
 
 await page.goto(`${BASE}/check-in`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(400);

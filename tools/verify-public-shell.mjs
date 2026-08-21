@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { mkdir, readFile, stat } from 'node:fs/promises';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { BASE, launchPage, ok } from './lib/harness.mjs';
+import { ensureProbeServer } from './lib/probe-server.mjs';
 
 const buildRoot = resolve(process.env.RM_BUILD_ROOT ?? 'dist/roadmap2u/browser');
 const indexPath = resolve(buildRoot, 'index.html');
@@ -62,10 +63,9 @@ const server = createServer(async (request, response) => {
   }
 });
 
-const { port } = new URL(BASE);
-await new Promise((ready) => server.listen(Number(port), '127.0.0.1', ready));
+const closeOwnedServer = await ensureProbeServer({ base: BASE, server });
 
-const { browser, page } = await launchPage(viewport);
+const { browser, page } = await launchPage(viewport, { commercialAccess: false });
 const pageErrors = [];
 const apiRequests = [];
 
@@ -193,5 +193,5 @@ try {
   ok('K no page errors', pageErrors.length === 0, pageErrors.join(' | '));
 } finally {
   await browser.close();
-  await new Promise((done) => server.close(done));
+  await closeOwnedServer?.();
 }

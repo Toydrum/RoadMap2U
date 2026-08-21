@@ -1,7 +1,5 @@
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+import { BASE, launchPage } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 1280, height: 800 });
 const out = process.argv[2] ?? '.';
 await page.goto(`${BASE}/forest?seed=demo`, { waitUntil: 'networkidle' });
 await page.hover('.plot:has-text("Idea nueva")');

@@ -1,10 +1,8 @@
 // «La luz» (0.0.60): per-branch priority as light — set in the sheet, seen
 // in the tablita/canvas/Ahora, biasing but never tyrannizing, private to
 // friends, and never moving the tree.
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 1200, height: 850 } });
+import { BASE, launchPage, newProbePage } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 1200, height: 850 });
 
 const pageErrors = [];
 page.on('pageerror', (error) => pageErrors.push(String(error)));
@@ -69,7 +67,7 @@ const okC = nextTitle === '10 min al despertar' && reason.includes('🧶');
 console.log(`C twig outranks sun: title="${nextTitle}" twig-reason=${reason.includes('🧶')} | OK=${okC}`);
 
 // ── D+E on a FRESH store: sunlit wins ambient; shade yields but reachable ───
-const fresh = await browser.newPage({ viewport: { width: 1200, height: 850 } });
+const { page: fresh } = await newProbePage(browser, { width: 1200, height: 850 });
 fresh.on('pageerror', (error) => pageErrors.push(String(error)));
 await fresh.goto(`${BASE}/forest`, { waitUntil: 'networkidle' });
 await fresh.waitForTimeout(900);
@@ -222,7 +220,7 @@ const okG = s0 === 'A su ritmo' && s1 === 'A pleno sol' && s3 === 'A su ritmo';
 console.log(`G cycle round-trip: ${s0} → ${s1} → … → ${s3} | OK=${okG}`);
 
 // ── H: strip — the guardian sees/sets the light; the friend sees nothing ────
-const fam = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+const { page: fam } = await newProbePage(browser, { width: 1200, height: 900 });
 fam.on('pageerror', (error) => pageErrors.push(String(error)));
 const signIn = async (user, pass) => {
   await fam.goto(`${BASE}/account`, { waitUntil: 'networkidle' });

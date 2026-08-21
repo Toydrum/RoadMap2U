@@ -2,6 +2,7 @@
 // session hydration with zero network, and the sacred rule — auth never
 // touches local forest data.
 import { chromium } from 'playwright-core';
+import { waitForAuthIdentityCleared } from './lib/harness.mjs';
 const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -91,6 +92,7 @@ await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
 await stage('Tu cuenta').waitFor();
 await page.locator('button', { hasText: 'Cerrar sesión' }).click();
 await stage('Una llave para tu bosque').waitFor({ timeout: 5000 });
+await waitForAuthIdentityCleared(page);
 const identityF = await idbGet('meta', 'auth.identity');
 const treesAfterF = (await idbGet('trees')).length;
 const okF = !identityF?.user && treesAfterF === treesBefore;
@@ -134,6 +136,7 @@ const whoB = await page.locator('.who-name').textContent();
 console.log(`B sign-up + code: who=${whoB?.trim()} | OK=${whoB?.trim() === 'brisa'}`);
 await page.locator('button', { hasText: 'Cerrar sesión' }).click();
 await stage('Una llave para tu bosque').waitFor();
+await waitForAuthIdentityCleared(page);
 
 // D — the child's first login: temp password → own password → clean re-entry.
 await page.locator('button', { hasText: 'Ya tengo mi llave' }).click();
@@ -149,6 +152,7 @@ const whoD = await page.locator('.who-name').textContent();
 const roleD = await page.locator('.who-role').textContent();
 await page.locator('button', { hasText: 'Cerrar sesión' }).click();
 await stage('Una llave para tu bosque').waitFor();
+await waitForAuthIdentityCleared(page);
 await page.locator('button', { hasText: 'Ya tengo mi llave' }).click();
 await signIn('nico', 'Brotes2026');
 await stage('Tu cuenta').waitFor({ timeout: 8000 });

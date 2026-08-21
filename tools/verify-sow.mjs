@@ -1,12 +1,12 @@
 // Sembrar a manos llenas (0.0.41): multi-add with tab nesting, starter
 // saplings on the empty meadow, the one-time burst invitation.
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
+import { BASE, launchPage, newProbePage } from './lib/harness.mjs';
+const first = await launchPage({ width: 390, height: 844 });
+const browser = first.browser;
 
 // ---- A: starters on the empty meadow + "start blank" hides them --------
 {
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const page = first.page;
   await page.goto(`${BASE}/check-in`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(400);
   await page.locator('button', { hasText: 'Empezar' }).click();
@@ -44,7 +44,7 @@ const browser = await chromium.launch({ channel: 'msedge', headless: true });
 
 // ---- B: multi-add with tab nesting + burst invitation -------------------
 {
-  const page = await browser.newPage({ viewport: { width: 900, height: 800 } });
+  const { page } = await newProbePage(browser, { width: 900, height: 800 });
   await page.goto(`${BASE}/check-in`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(400);
   await page.locator('button', { hasText: 'Empezar' }).click();

@@ -1,7 +1,5 @@
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 900, height: 800 } });
+import { BASE, launchPage } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 900, height: 800 });
 
 // A — session finish offers "Un pasito más" -> /ahora with the next suggestion
 await page.goto(`${BASE}/timer?seed=demo`, { waitUntil: 'networkidle' });

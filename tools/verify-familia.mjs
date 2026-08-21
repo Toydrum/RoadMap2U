@@ -1,10 +1,13 @@
 // The familia phase (0.0.49): create a minor (temp password once), per-child
 // admin, LAST_GUARDIAN → co-guardian arc, link-existing invites, redemption,
 // the guardians view — all on the mock cloud, zero network.
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+import {
+  BASE,
+  launchPage,
+  provisionSignedInAccess,
+  signInAs as signInPage,
+} from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 1280, height: 900 });
 
 const pageErrors = [];
 page.on('pageerror', (error) => pageErrors.push(String(error)));
@@ -17,17 +20,8 @@ page.on('request', (request) => {
 const stage = (title) => page.locator('h1', { hasText: title });
 const sheetTitle = (title) => page.locator('.familia-sheet h2', { hasText: title });
 
-async function signInAs(username, password) {
-  await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
-  const signedIn = await page.locator('h1', { hasText: 'Tu cuenta' }).count();
-  if (signedIn) {
-    await page.locator('button', { hasText: 'Cerrar sesión' }).click();
-    await stage('Una llave').waitFor();
-  }
-  await page.locator('button', { hasText: 'Ya tengo mi llave' }).click();
-  await page.fill('.auth-form input[autocomplete="username"]', username);
-  await page.fill('.auth-form input[type="password"]', password);
-  await page.locator('.auth-form button[type=submit]').click();
+async function signInAs(username, password, options) {
+  await signInPage(page, username, password, options);
 }
 
 async function openSettings() {
@@ -56,13 +50,14 @@ console.log(`B create child: temp="${tempLuna}" | OK=${/^Brote\d{4}$/.test(tempL
 await page.locator('.familia-sheet button', { hasText: 'Listo' }).click();
 
 // C — the child's first login uses the temp password → newPassword → family card.
-await signInAs('luna', tempLuna);
+await signInAs('luna', tempLuna, { expect: 'challenge' });
 await stage('Estrena tu contraseña').waitFor({ timeout: 6000 });
 const pw = page.locator('.auth-form input[type="password"]');
 await pw.nth(0).fill('Lunita2026');
 await pw.nth(1).fill('Lunita2026');
 await page.locator('.auth-form button[type=submit]').click();
 await stage('Tu cuenta').waitFor({ timeout: 8000 });
+await provisionSignedInAccess(page, { reload: true });
 await openSettings();
 const guardianNames = await page.locator('.familia .fam-group .fam-name').allTextContents();
 const disclosure = await page.locator('.familia .fam-group .hint').textContent();
@@ -176,7 +171,7 @@ const lunaGone = !(await page.locator('.familia .fam-open .fam-name').allTextCon
 console.log(`I export-first delete: download="${downloaded}" gone=${lunaGone} | OK=${downloaded.includes('luna') && lunaGone}`);
 
 // J — Luna's login is truly gone.
-await signInAs('luna', 'Lunita2026');
+await signInAs('luna', 'Lunita2026', { expect: 'error' });
 await page.locator('.error-line').waitFor({ timeout: 6000 });
 const lunaError = await page.locator('.error-line').textContent();
 console.log(`J deleted login: "${lunaError?.trim().slice(0, 40)}" | OK=${!!lunaError}`);

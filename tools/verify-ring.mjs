@@ -1,8 +1,5 @@
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const context = await browser.newContext({ viewport: { width: 900, height: 800 } });
-const page = await context.newPage();
+import { BASE, launchPage } from './lib/harness.mjs';
+const { browser, context, page } = await launchPage({ width: 900, height: 800 });
 
 // Fresh store: welcome once, skip the ritual (lands on /ahora), head to the forest.
 await page.goto(`${BASE}/check-in`, { waitUntil: 'networkidle' });

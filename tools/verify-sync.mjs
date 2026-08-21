@@ -1,10 +1,8 @@
 // «Conectar mi bosque» (0.0.53): explicit opt-in connect, pull of the
 // account's cloud forest, debounced push of local writes, idempotent boots,
 // and the mismatch guard — all on the mock cloud, zero network.
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+import { BASE, launchPage, signInAs as signInPage } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 1280, height: 900 });
 
 const pageErrors = [];
 page.on('pageerror', (error) => pageErrors.push(String(error)));
@@ -39,16 +37,7 @@ const idbAll = (db, store) =>
   );
 
 async function signInAs(username, password) {
-  await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
-  if (await page.locator('h1', { hasText: 'Tu cuenta' }).count()) {
-    await page.locator('button', { hasText: 'Cerrar sesión' }).click();
-    await page.locator('h1', { hasText: 'Una llave' }).waitFor();
-  }
-  await page.locator('button', { hasText: 'Ya tengo mi llave' }).click();
-  await page.fill('.auth-form input[autocomplete="username"]', username);
-  await page.fill('.auth-form input[type="password"]', password);
-  await page.locator('.auth-form button[type=submit]').click();
-  await page.locator('h1', { hasText: 'Tu cuenta' }).waitFor({ timeout: 6000 });
+  await signInPage(page, username, password);
 }
 
 // A — connect on a "fresh device": the account's seeded cloud forest PULLS in.

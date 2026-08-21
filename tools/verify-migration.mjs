@@ -2,6 +2,7 @@
 // pre-rename DB ('rodemap2u') boots the new app and finds everything —
 // copied into 'roadmap2u', with the legacy DB left untouched as a safety net.
 import { chromium } from 'playwright-core';
+import { provisionCommercialAccessForNextBoot } from './lib/harness.mjs';
 const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -94,6 +95,11 @@ const okB =
 console.log(
   `B copy + v13: new=${dbState.current.count} heart=${dbState.current.heartId} schema=${dbState.current.schemaVersion} legacy=${dbState.legacy.count}/${dbState.legacy.heartId ?? 'unchanged'} | OK=${okB}`,
 );
+
+// Only now, after proving the virgin profile migrated exactly once, give this
+// context a real sponsored lease for the mutation assertion below.
+await provisionCommercialAccessForNextBoot(page);
+await page.goto(`${BASE}/forest`, { waitUntil: 'networkidle' });
 
 // C — a later write goes to the NEW db only (legacy stays frozen).
 await page.locator('button', { hasText: 'Plantar un árbol' }).first().click();

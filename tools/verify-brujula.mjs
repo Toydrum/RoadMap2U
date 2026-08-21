@@ -2,10 +2,8 @@
 // choice). B: the suggestion card shows the soft size hint. C: with the
 // opt-in ON, finishing a session with a NOTABLE gap earns one curiosity
 // line; the default (OFF) earns none.
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 900, height: 800 } });
+import { BASE, launchPage } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 900, height: 800 });
 
 await page.goto(`${BASE}/check-in`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(400);

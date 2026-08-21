@@ -1,9 +1,6 @@
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const context = await browser.newContext({ viewport: { width: 900, height: 800 } });
+import { BASE, launchPage } from './lib/harness.mjs';
+const { browser, context, page } = await launchPage({ width: 900, height: 800 });
 await context.grantPermissions(['notifications']);
-const page = await context.newPage();
 
 // A — settings toggle: rhythm appears, choice persists across reload
 await page.goto(`${BASE}/settings?seed=demo`, { waitUntil: 'networkidle' });

@@ -1,9 +1,7 @@
 // The natural meadow (0.0.43): scattered clearings — sky safety, determinism,
 // drag-that-moves-trees, arrows/dots pagination, mobile fit.
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+import { BASE, launchPage, newProbePage } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 1280, height: 800 });
 
 const names = ['Guitarra', 'Cuidarme', 'Negocio', 'Inglés', 'Cocina', 'Lectura', 'Amigos', 'Jardín', 'Dibujo', 'Ahorro', 'Fotos', 'Huerto', 'Yoga', 'Piano', 'Viaje', 'Club'];
 let planted = 0;
@@ -190,7 +188,7 @@ console.log(`G dry feet @1700px: wet-trunks=[${wet.join(' ')}] | OK=${wet.length
 
 // H — earned size: a worked tree stands visibly taller than a fresh sprout.
 {
-  const page2 = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const { page: page2 } = await newProbePage(browser, { width: 1280, height: 800 });
   await page2.goto(`${BASE}/forest?seed=demo`, { waitUntil: 'networkidle' });
   await page2.waitForTimeout(700);
   // Measure the PAINTED tree (svg content bbox), not the plot box — the

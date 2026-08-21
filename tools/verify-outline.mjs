@@ -1,8 +1,8 @@
 // The "tablita" (0.0.42/0.0.43): branch outline rail — locate on tap, open on
 // second tap, ordered-steps numbering, close, and auto-collapse on big trees.
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
+import { BASE, launchPage, newProbePage } from './lib/harness.mjs';
+const first = await launchPage({ width: 1280, height: 800 });
+const browser = first.browser;
 
 async function centers(p) {
   return p.evaluate(() => {
@@ -25,7 +25,7 @@ async function centers(p) {
 
 // A/B/C/E — demo tree
 {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const page = first.page;
   await page.goto(`${BASE}/tree/demo-guitar?seed=demo`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
   await page.locator('.tree-outline-toggle').click();
@@ -70,7 +70,7 @@ async function centers(p) {
 
 // D — ordered steps show their numbering in the outline
 {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const { page } = await newProbePage(browser, { width: 1280, height: 800 });
   await page.goto(`${BASE}/check-in`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(400);
   await page.locator('button', { hasText: 'Empezar' }).click();
@@ -108,7 +108,7 @@ async function centers(p) {
 
 // F — big tree (13 branches > 12): opens folded to the main branches.
 {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const { page } = await newProbePage(browser, { width: 1280, height: 800 });
   await page.goto(`${BASE}/check-in`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(400);
   await page.locator('button', { hasText: 'Empezar' }).click();
