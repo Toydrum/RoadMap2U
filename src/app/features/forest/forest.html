@@ -43,7 +43,7 @@
         <span class="rose-label">{{ i18n.t().forest.checkinCta }}</span>
       </a>
       @if (trees.active().length) {
-        <button type="button" class="btn btn-primary" (click)="creating.set(true)">
+        <button type="button" class="btn btn-primary" (click)="openCreate()">
           + {{ i18n.t().forest.newTree }}
         </button>
       }
@@ -53,6 +53,12 @@
   <div class="container hint-band">
     <app-hint-chip surface="forest" [text]="i18n.t().hints.forest" />
   </div>
+
+  @if (!creating()) {
+    @if (growthErrorText(); as error) {
+      <p class="error-line card container" role="alert">{{ error }}</p>
+    }
+  }
 
   <!-- The meadow: backdrop + planted trees share the same band -->
   <div class="meadow">
@@ -303,10 +309,9 @@
         <span class="sprout" aria-hidden="true">🌱</span>
         <h2>{{ i18n.t().forest.empty }}</h2>
         <p>{{ i18n.t().forest.emptyHint }}</p>
-        <button type="button" class="btn btn-primary" (click)="creating.set(true)">
+        <button type="button" class="btn btn-primary" (click)="openCreate()">
           {{ i18n.t().forest.plantFirst }}
         </button>
-
         <!-- Never a blank canvas: young example trees, ready to prune. -->
         @if (!startersHidden()) {
           <div class="starters">
@@ -355,8 +360,8 @@
 
   <!-- Plant-a-tree sheet -->
   @if (creating()) {
-    <div class="sheet-backdrop" (click)="creating.set(false)">
-      <form class="sheet card" appSheet (sheetClose)="creating.set(false)" (click)="$event.stopPropagation()" (submit)="$event.preventDefault(); create()">
+    <div class="sheet-backdrop" (click)="closeCreate()">
+      <form class="sheet card" appSheet (sheetClose)="closeCreate()" (click)="$event.stopPropagation()" (submit)="$event.preventDefault(); create()">
         <h2>{{ i18n.t().forest.newTree }}</h2>
         <div class="field">
           <label for="tree-name">{{ i18n.t().forest.treeNameLabel }}</label>
@@ -388,8 +393,11 @@
             }
           </div>
         </div>
+        @if (growthErrorText(); as error) {
+          <p class="error-line card" role="alert">{{ error }}</p>
+        }
         <div class="row">
-          <button type="button" class="btn btn-ghost" (click)="creating.set(false)">
+          <button type="button" class="btn btn-ghost" (click)="closeCreate()">
             {{ i18n.t().common.cancel }}
           </button>
           <button type="submit" class="btn btn-primary" [disabled]="!newName().trim()">

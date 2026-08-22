@@ -554,6 +554,16 @@ export const EN: Dict = {
     prevClearing: 'Previous clearing',
     nextClearing: 'Next clearing',
     clearingDot: 'Go to clearing {n}',
+    errors: {
+      accessLeaseRequired:
+        'We could not confirm your access yet. Check your connection and try again.',
+      activeTreeLimit: 'Your plan allows up to {limit} active trees. Archive one to plant another.',
+      visibleBranchLimit:
+        'That tree allows up to {limit} visible branches. Archive one before planting more.',
+      starterBranches:
+        'The tree was created, but we could not plant its example branches. You can add them manually.',
+      unknown: 'We could not plant the tree. Try again.',
+    },
   },
   sow: {
     toggle: 'Several at once',

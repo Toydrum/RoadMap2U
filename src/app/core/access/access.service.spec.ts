@@ -14,7 +14,9 @@ import { AuthService } from '../auth/auth.service';
 import {
   ACCESS_CACHE,
   ACCESS_REFRESH_MS,
+  ACCESS_REQUEST_TIMEOUT_MS,
   ACCESS_RUNTIME,
+  ACCESS_STARTUP_WAIT_MS,
   AccessService,
   type AccessCachePort,
   type AccessRuntime,
@@ -77,6 +79,7 @@ function runtime(): AccessRuntime & {
   intervalMs: number | null;
   timeout: (() => void) | null;
   timeoutMs: number | null;
+  runTimeout(ms: number): boolean;
 } {
   const value = {
     nowValue: NOW,
@@ -85,6 +88,7 @@ function runtime(): AccessRuntime & {
     intervalMs: null as number | null,
     timeout: null as (() => void) | null,
     timeoutMs: null as number | null,
+    timeouts: new Map<() => void, number>(),
     now: () => value.nowValue,
     listenOnline: (callback: () => void) => {
       value.online = callback;
@@ -100,11 +104,21 @@ function runtime(): AccessRuntime & {
       };
     },
     scheduleOnce: (callback: () => void, ms: number) => {
+      value.timeouts.set(callback, ms);
       value.timeout = callback;
       value.timeoutMs = ms;
       return () => {
-        value.timeout = null;
+        value.timeouts.delete(callback);
+        if (value.timeout === callback) value.timeout = null;
       };
+    },
+    runTimeout: (ms: number) => {
+      const callback = [...value.timeouts].find(([, delay]) => delay === ms)?.[0];
+      if (!callback) return false;
+      value.timeouts.delete(callback);
+      if (value.timeout === callback) value.timeout = null;
+      callback();
+      return true;
     },
   };
   return value;
@@ -350,6 +364,121 @@ describe('AccessService', () => {
     await vi.waitFor(() => expect(getAccess).toHaveBeenCalledTimes(3));
   });
 
+  it('waits for the first authoritative refresh before resolving a cold authenticated start', async () => {
+    let release!: (summary: AccessSummary) => void;
+    const response = new Promise<AccessSummary>((resolve) => (release = resolve));
+    const getAccess = vi.fn(() => response);
+    const service = configure({ cache: cachePort(), api: apiWith({ getAccess }) });
+    let finished = false;
+
+    const starting = service.start().then(() => {
+      finished = true;
+    });
+    await vi.waitFor(() => expect(getAccess).toHaveBeenCalledOnce());
+
+    expect(finished).toBe(false);
+    release(premium());
+    await starting;
+    expect(service.access().effectivePlanKey).toBe('premium');
+    expect(service.leaseState()).toBe('valid');
+  });
+
+  it('opens with fallback after a bounded cold-start wait and accepts the late lease', async () => {
+    const clock = runtime();
+    let release!: (summary: AccessSummary) => void;
+    const response = new Promise<AccessSummary>((resolve) => (release = resolve));
+    const getAccess = vi.fn(() => response);
+    const service = configure({ cache: cachePort(), runtime: clock, api: apiWith({ getAccess }) });
+
+    const starting = service.start();
+    await vi.waitFor(() => expect(getAccess).toHaveBeenCalledOnce());
+    const deadline = clock.timeout;
+    if (!deadline) {
+      release(createFreeAccessSummary(clock.nowValue));
+      await starting;
+    }
+
+    expect(deadline).not.toBeNull();
+    deadline?.();
+    await starting;
+    expect(service.access().effectivePlanKey).toBe('free');
+    expect(service.leaseState()).toBe('fallback');
+
+    release(premium());
+    await vi.waitFor(() => expect(service.loading()).toBe(false));
+    expect(service.access().effectivePlanKey).toBe('premium');
+    expect(service.leaseState()).toBe('valid');
+  });
+
+  it('prepares each new identity while the product remains open', async () => {
+    const user = signal<{ userId: string } | null>(null);
+    const getAccess = vi.fn(async () => premium());
+    const cache = cachePort();
+    TestBed.configureTestingModule({
+      providers: [
+        AccessService,
+        { provide: API_CLIENT, useValue: apiWith({ getAccess }) },
+        { provide: ACCESS_CACHE, useValue: cache },
+        { provide: ACCESS_RUNTIME, useValue: runtime() },
+        { provide: AuthService, useValue: { user } },
+      ],
+    });
+    const service = TestBed.inject(AccessService);
+
+    await service.start();
+    expect(service.leaseState()).toBe('valid');
+    expect(getAccess).not.toHaveBeenCalled();
+
+    user.set({ userId: 'rocio' });
+    await vi.waitFor(() => expect(getAccess).toHaveBeenCalledTimes(1));
+    expect(cache.write).toHaveBeenCalledWith('rocio', expect.any(Object));
+
+    user.set({ userId: 'otro' });
+    await vi.waitFor(() => expect(getAccess).toHaveBeenCalledTimes(2));
+    expect(cache.write).toHaveBeenCalledWith('otro', expect.any(Object));
+  });
+
+  it('expires a stuck refresh so product re-entry can retry the same identity', async () => {
+    const clock = runtime();
+    const never = new Promise<AccessSummary>(() => undefined);
+    const getAccess = vi
+      .fn<() => Promise<AccessSummary>>()
+      .mockReturnValueOnce(never)
+      .mockResolvedValueOnce(premium());
+    const service = configure({ cache: cachePort(), runtime: clock, api: apiWith({ getAccess }) });
+
+    const starting = service.start();
+    await vi.waitFor(() => expect(getAccess).toHaveBeenCalledOnce());
+    expect(clock.runTimeout(ACCESS_REFRESH_MS)).toBe(false);
+    expect(clock.runTimeout(ACCESS_STARTUP_WAIT_MS)).toBe(true);
+    await starting;
+    expect(service.leaseState()).toBe('fallback');
+
+    expect(clock.runTimeout(ACCESS_REQUEST_TIMEOUT_MS)).toBe(true);
+    await vi.waitFor(() => expect(service.loading()).toBe(false));
+    await service.start();
+
+    expect(getAccess).toHaveBeenCalledTimes(2);
+    expect(service.leaseState()).toBe('valid');
+  });
+
+  it('opens from a valid cached lease while refreshing it in the background', async () => {
+    const cache = cachePort();
+    cache.rows.set('rocio', premium());
+    let release!: (summary: AccessSummary) => void;
+    const response = new Promise<AccessSummary>((resolve) => (release = resolve));
+    const getAccess = vi.fn(() => response);
+    const service = configure({ cache, api: apiWith({ getAccess }) });
+
+    await service.start();
+
+    expect(service.access().effectivePlanKey).toBe('premium');
+    expect(service.leaseState()).toBe('valid');
+    expect(getAccess).toHaveBeenCalledOnce();
+    release(premium());
+    await vi.waitFor(() => expect(service.loading()).toBe(false));
+  });
+
   it('persists a redeemed access result and rejects a stale result fail-closed', async () => {
     const cache = cachePort();
     const good = premium();
@@ -399,7 +528,12 @@ describe('AccessService', () => {
     await service.open();
 
     expect(getAccess).not.toHaveBeenCalled();
-    expect(service.access().effectivePlanKey).toBe('free');
+    expect(service.access()).toMatchObject({
+      effectivePlanKey: 'free',
+      limits: { maxActiveTrees: 2, maxVisibleBranchesPerTree: 10 },
+      capabilities: { cloudSync: false, social: false, family: false },
+    });
+    expect(service.leaseState()).toBe('valid');
   });
 
   it('drains an already-started cache write before terminal cleanup may replace meta', async () => {
