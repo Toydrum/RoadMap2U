@@ -128,5 +128,6 @@ describe('route-scoped startup', () => {
     await initializer.init();
     expect(calls.filter((call) => call === 'boot')).toHaveLength(1);
     expect(calls.filter((call) => call === 'reminders:init')).toHaveLength(1);
+    expect(calls.filter((call) => call === 'access')).toHaveLength(2);
   });
 });

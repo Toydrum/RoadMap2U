@@ -25,9 +25,14 @@ import { markProductActive } from './product-activation';
 export class ProductInitializer {
   private readonly injector = inject(Injector);
   private pending: Promise<void> | null = null;
+  private ready = false;
 
   init(): Promise<void> {
-    return (this.pending ??= this.start());
+    if (this.ready) return this.injector.get(AccessService).start();
+    if (this.pending) return this.pending;
+    return (this.pending = this.start().then(() => {
+      this.ready = true;
+    }));
   }
 
   private async start(): Promise<void> {

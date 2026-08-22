@@ -554,6 +554,17 @@ export const ES = {
     prevClearing: 'Claro anterior',
     nextClearing: 'Siguiente claro',
     clearingDot: 'Ir al claro {n}',
+    errors: {
+      accessLeaseRequired:
+        'No pudimos comprobar tu acceso todavía. Revisa tu conexión e inténtalo de nuevo.',
+      activeTreeLimit:
+        'Tu plan permite hasta {limit} árboles activos. Archiva uno para plantar otro.',
+      visibleBranchLimit:
+        'Ese árbol permite hasta {limit} ramas visibles. Archiva una antes de plantar más.',
+      starterBranches:
+        'El árbol se creó, pero no pudimos plantar sus ramas de ejemplo. Puedes añadirlas manualmente.',
+      unknown: 'No pudimos plantar el árbol. Inténtalo de nuevo.',
+    },
   },
   sow: {
     toggle: 'Varios a la vez',

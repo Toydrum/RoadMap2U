@@ -23,6 +23,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TreesRepo } from '../../core/repos/trees.repo';
 import { NodesRepo } from '../../core/repos/nodes.repo';
+import { ForestQuotaError } from '../../core/repos/forest-mutations.service';
 import { CheckinsRepo } from '../../core/repos/checkins.repo';
 import { HarvestsRepo } from '../../core/repos/harvests.repo';
 import { SettingsService } from '../../core/repos/settings.service';
@@ -44,6 +45,7 @@ import { PerchAnchorService } from '../../core/perch-anchor.service';
 import { PerchBody } from '../../shared/ui/perch-body';
 
 const ACCENTS: AccentToken[] = ['moss', 'sage', 'sky', 'clay', 'lavender', 'sand', 'rose', 'pine'];
+const STARTER_BRANCH_FAILURE = Symbol('starter-branch-failure');
 
 /**
  * "El Prado" — the forest home as a living scene. Every tree is a real
@@ -74,6 +76,24 @@ export class ForestPage {
   protected readonly creating = signal(false);
   protected readonly newName = signal('');
   protected readonly newAccent = signal<AccentToken>('moss');
+  private readonly growthError = signal<unknown | null>(null);
+  protected readonly growthErrorText = computed(() => {
+    const error = this.growthError();
+    if (!error) return '';
+    const copy = this.i18n.t().forest.errors;
+    if (error === STARTER_BRANCH_FAILURE) return copy.starterBranches;
+    if (!(error instanceof ForestQuotaError)) return copy.unknown;
+    switch (error.decision.reason) {
+      case 'ACCESS_LEASE_REQUIRED':
+        return copy.accessLeaseRequired;
+      case 'ACTIVE_TREE_LIMIT':
+        return this.i18n.fill(copy.activeTreeLimit, { limit: error.decision.limit });
+      case 'VISIBLE_BRANCH_LIMIT':
+        return this.i18n.fill(copy.visibleBranchLimit, { limit: error.decision.limit });
+      default:
+        return copy.unknown;
+    }
+  });
   /** Tree pending archive (confirm sheet open). */
   protected readonly archiving = signal<Tree | null>(null);
   /** «La despedida» (0.0.95): a fruited tree pending its closing ritual. */
@@ -721,7 +741,13 @@ export class ForestPage {
   protected async create(): Promise<void> {
     const name = this.newName().trim();
     if (!name) return;
-    await this.trees.create(name, this.newAccent());
+    this.growthError.set(null);
+    try {
+      await this.trees.create(name, this.newAccent());
+    } catch (error) {
+      this.growthError.set(error);
+      return;
+    }
     this.newName.set('');
     this.creating.set(false);
     // The newborn gets the highest order — walk to its clearing so it's seen.
@@ -733,11 +759,32 @@ export class ForestPage {
   protected async plantStarter(kind: 'school' | 'home' | 'project'): Promise<void> {
     const s = this.i18n.t().sow.starters[kind];
     const accent: AccentToken = kind === 'school' ? 'sky' : kind === 'home' ? 'clay' : 'moss';
-    const tree = await this.trees.create(s.name, accent);
-    await this.nodes.plantMany(tree.id, [
-      { parentId: tree.heartId, title: s.b1 },
-      { parentId: tree.heartId, title: s.b2 },
-    ]);
+    this.growthError.set(null);
+    let tree: Tree;
+    try {
+      tree = await this.trees.create(s.name, accent);
+    } catch (error) {
+      this.growthError.set(error);
+      return;
+    }
+    try {
+      await this.nodes.plantMany(tree.id, [
+        { parentId: tree.heartId, title: s.b1 },
+        { parentId: tree.heartId, title: s.b2 },
+      ]);
+    } catch {
+      this.growthError.set(STARTER_BRANCH_FAILURE);
+    }
+  }
+
+  protected openCreate(): void {
+    this.growthError.set(null);
+    this.creating.set(true);
+  }
+
+  protected closeCreate(): void {
+    this.creating.set(false);
+    this.growthError.set(null);
   }
 
   /** "Prefiero empezar en blanco" — the examples bow out for good. */

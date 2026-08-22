@@ -1,4 +1,13 @@
-import { DestroyRef, Injectable, InjectionToken, computed, inject, signal } from '@angular/core';
+import {
+  DestroyRef,
+  Injectable,
+  InjectionToken,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { API_CLIENT } from '../api/api-client';
 import {
   ACCESS_OFFLINE_LEASE_MS,
@@ -14,6 +23,8 @@ import { onAccountClosureQuiesce } from '../db/account-closure-fence';
 import { get, put } from '../db/idb';
 
 export const ACCESS_REFRESH_MS = 15 * 60 * 1000;
+export const ACCESS_STARTUP_WAIT_MS = 2_000;
+export const ACCESS_REQUEST_TIMEOUT_MS = 15_000;
 const META_ACCESS_PREFIX = 'commercial.access:';
 
 interface AccessCacheRow {
@@ -249,7 +260,9 @@ export class AccessService {
   private readonly loadingSignal = signal(false);
   private readonly lastErrorSignal = signal<ApiErrorCode | null>(null);
   private inFlight: { userId: string; promise: Promise<AccessSummary> } | null = null;
-  private startPromise: Promise<void> | null = null;
+  private started = false;
+  private preparedUserId: string | null | undefined;
+  private preparingIdentity: { userId: string | null; promise: Promise<void> } | null = null;
   private cleanup: Array<() => void> = [];
   private stopLeaseTimer: (() => void) | null = null;
   private pendingRequests = 0;
@@ -271,10 +284,12 @@ export class AccessService {
   });
   readonly leaseState = computed<'valid' | 'fallback'>(() => {
     const userId = this.auth.user()?.userId;
+    // Guests never have a server lease to fetch. Their bounded local Free
+    // summary is the authority, so local growth remains usable offline while
+    // the normal Free tree/branch limits still apply.
+    if (!userId) return 'valid';
     const cached = this.cachedSignal();
-    return userId &&
-      cached?.userId === userId &&
-      cached.summary.offlineValidUntil > this.nowSignal()
+    return cached?.userId === userId && cached.summary.offlineValidUntil > this.nowSignal()
       ? 'valid'
       : 'fallback';
   });
@@ -284,6 +299,10 @@ export class AccessService {
   constructor() {
     const destroyRef = inject(DestroyRef);
     const stopAccountClosure = onAccountClosureQuiesce(() => this.beginAccountClosureReset());
+    effect(() => {
+      const userId = this.auth.user()?.userId ?? null;
+      if (this.started) untracked(() => void this.prepareCurrentIdentity(userId));
+    });
     destroyRef.onDestroy(() => {
       stopAccountClosure();
       for (const stop of this.cleanup.splice(0)) stop();
@@ -293,22 +312,63 @@ export class AccessService {
   }
 
   start(): Promise<void> {
-    if (this.startPromise) return this.startPromise;
-    this.cleanup.push(
-      this.runtime.listenOnline(() => void this.refresh()),
-      this.runtime.scheduleEvery(() => void this.refresh(), ACCESS_REFRESH_MS),
-    );
-    this.startPromise = this.hydrate().then(() => {
-      // Product startup stays local-first: cached/Free policy is ready before
-      // the route opens, while the authoritative refresh continues quietly.
-      void this.refresh();
-    });
-    return this.startPromise;
+    if (!this.started) {
+      this.started = true;
+      this.cleanup.push(
+        this.runtime.listenOnline(() => void this.refresh()),
+        this.runtime.scheduleEvery(() => void this.refresh(), ACCESS_REFRESH_MS),
+      );
+    }
+    return this.prepareCurrentIdentity();
   }
 
   async open(): Promise<void> {
     await this.hydrate();
     await this.refresh();
+  }
+
+  private prepareCurrentIdentity(userId = this.auth.user()?.userId ?? null): Promise<void> {
+    if ((this.auth.user()?.userId ?? null) !== userId) return Promise.resolve();
+    if (this.preparedUserId === userId) {
+      if (userId && this.leaseState() !== 'valid' && !this.inFlight) void this.refresh();
+      return Promise.resolve();
+    }
+    if (this.preparingIdentity?.userId === userId) return this.preparingIdentity.promise;
+
+    const promise = this.prepareIdentity(userId).finally(() => {
+      if (this.preparingIdentity?.promise === promise) this.preparingIdentity = null;
+    });
+    this.preparingIdentity = { userId, promise };
+    return promise;
+  }
+
+  private async prepareIdentity(userId: string | null): Promise<void> {
+    await this.hydrate();
+    if ((this.auth.user()?.userId ?? null) !== userId) return;
+
+    // A cold signed-in identity gets a short chance to obtain its exact
+    // server lease. The local-first product still opens in fallback if the
+    // network stalls; the same in-flight refresh may land later.
+    if (userId && this.leaseState() !== 'valid') {
+      await this.waitForInitialRefresh();
+    } else {
+      void this.refresh();
+    }
+    if (
+      (this.auth.user()?.userId ?? null) === userId &&
+      (!userId || this.leaseState() === 'valid')
+    ) {
+      this.preparedUserId = userId;
+    }
+  }
+
+  private waitForInitialRefresh(): Promise<void> {
+    const refresh = this.refresh().then(() => undefined);
+    let cancelDeadline: () => void = () => undefined;
+    const deadline = new Promise<void>((resolve) => {
+      cancelDeadline = this.runtime.scheduleOnce(resolve, ACCESS_STARTUP_WAIT_MS);
+    });
+    return Promise.race([refresh, deadline]).finally(cancelDeadline);
   }
 
   private async hydrate(): Promise<void> {
@@ -350,8 +410,14 @@ export class AccessService {
 
     this.beginRequest();
     this.lastErrorSignal.set(null);
-    const request = this.api
-      .getAccess()
+    let cancelDeadline: () => void = () => undefined;
+    const deadline = new Promise<AccessSummary>((_, reject) => {
+      cancelDeadline = this.runtime.scheduleOnce(
+        () => reject(new ApiError('offline')),
+        ACCESS_REQUEST_TIMEOUT_MS,
+      );
+    });
+    const request = Promise.race([this.api.getAccess(), deadline])
       .then((summary) => this.accept(userId, summary, generation))
       .catch((error: unknown) => {
         if (generation === this.generation && this.auth.user()?.userId === userId) {
@@ -360,6 +426,7 @@ export class AccessService {
         return this.access();
       })
       .finally(() => {
+        cancelDeadline();
         if (this.inFlight?.promise === request) this.inFlight = null;
         this.endRequest();
       });

@@ -1,8 +1,14 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFreeAccessSummary } from '../api/contracts';
 import { API_CLIENT, type ApiClient } from '../api/api-client';
-import { AccessService } from '../access/access.service';
+import {
+  ACCESS_CACHE,
+  ACCESS_RUNTIME,
+  AccessService,
+} from '../access/access.service';
+import { AuthService } from '../auth/auth.service';
 import { type Tree, type TreeNode, newSyncBase } from '../db/schema';
 import { onLocalWrite, type DbChangeMessage } from '../db/broadcast';
 import { NodesRepo } from './nodes.repo';
@@ -66,8 +72,60 @@ function configure(storage: ForestMutationStorage): { trees: TreesRepo; nodes: N
   return { trees: TestBed.inject(TreesRepo), nodes: TestBed.inject(NodesRepo) };
 }
 
+function configureGuest(storage: ForestMutationStorage) {
+  const getAccess = vi.fn(async () => createFreeAccessSummary(NOW));
+  TestBed.configureTestingModule({
+    providers: [
+      AccessService,
+      TreesRepo,
+      NodesRepo,
+      { provide: AuthService, useValue: { user: signal(null) } },
+      { provide: API_CLIENT, useValue: { getAccess } as unknown as ApiClient },
+      {
+        provide: ACCESS_CACHE,
+        useValue: { read: vi.fn(async () => null), write: vi.fn(async () => undefined) },
+      },
+      {
+        provide: ACCESS_RUNTIME,
+        useValue: {
+          now: () => NOW,
+          listenOnline: () => () => undefined,
+          scheduleEvery: () => () => undefined,
+          scheduleOnce: () => () => undefined,
+        },
+      },
+      { provide: FOREST_MUTATION_STORAGE, useValue: storage },
+    ],
+  });
+  return {
+    access: TestBed.inject(AccessService),
+    trees: TestBed.inject(TreesRepo),
+    nodes: TestBed.inject(NodesRepo),
+    getAccess,
+  };
+}
+
 describe('atomic forest mutations', () => {
   beforeEach(() => TestBed.resetTestingModule());
+
+  it('lets a real guest create two local Free trees but rejects a third', async () => {
+    const commit = vi.fn(async () => undefined);
+    const { access, trees, nodes, getAccess } = configureGuest({ commit });
+
+    await access.start();
+    const first = await trees.create('Mi primer árbol', 'moss');
+    const second = await trees.create('Mi segundo árbol', 'sage');
+
+    expect(getAccess).not.toHaveBeenCalled();
+    expect(access.leaseState()).toBe('valid');
+    expect(trees.byId().has(first.id)).toBe(true);
+    expect(nodes.byId().has(first.heartId!)).toBe(true);
+    expect(trees.byId().has(second.id)).toBe(true);
+    await expect(trees.create('Mi tercer árbol', 'sky')).rejects.toMatchObject({
+      decision: { reason: 'ACTIVE_TREE_LIMIT' },
+    });
+    expect(commit).toHaveBeenCalledTimes(2);
+  });
 
   it('publishes a newborn tree and its heart only after one cross-store commit', async () => {
     let release!: () => void;
