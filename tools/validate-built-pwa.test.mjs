@@ -15,7 +15,7 @@ function validBuild() {
     'manifest.webmanifest': JSON.stringify({
       id: '/',
       scope: '/',
-      start_url: '/',
+      start_url: '/ahora',
       icons: [{ src: 'icon.png' }],
     }),
     'ngsw.json': JSON.stringify({
@@ -72,7 +72,7 @@ test('rejects non-root manifest metadata and missing manifest icons', () => {
       JSON.stringify({
         id: '/RoadMap2U/',
         scope: '/',
-        start_url: '/',
+        start_url: '/ahora',
         icons: [{ src: 'missing.png' }],
       }),
     );
@@ -94,6 +94,21 @@ test('rejects files listed by ngsw.json that are absent from the build', () => {
     const result = validate(directory);
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /lazy-HASH\.js.*missing/i);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('rejects a manifest that installs into the marketing landing', () => {
+  const directory = validBuild();
+  try {
+    writeFileSync(
+      join(directory, 'manifest.webmanifest'),
+      JSON.stringify({ id: '/', scope: '/', start_url: '/', icons: [{ src: 'icon.png' }] }),
+    );
+    const result = validate(directory);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /manifest start_url must be "\/ahora"/i);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

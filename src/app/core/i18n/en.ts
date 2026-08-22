@@ -7,6 +7,146 @@ export const EN: Dict = {
     memoryOnly:
       'This device could not open its storage: your forest lives only in this session and will be lost on reload. Close other tabs and reload to retry.',
   },
+  landing: {
+    skip: 'Skip to content',
+    nav: {
+      label: 'Main navigation',
+      how: 'How it works',
+      product: 'The product',
+      plans: 'Plans',
+      signIn: 'Sign in',
+      start: 'Start for free',
+      language: 'Language',
+      spanish: 'Español',
+      english: 'English',
+    },
+    hero: {
+      eyebrow: 'A living map for your plans',
+      title: 'See the path. Help it grow.',
+      body: 'Turn what you want to build into trees, branches, and next steps you can actually follow.',
+      primary: 'Create my forest for free',
+      secondary: 'See how it works',
+      microcopy: 'No card required · start with 2 trees and 10 branches per tree',
+    },
+    steps: {
+      eyebrow: 'From intention to path',
+      title: 'A plan you can actually see',
+      body: 'RoadMap2U turns a big goal into a living shape, without judging lists or rigid paths.',
+      plant: {
+        number: '01',
+        title: 'Plant',
+        body: 'Name what you want to build. That is where the heart of your tree begins.',
+      },
+      branch: {
+        number: '02',
+        title: 'Branch',
+        body: 'Open routes, small steps, and alternatives when the path changes.',
+      },
+      advance: {
+        number: '03',
+        title: 'Move',
+        body: 'Return to one next action and let every lived step bloom.',
+      },
+    },
+    product: {
+      eyebrow: 'Your map, in motion',
+      title: 'The tree does not decorate the plan. It is the plan.',
+      body: 'Every branch holds a decision, every flower keeps a step you lived, and every knot shows that you found another way forward.',
+      proof:
+        'The same structure appears in your forest, focus, almanac, and harvest; it all remains yours and works offline.',
+      treeLabel:
+        'Example of a RoadMap2U tree with branches, leaves, flowers, and a transformation knot.',
+      notes: [
+        'One next step at a time',
+        'Gentle dates, never alarms',
+        'Your forest lives on your device first',
+      ],
+    },
+    plans: {
+      eyebrow: 'Start small. Grow when it helps.',
+      title: 'Two ways into the forest',
+      body: 'The free version keeps the complete personal cycle. Premium adds space and connection without changing the app’s gentle way of working.',
+      included: 'Includes',
+      free: {
+        name: 'Free',
+        price: '$0 MXN',
+        cadence: 'to begin',
+        summary: 'Get to know the app with a forest of your own that truly works.',
+        features: [
+          '2 active trees',
+          '10 visible branches per tree',
+          'Check-in, focus, almanac, and harvest',
+          'Local-first use, export, and accessibility',
+        ],
+        cta: 'Create my forest for free',
+      },
+      premium: {
+        name: 'Premium',
+        badge: 'Coming soon',
+        monthly: '$99 MXN per month',
+        yearly: '$949 MXN per year · save $239 · tax included',
+        summary: 'Grow your forest beyond the limits of the free plan.',
+        features: [
+          'Capacity beyond the Free limit',
+          'Secure sync across devices',
+          'Friends and read-only visits',
+        ],
+        note: 'The same capabilities monthly or yearly. Family is not included in this phase.',
+        cta: 'Explore Premium',
+      },
+    },
+    key: {
+      eyebrow: 'Sponsored access',
+      title: 'Did you receive an access key?',
+      body: 'Some people receive Premium access by invitation, with or without an expiration date. The key is linked to your own account.',
+      cta: 'Sign in to redeem it',
+    },
+    faq: {
+      eyebrow: 'Frequently asked questions',
+      title: 'What matters before you begin',
+      items: [
+        {
+          question: 'What can I do with Free?',
+          answer:
+            'You can use the full personal cycle with 2 active trees and up to 10 visible branches per tree: check-in, focus, gentle dates, rituals, almanac, harvest, backup, and accessibility.',
+        },
+        {
+          question: 'Can I buy Premium now?',
+          answer:
+            'Not yet. These are the proposed launch prices and they are marked Coming soon; no button makes or simulates a charge.',
+        },
+        {
+          question: 'What does Premium add?',
+          answer:
+            'Capacity beyond the Free limit, secure sync across devices, and friendships with read-only visits.',
+        },
+        {
+          question: 'What happens to my data?',
+          answer:
+            'Your forest works on your device first. RoadMap2U uses no ads, analytics, or trackers, and you can export your information.',
+        },
+        {
+          question: 'How does a key work?',
+          answer:
+            'Create or open your account and redeem the key you received. Access may expire on a set date or remain active, depending on the invitation.',
+        },
+      ],
+    },
+    final: {
+      eyebrow: 'Your path does not have to look like anyone else’s',
+      title: 'Plant the first version of your forest.',
+      body: 'Two trees and ten branches per tree are enough to feel how RoadMap2U thinks.',
+      cta: 'Start for free',
+    },
+    footer: {
+      tagline: 'A living map for moving forward without turning your life into a list.',
+      privacy: 'Privacy',
+      terms: 'Terms',
+      support: 'Support',
+      contact: 'Contact',
+      rights: 'RoadMap2U · Made to grow at your pace.',
+    },
+  },
   finder: {
     title: 'Search my forest',
     placeholder: 'A tree or branch name…',
@@ -692,6 +832,7 @@ export const EN: Dict = {
     accountGuestHint: 'Your forest has no key yet. Whenever you like, you can create an account.',
     accountOpen: 'Open my account',
     accountSignedInAs: 'You are here as',
+    accountClosureResume: 'Review my account closure',
     mockReset: 'Reset the practice cloud',
     mockResetHint: 'Rehearsal mode only: restarts the demo family (rocio, nico, val, ambar).',
     mockResetDone: 'The practice cloud started over 🌱',
@@ -761,8 +902,25 @@ export const EN: Dict = {
     deleteCta: 'Delete my account',
     deleteTitle: 'Delete your account?',
     deleteBody:
-      'The key is deleted, not the forest: your trees keep living on this device. This action cannot be undone.',
-    deleteConfirm: 'Yes, delete my account',
+      'First we will download a complete copy. While closure is in progress, your forest and session stay intact here. Only after the final confirmation will this app copy be cleared and the session signed out.',
+    deleteConfirm: 'Download copy and begin',
+    closureStatusTitle: 'Your closure is underway',
+    closureRequested:
+      'The server received your request. Your local copy stays here while it finishes.',
+    closurePurging:
+      'The cloud is carefully removing your data. Your local copy has not been touched.',
+    closurePurgeComplete:
+      'The cloud is empty and finishing the closure of your key. Your local copy stays here.',
+    closureCompleted: 'Closure is complete and this local copy can now be cleared.',
+    closurePendingHint:
+      'You can check the status again. Do not sign out while we wait for final confirmation.',
+    closureRetry: 'Check status',
+    closureOffline: 'We could not check now. Your local copy and session remain intact.',
+    closureRetryError:
+      'We could not finish this step. You can retry to continue from the closure state already saved.',
+    closureSessionExpired:
+      'Your session expired before completion could be confirmed. For safety, nothing on this device was cleared; the current contract cannot check closure without a valid session.',
+    closureSupport: 'Ask for help confirming closure',
     errors: {
       invalidUsername:
         'Your username can only use lowercase letters, numbers and underscore; no spaces. For example: lynx_pardelle.',
@@ -853,6 +1011,24 @@ export const EN: Dict = {
       LIMIT_EXCEEDED: 'The link limit has been reached for now.',
       RATE_LIMITED: 'Too many tries in a row. Wait a little while.',
       SYNC_TOO_OLD: 'The app needs an update to continue.',
+      QUOTA_EXCEEDED:
+        'Your forest is still here. To plant another branch, free some space or activate Premium.',
+      CAPABILITY_REQUIRED: 'This action needs Premium. Your local forest remains untouched.',
+      MUTATION_GROUP_INVALID:
+        'The complete action did not reach the cloud. Try the whole action again.',
+      ACCESS_REVISION_CONFLICT: 'Your access changed while we were saving. Refresh and try again.',
+      ACCESS_CODE_INVALID: 'That access key is not valid. Check it calmly.',
+      ACCESS_CODE_RATE_LIMITED:
+        'There were too many access-key attempts. Wait a while before trying again.',
+      ACCESS_CODE_ALREADY_REDEEMED:
+        'That access key was already used. You can review the access you have now.',
+      SYNC_SCHEMA_INVALID:
+        'Part of your forest needs correction before upload. Your local copy remains intact.',
+      SYNC_CLIENT_UPGRADE_REQUIRED: 'Update the app before sending changes to the cloud again.',
+      USAGE_MIGRATION_IN_PROGRESS:
+        'The cloud is preparing your limits. Your change remains on this device; try again in a moment.',
+      COMMERCIAL_CONFIGURATION_UNAVAILABLE:
+        'We could not confirm your access right now. Your local copy remains available; try again later.',
       offline: 'No connection right now — try again when it returns.',
       server: 'The cloud stumbled. Try again in a moment.',
       unknown: 'Something didn’t work. Try again in a moment.',

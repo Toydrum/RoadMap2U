@@ -103,9 +103,18 @@ const envelope = JSON.parse(await fs.readFile(fileF, 'utf8'));
 const exportedHarvests = envelope.data?.harvests?.length ?? 0;
 ok(
   'F1 envelope carries harvests + preserves',
-  envelope.schemaVersion === 12 && exportedHarvests > 0 && Array.isArray(envelope.data?.preserves),
+  envelope.schemaVersion === 13 &&
+    envelope.data?.trees?.every((tree) => typeof tree.heartId === 'string') &&
+    exportedHarvests > 0 && Array.isArray(envelope.data?.preserves),
   `v=${envelope.schemaVersion} harvests=${exportedHarvests} preserves=${envelope.data?.preserves?.length}`,
 );
+
+// Exercise the permanent compatibility door, not only a same-version
+// round-trip: schema 12 + pre-rename app id + no persisted heartId.
+const legacyEnvelope = structuredClone(envelope);
+legacyEnvelope.app = 'rodemap2u';
+legacyEnvelope.schemaVersion = 12;
+for (const tree of legacyEnvelope.data.trees) delete tree.heartId;
 
 await page.evaluate(async () => {
   const open = indexedDB.open('roadmap2u');
@@ -122,20 +131,33 @@ await page.reload({ waitUntil: 'networkidle' });
 await page.waitForTimeout(600);
 // The import auto-downloads a pre-import copy first — swallow it.
 page.on('download', () => {});
-await page.locator('input[type="file"]').setInputFiles(fileF);
+await page.locator('input[type="file"]').setInputFiles({
+  name: 'rodemap2u-v12.json',
+  mimeType: 'application/json',
+  buffer: Buffer.from(JSON.stringify(legacyEnvelope)),
+});
 await page.waitForTimeout(2500);
 const restored = await page.evaluate(async () => {
   const open = indexedDB.open('roadmap2u');
   const db = await new Promise((res, rej) => { open.onsuccess = () => res(open.result); open.onerror = rej; });
-  const rows = await new Promise((res, rej) => {
-    const rq = db.transaction('harvests', 'readonly').objectStore('harvests').getAll();
-    rq.onsuccess = () => res(rq.result);
-    rq.onerror = rej;
+  const state = await new Promise((res, rej) => {
+    const tx = db.transaction(['harvests', 'trees'], 'readonly');
+    const harvests = tx.objectStore('harvests').getAll();
+    const trees = tx.objectStore('trees').getAll();
+    tx.oncomplete = () => res({
+      harvests: harvests.result.length,
+      hearts: trees.result.map((tree) => tree.heartId),
+    });
+    tx.onerror = rej;
   });
   db.close();
-  return rows.length;
+  return state;
 });
-ok('F2 import restores the pantry', restored === exportedHarvests, `restored=${restored}/${exportedHarvests}`);
+ok(
+  'F2 legacy v12 import migrates hearts + restores pantry',
+  restored.harvests === exportedHarvests && restored.hearts.every((heartId) => typeof heartId === 'string'),
+  `restored=${restored.harvests}/${exportedHarvests} hearts=${restored.hearts.join(',')}`,
+);
 
 console.log(`SUMMARY backup: ${anyFailed() ? 'OK=false' : 'ALL OK'}`);
 await browser.close();

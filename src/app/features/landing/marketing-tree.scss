@@ -1,0 +1,120 @@
+:host {
+  --rm-bark: #6f5640;
+  --rm-twig: #7f9a63;
+  --status-branched: #a8935a;
+  display: block;
+  inline-size: 100%;
+}
+
+.art {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  overflow: visible;
+}
+
+.mini {
+  max-inline-size: 132px;
+  margin-inline: auto;
+}
+
+.hero-tree {
+  transform-origin: 50% 100%;
+  animation: tree-arrive 900ms cubic-bezier(0.22, 0.8, 0.2, 1) both;
+}
+
+.canopy {
+  transform-box: fill-box;
+  transform-origin: 50% 80%;
+  animation: canopy-breathe 9s ease-in-out 1s infinite alternate;
+}
+
+.hero-bloom {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bloom-breathe 5.5s ease-in-out 1.4s infinite;
+}
+
+.demo-tree {
+  max-block-size: 490px;
+}
+
+.canopy-pad {
+  fill: #5c8a58;
+  opacity: 0.64;
+}
+
+.canopy-pad[data-shade='1'] {
+  fill: #7f9a63;
+}
+
+.canopy-pad[data-shade='2'] {
+  fill: #4e7d4a;
+}
+
+.leaf {
+  fill: #4e7d4a;
+  opacity: 0.88;
+}
+
+.leaf[data-shade='1'] {
+  fill: #7f9a63;
+}
+
+.leaf[data-shade='2'] {
+  fill: #5c8a58;
+}
+
+.bud {
+  fill: #e4dcc0;
+  stroke: #c4a34e;
+  stroke-width: 1;
+}
+
+.knot-ring {
+  fill: #fdfbf3;
+  stroke: #a8935a;
+  stroke-width: 3;
+}
+
+.knot-core {
+  fill: #a8935a;
+}
+
+@keyframes tree-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scaleY(0.92);
+  }
+}
+
+@keyframes canopy-breathe {
+  from {
+    transform: rotate(-0.7deg) translateY(0);
+  }
+  to {
+    transform: rotate(0.7deg) translateY(-2px);
+  }
+}
+
+@keyframes bloom-breathe {
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+:host-context(.reduce-motion) *,
+:host-context(.reduce-motion) *::before,
+:host-context(.reduce-motion) *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

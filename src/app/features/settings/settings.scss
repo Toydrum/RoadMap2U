@@ -8,7 +8,9 @@
   gap: 0.9rem;
   text-decoration: none;
   color: var(--text);
-  transition: border-color 0.2s ease, transform 0.15s ease;
+  transition:
+    border-color 0.2s ease,
+    transform 0.15s ease;
 
   .trail-mark {
     width: 44px;
@@ -84,8 +86,6 @@
   }
 }
 
-
-
 .num {
   width: 84px;
   padding: 0.5rem 0.7rem;
@@ -114,6 +114,25 @@
   .account-role {
     color: var(--text-faint);
     font-size: 0.8rem;
+  }
+}
+
+.account-closure-status {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+  padding: 0.8rem 0.9rem;
+  border: 1.5px solid color-mix(in srgb, var(--primary) 42%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+
+  span {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+
+  .btn {
+    justify-self: start;
   }
 }
 
@@ -189,5 +208,3 @@
     background: color-mix(in srgb, var(--status-achieved) 10%, transparent);
   }
 }
-
-

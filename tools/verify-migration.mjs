@@ -2,6 +2,7 @@
 // pre-rename DB ('rodemap2u') boots the new app and finds everything —
 // copied into 'roadmap2u', with the legacy DB left untouched as a safety net.
 import { chromium } from 'playwright-core';
+import { provisionCommercialAccessForNextBoot } from './lib/harness.mjs';
 const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -62,20 +63,43 @@ const dbState = await page.evaluate(
           const open = indexedDB.open(dbName);
           open.onsuccess = () => {
             const db = open.result;
-            if (!db.objectStoreNames.contains('trees')) { db.close(); res(-1); return; }
-            const req = db.transaction('trees', 'readonly').objectStore('trees').count();
-            req.onsuccess = () => { db.close(); res(req.result); };
-            req.onerror = () => { db.close(); res(-2); };
+            if (!db.objectStoreNames.contains('trees')) { db.close(); res({ count: -1 }); return; }
+            const stores = db.objectStoreNames.contains('meta') ? ['trees', 'meta'] : ['trees'];
+            const tx = db.transaction(stores, 'readonly');
+            const rows = tx.objectStore('trees').getAll();
+            const marker = db.objectStoreNames.contains('meta')
+              ? tx.objectStore('meta').get('schema.version')
+              : null;
+            tx.oncomplete = () => {
+              const result = {
+                count: rows.result.length,
+                heartId: rows.result[0]?.heartId,
+                schemaVersion: marker?.result?.version,
+              };
+              db.close();
+              res(result);
+            };
+            tx.onerror = () => { db.close(); res({ count: -2 }); };
           };
-          open.onerror = () => res(-3);
+          open.onerror = () => res({ count: -3 });
         });
       Promise.all([read('roadmap2u'), read('rodemap2u')]).then(([n, legacy]) =>
-        resolve({ newTrees: n, legacyTrees: legacy }),
+        resolve({ current: n, legacy }),
       );
     }),
 );
-const okB = dbState.newTrees === 1 && dbState.legacyTrees === 1;
-console.log(`B copy not move: new=${dbState.newTrees} legacy=${dbState.legacyTrees} | OK=${okB}`);
+const okB =
+  dbState.current.count === 1 && dbState.current.heartId === 'mig-root' &&
+  dbState.current.schemaVersion === 13 && dbState.legacy.count === 1 &&
+  dbState.legacy.heartId === undefined;
+console.log(
+  `B copy + v13: new=${dbState.current.count} heart=${dbState.current.heartId} schema=${dbState.current.schemaVersion} legacy=${dbState.legacy.count}/${dbState.legacy.heartId ?? 'unchanged'} | OK=${okB}`,
+);
+
+// Only now, after proving the virgin profile migrated exactly once, give this
+// context a real sponsored lease for the mutation assertion below.
+await provisionCommercialAccessForNextBoot(page);
+await page.goto(`${BASE}/forest`, { waitUntil: 'networkidle' });
 
 // C — a later write goes to the NEW db only (legacy stays frozen).
 await page.locator('button', { hasText: 'Plantar un árbol' }).first().click();
@@ -172,9 +196,26 @@ if (pageErrors.length) console.log(pageErrors.join('\n'));
           const hasStore = db.objectStoreNames.contains('harvests');
           const hasPreserves = db.objectStoreNames.contains('preserves');
           if (!hasStore) { db.close(); resolve({ hasStore, hasPreserves, version: db.version, rows: -1 }); return; }
-          const req = db.transaction('harvests', 'readonly').objectStore('harvests').getAll();
-          req.onsuccess = () => { const rows = req.result.length; db.close(); resolve({ hasStore, hasPreserves, version: db.version, rows }); };
-          req.onerror = () => { db.close(); resolve({ hasStore, hasPreserves, version: db.version, rows: -2 }); };
+          const tx = db.transaction(['trees', 'nodes', 'harvests', 'meta'], 'readonly');
+          const harvests = tx.objectStore('harvests').getAll();
+          const trees = tx.objectStore('trees').getAll();
+          const nodes = tx.objectStore('nodes').getAll();
+          const marker = tx.objectStore('meta').get('schema.version');
+          tx.oncomplete = () => {
+            const result = {
+              hasStore,
+              hasPreserves,
+              version: db.version,
+              rows: harvests.result.length,
+              trees: trees.result.length,
+              nodes: nodes.result.length,
+              heartId: trees.result[0]?.heartId,
+              schemaVersion: marker.result?.version,
+            };
+            db.close();
+            resolve(result);
+          };
+          tx.onerror = () => { db.close(); resolve({ hasStore, hasPreserves, version: db.version, rows: -2 }); };
         };
         open.onerror = () => resolve({ hasStore: false, hasPreserves: false, version: -1, rows: -3 });
       }),
@@ -185,9 +226,11 @@ if (pageErrors.length) console.log(pageErrors.join('\n'));
   // v3 (0.0.89): the same boot must also have created the preserves store.
   const okE =
     upgraded.hasStore && upgraded.version === 3 && upgraded.rows === 1 &&
-    upgraded.hasPreserves && jarE === 0 && treeVisible && ctxErrors.length === 0;
+    upgraded.hasPreserves && upgraded.trees === 1 && upgraded.nodes === 1 &&
+    upgraded.heartId === 'v1-bloom' && upgraded.schemaVersion === 13 &&
+    jarE === 0 && treeVisible && ctxErrors.length === 0;
   console.log(
-    `E lived-in v1→v3: store=${upgraded.hasStore} preserves=${upgraded.hasPreserves} v=${upgraded.version} backfilled=${upgraded.rows} jar=${jarE} tree=${treeVisible} errors=${ctxErrors.length} | OK=${okE}`,
+    `E lived-in v1→v3 + schema13: store=${upgraded.hasStore} preserves=${upgraded.hasPreserves} v=${upgraded.version} trees=${upgraded.trees} nodes=${upgraded.nodes} heart=${upgraded.heartId} schema=${upgraded.schemaVersion} backfilled=${upgraded.rows} jar=${jarE} tree=${treeVisible} errors=${ctxErrors.length} | OK=${okE}`,
   );
   await ctx.close();
 }

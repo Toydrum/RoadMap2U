@@ -47,12 +47,14 @@ async function frontendServer() {
   const index = `<!doctype html><html><head><base href="/"><link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles-HASH.css"></head><body><script src="main-HASH.js"></script></body></html>`;
   return listen((request, response) => {
     const path = new URL(request.url, 'http://localhost').pathname;
-    if (path === '/' || path === '/account') {
+    if (path === '/' || path === '/account' || path === '/ahora') {
       response.writeHead(200, { 'content-type': 'text/html' }).end(index);
     } else if (path === '/manifest.webmanifest') {
       response
         .writeHead(200, { 'content-type': 'application/manifest+json' })
-        .end(JSON.stringify({ id: '/', scope: '/', start_url: '/', icons: [{ src: 'icon.png' }] }));
+        .end(
+          JSON.stringify({ id: '/', scope: '/', start_url: '/ahora', icons: [{ src: 'icon.png' }] }),
+        );
     } else if (path === '/icon.png') {
       response.writeHead(200, { 'content-type': 'image/png' }).end('png');
     } else if (path === '/ngsw.json') {

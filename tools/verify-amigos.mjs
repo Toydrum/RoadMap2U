@@ -1,10 +1,8 @@
 // Amigos y visitas (0.0.54): friend codes as the only door, mutual-consent
 // requests, silent declines, the rate-limit brake, guardian oversight, and
 // look-only friend visits (locate, never open; nothing plants).
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 950 } });
+import { BASE, launchPage, signInAs as signInPage } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 1280, height: 950 });
 
 const pageErrors = [];
 page.on('pageerror', (error) => pageErrors.push(String(error)));
@@ -15,16 +13,7 @@ page.on('request', (request) => {
 });
 
 async function signInAs(username, password) {
-  await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
-  if (await page.locator('h1', { hasText: 'Tu cuenta' }).count()) {
-    await page.locator('button', { hasText: 'Cerrar sesión' }).click();
-    await page.locator('h1', { hasText: 'Una llave' }).waitFor();
-  }
-  await page.locator('button', { hasText: 'Ya tengo mi llave' }).click();
-  await page.fill('.auth-form input[autocomplete="username"]', username);
-  await page.fill('.auth-form input[type="password"]', password);
-  await page.locator('.auth-form button[type=submit]').click();
-  await page.locator('h1', { hasText: 'Tu cuenta' }).waitFor({ timeout: 6000 });
+  await signInPage(page, username, password);
 }
 
 async function openAmigos() {

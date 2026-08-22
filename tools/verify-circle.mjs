@@ -1,7 +1,5 @@
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+import { BASE, launchPage } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 1100, height: 900 });
 const out = process.argv[2] ?? '.';
 await page.goto(`${BASE}/check-in?seed=demo`, { waitUntil: 'networkidle' });
 await page.click('.feeling:has-text("En calma")');

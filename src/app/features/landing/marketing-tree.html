@@ -1,0 +1,200 @@
+@switch (variant()) {
+  @case ('sap') {
+    <svg class="art mini" viewBox="0 0 140 160" aria-hidden="true" focusable="false">
+      <ellipse cx="70" cy="148" rx="32" ry="7" fill="#9db98a" opacity=".5" />
+      <path
+        d="M62 147C64 127 64 108 66 84C67 75 68 67 70 59C73 69 74 78 73 88C74 108 76 128 79 147C73 144 68 144 62 147Z"
+        fill="#6f5640"
+      />
+      <path d="M68 101C54 96 44 87 38 74C52 77 63 84 70 94C71 97 70 99 68 101Z" fill="#6f5640" />
+      <path d="M39 74C54 72 64 79 66 90C54 91 44 86 39 74Z" fill="#4e7d4a" opacity=".86" />
+      <path d="M71 84C78 69 89 61 103 60C99 75 89 84 72 89Z" fill="#7f9a63" />
+      <path d="M102 60C103 73 96 81 84 83C84 72 91 63 102 60Z" fill="#4e7d4a" opacity=".72" />
+    </svg>
+  }
+  @case ('branch') {
+    <svg class="art mini" viewBox="0 0 140 160" aria-hidden="true" focusable="false">
+      <ellipse cx="70" cy="149" rx="38" ry="8" fill="#9db98a" opacity=".5" />
+      <path
+        d="M59 149C61 126 62 105 65 84C67 72 67 61 68 50C72 63 73 74 72 86C74 108 77 129 81 149C73 145 66 145 59 149Z"
+        fill="#6f5640"
+      />
+      <path d="M66 104C54 95 44 85 36 72C48 79 60 85 70 93C71 98 69 102 66 104Z" fill="#6f5640" />
+      <path d="M69 89C79 79 90 68 103 56C95 73 85 88 73 99C69 97 68 94 69 89Z" fill="#6f5640" />
+      <path
+        d="M71 116C84 108 96 104 113 103C98 110 85 119 74 126C71 123 70 120 71 116Z"
+        fill="#7a634b"
+      />
+      <path d="M28 67C37 59 48 62 52 72C45 80 34 78 28 67Z" fill="#4e7d4a" opacity=".82" />
+      <path d="M98 52C108 43 119 47 122 58C114 66 103 63 98 52Z" fill="#7f9a63" />
+      <path
+        d="M109 98C119 91 129 96 130 106C122 113 112 109 109 98Z"
+        fill="#4e7d4a"
+        opacity=".68"
+      />
+      <path d="M45 70Q55 62 62 69Q55 77 45 70Z" fill="#7f9a63" opacity=".8" />
+      <circle cx="114" cy="103" r="4.4" fill="#e5a8c0" stroke="#cf87a6" stroke-width="1" />
+    </svg>
+  }
+  @case ('grown') {
+    <svg class="art mini" viewBox="0 0 140 160" aria-hidden="true" focusable="false">
+      <ellipse cx="70" cy="150" rx="43" ry="9" fill="#9db98a" opacity=".5" />
+      <path
+        d="M55 150C59 119 61 92 66 69C68 54 69 42 70 31C76 47 77 60 75 72C79 98 82 124 88 150C77 144 65 144 55 150Z"
+        fill="#6f5640"
+      />
+      <path d="M66 94C51 84 38 72 26 57C43 66 57 73 72 81C74 87 71 92 66 94Z" fill="#6f5640" />
+      <path d="M72 82C85 67 96 56 116 46C101 61 89 77 77 91C72 90 70 87 72 82Z" fill="#6f5640" />
+      <path d="M69 66C58 58 50 49 45 38C56 46 66 51 74 56C76 61 73 65 69 66Z" fill="#7a634b" />
+      <g class="canopy" opacity=".82">
+        <ellipse cx="30" cy="54" rx="19" ry="13" fill="#7f9a63" transform="rotate(13 30 54)" />
+        <ellipse cx="48" cy="41" rx="21" ry="15" fill="#4e7d4a" />
+        <ellipse cx="68" cy="35" rx="22" ry="16" fill="#5c8a58" />
+        <ellipse cx="91" cy="39" rx="23" ry="15" fill="#7f9a63" />
+        <ellipse cx="111" cy="50" rx="19" ry="13" fill="#4e7d4a" opacity=".78" />
+        <ellipse cx="51" cy="62" rx="19" ry="12" fill="#7f9a63" />
+        <ellipse cx="88" cy="61" rx="21" ry="13" fill="#5c8a58" />
+      </g>
+      <path d="M43 73Q53 63 61 71Q52 81 43 73Z" fill="#4e7d4a" opacity=".82" />
+      <g transform="translate(111 49)">
+        @for (angle of [0, 72, 144, 216, 288]; track angle) {
+          <ellipse
+            rx="3.5"
+            ry="7"
+            cy="-5"
+            fill="#e5a8c0"
+            stroke="#cf87a6"
+            stroke-width=".7"
+            [attr.transform]="'rotate(' + angle + ')'"
+          />
+        }
+        <circle r="3" fill="#a8935a" />
+      </g>
+      <circle cx="28" cy="57" r="5" fill="#fdfbf3" stroke="#a8935a" stroke-width="2.4" />
+      <circle cx="28" cy="57" r="1.7" fill="#a8935a" />
+    </svg>
+  }
+  @case ('demo') {
+    <svg class="art demo-tree" viewBox="0 0 520 420" aria-hidden="true" focusable="false">
+      <ellipse cx="260" cy="375" rx="160" ry="18" fill="#9db98a" opacity=".28" />
+      <g [attr.transform]="model.transform">
+        @for (flare of model.flare; track $index) {
+          <path [attr.d]="flare" fill="#6f5640" />
+        }
+        @for (trunk of model.trunks; track $index) {
+          <path [attr.d]="trunk" fill="#6f5640" />
+        }
+        @for (limb of model.limbs; track limb.id) {
+          <path [attr.d]="limb.d" [style.fill]="limb.fill" />
+        }
+        @for (pad of model.pads; track $index) {
+          <ellipse
+            class="canopy-pad"
+            [attr.cx]="pad.x"
+            [attr.cy]="pad.y"
+            [attr.rx]="pad.rx"
+            [attr.ry]="pad.ry"
+            [attr.transform]="'rotate(' + pad.rot + ' ' + pad.x + ' ' + pad.y + ')'"
+            [attr.data-shade]="pad.shade"
+          />
+        }
+        @for (leaf of model.leaves; track $index) {
+          @if (leaf.kind === 'leaf') {
+            <path
+              class="leaf"
+              [attr.transform]="
+                'translate(' + leaf.x + ' ' + leaf.y + ') rotate(' + leaf.angle + ')'
+              "
+              [attr.d]="
+                'M 0 0 Q ' +
+                leaf.size +
+                ' ' +
+                -leaf.size +
+                ' 0 ' +
+                -2 * leaf.size +
+                ' Q ' +
+                -leaf.size +
+                ' ' +
+                -leaf.size +
+                ' 0 0 Z'
+              "
+              [attr.data-shade]="leaf.shade"
+            />
+          }
+        }
+        @for (bud of model.buds; track bud.id) {
+          <path
+            class="bud"
+            [attr.transform]="'translate(' + bud.x + ' ' + bud.y + ')'"
+            d="M0 3C-5-2-4-10 0-14C5-9 5-2 0 3Z"
+          />
+        }
+        @for (knot of model.knots; track knot.id) {
+          <g [attr.transform]="'translate(' + knot.x + ' ' + knot.y + ')'">
+            <circle r="7" class="knot-ring" />
+            <circle r="2.4" class="knot-core" />
+          </g>
+        }
+        @for (bloom of model.blooms; track bloom.id) {
+          <g [attr.transform]="'translate(' + bloom.x + ' ' + bloom.y + ')'">
+            <g appFlower [flower]="model.flower" [scale]="0.68" />
+          </g>
+        }
+      </g>
+    </svg>
+  }
+  @default {
+    <svg class="art hero-tree" viewBox="0 0 520 420" aria-hidden="true" focusable="false">
+      <path
+        d="M210 410C218 333 224 270 235 213C240 177 242 145 244 110C251 145 254 178 252 216C258 278 266 344 279 410C256 399 232 399 210 410Z"
+        fill="#6f5640"
+      />
+      <path
+        d="M234 262C201 237 169 213 128 190C95 172 70 151 51 121C79 146 110 160 142 172C187 188 221 216 248 242C246 251 241 258 234 262Z"
+        fill="#6f5640"
+      />
+      <path
+        d="M248 248C278 218 311 193 351 176C383 162 409 141 435 112C416 146 390 174 360 194C318 222 287 252 259 281C252 272 248 261 248 248Z"
+        fill="#6f5640"
+      />
+      <path
+        d="M241 185C222 166 204 145 193 118C213 139 232 152 252 162C255 172 250 180 241 185Z"
+        fill="#7a634b"
+      />
+      <path
+        d="M252 171C277 153 296 132 313 103C302 137 285 163 259 184C251 181 248 176 252 171Z"
+        fill="#7a634b"
+      />
+      <g class="canopy" opacity=".79">
+        <ellipse cx="62" cy="120" rx="47" ry="31" fill="#7f9a63" transform="rotate(10 62 120)" />
+        <ellipse cx="105" cy="96" rx="53" ry="37" fill="#4e7d4a" />
+        <ellipse cx="157" cy="127" rx="50" ry="33" fill="#7f9a63" />
+        <ellipse cx="191" cy="80" rx="55" ry="39" fill="#5c8a58" />
+        <ellipse cx="249" cy="66" rx="59" ry="41" fill="#4e7d4a" />
+        <ellipse cx="307" cy="82" rx="54" ry="38" fill="#7f9a63" />
+        <ellipse cx="363" cy="108" rx="57" ry="39" fill="#5c8a58" />
+        <ellipse cx="413" cy="128" rx="45" ry="33" fill="#7f9a63" />
+        <ellipse cx="139" cy="157" rx="46" ry="29" fill="#5c8a58" />
+        <ellipse cx="323" cy="148" rx="48" ry="30" fill="#4e7d4a" />
+      </g>
+      <path d="M126 190Q145 174 161 184Q144 204 126 190Z" fill="#4e7d4a" opacity=".82" />
+      <path d="M353 176Q371 157 389 169Q371 190 353 176Z" fill="#7f9a63" />
+      <circle cx="128" cy="190" r="12" fill="#fdfbf3" stroke="#a8935a" stroke-width="5" />
+      <circle cx="128" cy="190" r="4" fill="#a8935a" />
+      <g class="hero-bloom" transform="translate(409 126)">
+        @for (angle of [0, 72, 144, 216, 288]; track angle) {
+          <ellipse
+            rx="7"
+            ry="16"
+            cy="-11"
+            fill="#e5a8c0"
+            stroke="#cf87a6"
+            stroke-width="1.2"
+            [attr.transform]="'rotate(' + angle + ')'"
+          />
+        }
+        <circle r="6" fill="#a8935a" />
+      </g>
+    </svg>
+  }
+}

@@ -102,6 +102,7 @@ async function smokeFrontend(frontendUrl, apiBaseUrl, corsOrigin) {
   }
 
   await requireSuccess(new URL('/account', frontendRoot), 'frontend deep link', 'text/html');
+  await requireSuccess(new URL('/ahora', frontendRoot), 'installed product deep link', 'text/html');
 
   for (const assetUrl of indexedAssets(indexHtml, frontendRoot)) {
     await requireSuccess(assetUrl, 'asset referenced by index.html');
@@ -115,10 +116,13 @@ async function smokeFrontend(frontendUrl, apiBaseUrl, corsOrigin) {
   } catch {
     throw new Error('web app manifest must be valid JSON');
   }
-  for (const field of ['id', 'scope', 'start_url']) {
+  for (const field of ['id', 'scope']) {
     if (manifest[field] !== '/') {
       throw new Error(`manifest ${field} must be "/"`);
     }
+  }
+  if (manifest.start_url !== '/ahora') {
+    throw new Error('manifest start_url must be "/ahora"');
   }
   if (!Array.isArray(manifest.icons) || manifest.icons.length === 0) {
     throw new Error('manifest must declare at least one icon');

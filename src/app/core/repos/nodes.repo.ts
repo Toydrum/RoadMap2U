@@ -1,9 +1,10 @@
-import { Injectable, computed } from '@angular/core';
+import { Injectable, computed, inject } from '@angular/core';
 import { NodeStatus, TreeNode, lightRank, newSyncBase, stamp } from '../db/schema';
 import { StoreName } from '../db/idb';
 import { RecordsRepo } from './records.repo';
 import { Cadence, cadenceOf } from '../cadence';
 import { isPast } from '../time';
+import { ForestMutationsService } from './forest-mutations.service';
 
 export interface NewNodeDraft {
   title: string;
@@ -14,9 +15,31 @@ export interface NewNodeDraft {
   repeats?: TreeNode['repeats'];
 }
 
+export interface PlantNodeDraft extends NewNodeDraft {
+  parentId: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class NodesRepo extends RecordsRepo<TreeNode> {
   protected readonly store: StoreName = 'nodes';
+  private readonly forestMutations = inject(ForestMutationsService);
+
+  constructor() {
+    super();
+    if (this.usesLocalForestMutations()) {
+      this.forestMutations.connectNodes({
+        records: () => [...this.byId().values()],
+        publish: (records) => {
+          for (const record of records) this.applyLocal(record);
+        },
+      });
+    }
+  }
+
+  /** Route-scoped visit repos rely on the visited owner's server authority. */
+  protected usesLocalForestMutations(): boolean {
+    return true;
+  }
 
   /** Visible nodes (not tombstoned, not archived). */
   readonly visible = computed(() => this.all().filter((n) => !n.archivedAt));
@@ -91,30 +114,51 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
   }
 
   async plant(treeId: string, parentId: string | null, draft: NewNodeDraft): Promise<TreeNode> {
-    const siblings = parentId
-      ? (this.childrenIndex().get(parentId) ?? [])
-      : this.rootsOf(treeId);
-    const maxOrder = Math.max(0, ...siblings.map((s) => s.order));
-    const node: TreeNode = {
-      ...newSyncBase(),
-      treeId,
-      parentId,
-      title: draft.title,
-      note: draft.note ?? '',
-      status: 'seed',
-      order: maxOrder + 10,
-      targetDate: draft.targetDate ?? null,
-      achievedAt: null,
-      branchedAt: null,
-      origin: 'planned',
-      archivedAt: null,
-      trigger: null,
-      // A ritual planted at intent time — compat shadow mirrored, freeze
-      // boundary stamped (a newborn has no history, but the stamp keeps
-      // every ritual under one law).
-      ...(draft.repeats != null ? { repeats: draft.repeats, repeatsDaily: true, repeatsSetAt: Date.now() } : {}),
-    };
-    return this.insert(node);
+    const [node] = await this.plantMany(treeId, [{ parentId, ...draft }]);
+    return node;
+  }
+
+  /** One gesture, one aggregate quota decision, one nodes transaction. */
+  async plantMany(treeId: string, drafts: readonly PlantNodeDraft[]): Promise<TreeNode[]> {
+    if (!drafts.length) return [];
+    if (this.usesLocalForestMutations()) {
+      this.forestMutations.assertPlantBranches(treeId, drafts.length);
+    }
+    const now = Date.now();
+    const nextOrder = new Map<string, number>();
+    const nodes = drafts.map((draft) => {
+      const siblingKey = draft.parentId ?? `root:${treeId}`;
+      const existing = draft.parentId
+        ? (this.childrenIndex().get(draft.parentId) ?? [])
+        : this.rootsOf(treeId);
+      const order =
+        (nextOrder.get(siblingKey) ?? Math.max(0, ...existing.map((sibling) => sibling.order))) +
+        10;
+      nextOrder.set(siblingKey, order);
+      return {
+        ...newSyncBase(now),
+        treeId,
+        parentId: draft.parentId,
+        title: draft.title,
+        note: draft.note ?? '',
+        status: 'seed' as const,
+        order,
+        targetDate: draft.targetDate ?? null,
+        achievedAt: null,
+        branchedAt: null,
+        origin: 'planned' as const,
+        archivedAt: null,
+        trigger: null,
+        // A ritual planted at intent time — compat shadow mirrored, freeze
+        // boundary stamped (a newborn has no history, but the stamp keeps
+        // every ritual under one law).
+        ...(draft.repeats != null
+          ? { repeats: draft.repeats, repeatsDaily: true, repeatsSetAt: now }
+          : {}),
+      } satisfies TreeNode;
+    });
+    await this.saveMany(nodes);
+    return nodes;
   }
 
   /** THE cadence writer (cadenceOf is the one reader; this + plant are the
@@ -187,11 +231,15 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
    *  LWW accepts it); already-restored records are skipped (double-tap safe). */
   async unarchiveMany(records: TreeNode[]): Promise<void> {
     const now = Date.now();
-    const fresh = records
-      .map((r) => this.byId().get(r.id) ?? r)
+    const fresh = [...new Map(records.map((record) => [record.id, record])).values()]
+      .map((record) => this.byId().get(record.id) ?? record)
       .filter((r) => r.archivedAt !== null)
       .map((r) => stamp({ ...r, archivedAt: null }, now));
-    if (fresh.length) await this.saveMany(fresh);
+    if (!fresh.length) return;
+    if (this.usesLocalForestMutations()) {
+      this.forestMutations.assertRestoreBranches(fresh);
+    }
+    await this.saveMany(fresh);
   }
 
   /** Permanent removal (sync tombstones) for a whole tree's nodes — atomic. */
@@ -206,6 +254,9 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
    * are born in the same IndexedDB transaction.
    */
   async branch(parent: TreeNode, alternatives: NewNodeDraft[]): Promise<TreeNode[]> {
+    if (this.usesLocalForestMutations()) {
+      this.forestMutations.assertPlantBranches(parent.treeId, alternatives.length);
+    }
     const now = Date.now();
     const branchedParent = stamp(
       { ...parent, status: 'branched' as NodeStatus, branchedAt: now },

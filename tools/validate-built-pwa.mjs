@@ -65,8 +65,11 @@ function validateBuild(root) {
 
   const manifestPath = resolve(root, 'manifest.webmanifest');
   const manifest = readJson(manifestPath, 'manifest.webmanifest');
-  for (const field of ['id', 'scope', 'start_url']) {
+  for (const field of ['id', 'scope']) {
     if (manifest[field] !== '/') throw new Error(`manifest ${field} must be "/"`);
+  }
+  if (manifest.start_url !== '/ahora') {
+    throw new Error('manifest start_url must be "/ahora"');
   }
   if (!Array.isArray(manifest.icons) || manifest.icons.length === 0) {
     throw new Error('manifest must declare at least one icon');

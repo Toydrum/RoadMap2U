@@ -1,8 +1,30 @@
-import { computed, signal } from '@angular/core';
+import { InjectionToken, computed, inject, signal } from '@angular/core';
 import { lwwBeats } from '../api/contracts';
 import { SyncBase, stamp } from '../db/schema';
 import { StoreName, get, getAll, put, putMany } from '../db/idb';
 import { broadcastChange } from '../db/broadcast';
+import { LocalWritesQuiescedError } from '../db/account-closure-fence';
+import {
+  canPublishAccountClosureRead,
+  captureAccountClosureReadEpoch,
+} from '../db/account-closure-fence';
+
+export interface RecordsStorage {
+  read(store: StoreName, id: string): Promise<unknown>;
+  readAll(store: StoreName): Promise<unknown[]>;
+  write(store: StoreName, value: unknown): Promise<void>;
+  writeMany(store: StoreName, values: unknown[]): Promise<void>;
+}
+
+export const RECORDS_STORAGE = new InjectionToken<RecordsStorage>('RECORDS_STORAGE', {
+  providedIn: 'root',
+  factory: () => ({
+    read: (store, id) => get(store, id),
+    readAll: (store) => getAll(store),
+    write: (store, value) => put(store, value),
+    writeMany: (store, values) => putMany(store, values),
+  }),
+});
 
 /**
  * Base signal repository: load-once into a Map signal, write-through on
@@ -11,6 +33,7 @@ import { broadcastChange } from '../db/broadcast';
  */
 export abstract class RecordsRepo<T extends SyncBase> {
   protected abstract readonly store: StoreName;
+  private readonly storage = inject(RECORDS_STORAGE);
 
   private readonly records = signal<ReadonlyMap<string, T>>(new Map());
 
@@ -20,10 +43,13 @@ export abstract class RecordsRepo<T extends SyncBase> {
   readonly byId = computed(() => this.records());
 
   async load(): Promise<void> {
+    const readEpoch = captureAccountClosureReadEpoch();
     try {
-      const rows = await getAll<T>(this.store);
+      const rows = (await this.storage.readAll(this.store)) as T[];
+      if (!canPublishAccountClosureRead(readEpoch)) return;
       this.records.set(new Map(rows.map((r) => [r.id, r])));
     } catch {
+      if (!canPublishAccountClosureRead(readEpoch)) return;
       // Storage unavailable — start empty, run the session in memory.
       this.records.set(new Map());
     }
@@ -32,7 +58,7 @@ export abstract class RecordsRepo<T extends SyncBase> {
   /** Persist a new or updated record (stamps rev/updatedAt). */
   async save(record: T): Promise<T> {
     const stamped = stamp(record);
-    await this.persist(() => put(this.store, stamped));
+    await this.persist(() => this.storage.write(this.store, stamped));
     this.applyLocal(stamped);
     broadcastChange({ store: this.store, ids: [stamped.id] });
     return stamped;
@@ -40,7 +66,7 @@ export abstract class RecordsRepo<T extends SyncBase> {
 
   /** Persist a brand-new record as-is (already carries rev 1). */
   async insert(record: T): Promise<T> {
-    await this.persist(() => put(this.store, record));
+    await this.persist(() => this.storage.write(this.store, record));
     this.applyLocal(record);
     broadcastChange({ store: this.store, ids: [record.id] });
     return record;
@@ -48,7 +74,7 @@ export abstract class RecordsRepo<T extends SyncBase> {
 
   /** Atomic multi-record write (single IDB transaction). */
   async saveMany(records: T[]): Promise<void> {
-    await this.persist(() => putMany(this.store, records));
+    await this.persist(() => this.storage.writeMany(this.store, records));
     for (const record of records) this.applyLocal(record);
     broadcastChange({ store: this.store, ids: records.map((r) => r.id) });
   }
@@ -57,7 +83,8 @@ export abstract class RecordsRepo<T extends SyncBase> {
   private async persist(write: () => Promise<void>): Promise<void> {
     try {
       await write();
-    } catch {
+    } catch (error) {
+      if (error instanceof LocalWritesQuiescedError) throw error;
       /* memory-only session */
     }
   }
@@ -78,8 +105,10 @@ export abstract class RecordsRepo<T extends SyncBase> {
 
   /** Re-read specific ids from disk and apply if newer (cross-tab / future sync). */
   async refreshFromDisk(ids: string[]): Promise<void> {
+    const readEpoch = captureAccountClosureReadEpoch();
     for (const id of ids) {
-      const fresh = await get<T>(this.store, id);
+      const fresh = (await this.storage.read(this.store, id)) as T | undefined;
+      if (!canPublishAccountClosureRead(readEpoch)) return;
       if (fresh) {
         this.applyExternal(fresh);
       } else {

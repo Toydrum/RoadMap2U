@@ -1,5 +1,5 @@
 import { CheckIn, Harvest, Preserve, Tree, TreeNode, TimerSession } from '../db/schema';
-import { GuardianLinkKind, SyncStore, UserProfile } from './contracts';
+import { GuardianLinkKind, SyncRecord, SyncStore, UserProfile, lwwBeats } from './contracts';
 
 /**
  * The simulated cloud — a SEPARATE IndexedDB database standing in for
@@ -29,6 +29,8 @@ export type MockStore =
 /** Cloud-side user row — profile plus the private email attribute. */
 export interface MockUserRow extends UserProfile {
   email: string | null;
+  /** Opaque account incarnation. Legacy rows are upgraded on first auth read. */
+  accountInstanceId?: string;
 }
 
 export interface MockCredentialRow {
@@ -84,6 +86,10 @@ export interface MockRecordRow {
   syncedAt: number;
 }
 
+export function mockAccountClosureKey(userId: string, accountInstanceId: string): string {
+  return `accountClosure:${encodeURIComponent(userId)}:${encodeURIComponent(accountInstanceId)}`;
+}
+
 export function recordKey(ownerId: string, store: SyncStore, id: string): string {
   return `${ownerId}|${store}|${id}`;
 }
@@ -100,6 +106,43 @@ const KEY_PATH: Record<MockStore, string> = {
 };
 
 let mockDbPromise: Promise<IDBDatabase> | null = null;
+const localAccountLockTails = new Map<string, Promise<void>>();
+
+async function withLocalAccountLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = localAccountLockTails.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const tail = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  localAccountLockTails.set(key, tail);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (localAccountLockTails.get(key) === tail) localAccountLockTails.delete(key);
+  }
+}
+
+/** Cross-tab account linearization seam shared by auth, writes and closure. */
+export function withMockAccountLock<T>(subject: string, operation: () => Promise<T>): Promise<T> {
+  const lockName = `roadmap2u-mock-account:${encodeURIComponent(subject)}`;
+  const locks = globalThis.navigator?.locks;
+  return locks ? locks.request(lockName, operation) : withLocalAccountLock(lockName, operation);
+}
+
+/** Canonical acquisition prevents A→B / B→A deadlocks across tabs. */
+export function withMockAccountLocks<T>(
+  subjects: readonly string[],
+  operation: () => Promise<T>,
+): Promise<T> {
+  const ordered = [...new Set(subjects)].sort();
+  const acquire = (index: number): Promise<T> =>
+    index >= ordered.length
+      ? operation()
+      : withMockAccountLock(ordered[index], () => acquire(index + 1));
+  return acquire(0);
+}
 
 function openMockDb(): Promise<IDBDatabase> {
   if (mockDbPromise) return mockDbPromise;
@@ -165,6 +208,64 @@ export async function mockPut<T>(store: MockStore, value: T): Promise<void> {
   return txDone(tx);
 }
 
+export interface MockRecordGroupResult {
+  applied: MockRecordRow[];
+  stale: MockRecordRow[];
+}
+
+/**
+ * Applies one sync mutation group under a single IndexedDB read/write
+ * transaction. The records store and its change-feed counter commit together;
+ * if any member loses LWW, the transaction performs no writes and returns
+ * every stored winner needed by the caller.
+ */
+export async function mockApplyRecordGroup(
+  ownerId: string,
+  entries: readonly SyncRecord[],
+  syncedAt: number,
+): Promise<MockRecordGroupResult> {
+  if (!entries.length) return { applied: [], stale: [] };
+
+  const db = await ready();
+  const tx = db.transaction(['records', 'kv'], 'readwrite');
+  const records = tx.objectStore('records');
+  const kv = tx.objectStore('kv');
+  const keys = entries.map((entry) => recordKey(ownerId, entry.store, entry.record.id));
+  const stored = await Promise.all(
+    keys.map((key) => requestToPromise<MockRecordRow | undefined>(records.get(key))),
+  );
+  const stale = stored.filter(
+    (row, index): row is MockRecordRow =>
+      row !== undefined && !lwwBeats(entries[index].record, row.record),
+  );
+
+  if (stale.length) {
+    await txDone(tx);
+    return { applied: [], stale };
+  }
+
+  const counter = await requestToPromise<{ key: string; value: number } | undefined>(
+    kv.get('changeSeq'),
+  );
+  const firstSeq = (counter?.value ?? 0) + 1;
+  const applied = entries.map(
+    (entry, index) =>
+      ({
+        key: keys[index],
+        ownerId,
+        store: entry.store,
+        record: entry.record,
+        seq: firstSeq + index,
+        syncedAt,
+      }) satisfies MockRecordRow,
+  );
+
+  for (const row of applied) records.put(row);
+  kv.put({ key: 'changeSeq', value: firstSeq + applied.length - 1 });
+  await txDone(tx);
+  return { applied, stale: [] };
+}
+
 export async function mockDelete(store: MockStore, key: string): Promise<void> {
   const db = await ready();
   const tx = db.transaction(store, 'readwrite');
@@ -172,13 +273,31 @@ export async function mockDelete(store: MockStore, key: string): Promise<void> {
   return txDone(tx);
 }
 
-/** Used by the seeder only — writes without the ready() seed check. */
-export async function mockPutManyRaw(store: MockStore, values: unknown[]): Promise<void> {
-  if (!values.length) return;
+export interface MockReplacementEntry {
+  readonly store: MockStore;
+  readonly rows: readonly unknown[];
+}
+
+/** Seeder-only whole-cloud transaction. The seeded sentinel cannot land
+ * unless every identity, relationship and forest row lands with it. */
+export async function mockReplaceAllRaw(entries: readonly MockReplacementEntry[]): Promise<void> {
+  if (!entries.length) return;
   const db = await openMockDb();
-  const tx = db.transaction(store, 'readwrite');
-  const objectStore = tx.objectStore(store);
-  for (const value of values) objectStore.put(value);
+  const tx = db.transaction([...new Set(entries.map((entry) => entry.store))], 'readwrite');
+  try {
+    for (const entry of entries) {
+      const objectStore = tx.objectStore(entry.store);
+      objectStore.clear();
+      for (const row of entry.rows) objectStore.put(row);
+    }
+  } catch (error) {
+    try {
+      tx.abort();
+    } catch {
+      // The original synchronous write error remains authoritative.
+    }
+    return Promise.reject(error);
+  }
   return txDone(tx);
 }
 

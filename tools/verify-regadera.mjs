@@ -2,10 +2,8 @@
 // optional (skippable, toggleable). B: a bajita check-in floats a LEAF pasito
 // to the front of the suggestions with the honest low-energy reason. C: no
 // energy → pool unchanged (a big branch may lead as usual).
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 900, height: 800 } });
+import { BASE, launchPage } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 900, height: 800 });
 
 // Seed: one BIG bare goal (fresh) + one goal with a pasito. Freshest-first
 // ordering would surface the BIG one without the bias.

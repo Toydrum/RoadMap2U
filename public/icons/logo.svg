@@ -1,51 +1,68 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
-  <!-- RoadMap2U — a small tree telling the whole story:
-       a leaf (growing), a bloom (achieved), a golden knot (branched) -->
-  <defs>
-    <linearGradient id="skybg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#eaf0e3"/>
-      <stop offset="1" stop-color="#dde7d2"/>
-    </linearGradient>
-  </defs>
-
-  <!-- Badge -->
-  <circle cx="48" cy="48" r="46" fill="url(#skybg)"/>
-  <circle cx="48" cy="48" r="46" fill="none" stroke="#5c8a58" stroke-width="3"/>
-
-  <!-- Sun -->
-  <circle cx="67" cy="27" r="7" fill="#e5c983" opacity="0.85"/>
-
-  <!-- Ground -->
-  <path d="M 14 70 Q 48 60 82 70 L 82 78 Q 48 70 14 78 Z" fill="#9db27e" opacity="0.85"/>
-
-  <!-- Trunk (tapered) -->
-  <path d="M 44.5 72 C 45.5 62 46 54 47.2 46 L 50.8 46 C 52 54 52.5 62 53.5 72 Z" fill="#6f5640"/>
-
-  <!-- Left branch → leaf pair (growing) -->
-  <path d="M 47.6 50 C 42 44 36.5 40 31.5 37.5 L 33.5 34.5 C 39 37.5 44.5 42 48.8 47.5 Z" fill="#6f5640"/>
-  <path d="M 31.5 36 Q 22.5 34.5 20 26.5 Q 29 27 33.5 33.5 Z" fill="#5c8a58"/>
-  <path d="M 33 30.5 Q 30 22.5 35 16.5 Q 39.5 24 36.5 30.5 Z" fill="#7fa07f"/>
-
-  <!-- Middle branch → bud -->
-  <path d="M 48.2 46.5 C 48 39 47.6 33 46.8 27.5 L 50.4 27 C 50.8 33 50.6 39 50 46.5 Z" fill="#6f5640"/>
-  <ellipse cx="48.6" cy="24.5" rx="4.2" ry="5.4" fill="#5c8a58"/>
-
-  <!-- Right branch → golden knot → bloom (the story of branching) -->
-  <path d="M 50.4 49 C 55.5 44 60 40.5 65 37.5 L 66.8 40.5 C 62 43.5 57.5 47 53 51.5 Z" fill="#6f5640"/>
-  <circle cx="66" cy="39" r="4.6" fill="#eaf0e3" stroke="#a8935a" stroke-width="2.6"/>
-  <path d="M 68.5 36.5 C 71 33.5 73 31 75.5 28.8 L 77.3 31 C 75 33.2 72.8 35.6 70.6 38.6 Z" fill="#a8935a"/>
-
-  <!-- Bloom -->
-  <g transform="translate(78 27.5)">
-    <ellipse rx="2.9" ry="4.6" cy="-3.9" fill="#d8a4b8" transform="rotate(0)"/>
-    <ellipse rx="2.9" ry="4.6" cy="-3.9" fill="#d8a4b8" transform="rotate(72)"/>
-    <ellipse rx="2.9" ry="4.6" cy="-3.9" fill="#d8a4b8" transform="rotate(144)"/>
-    <ellipse rx="2.9" ry="4.6" cy="-3.9" fill="#d8a4b8" transform="rotate(216)"/>
-    <ellipse rx="2.9" ry="4.6" cy="-3.9" fill="#d8a4b8" transform="rotate(288)"/>
-    <circle r="2.5" fill="#a8935a"/>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 120 120"
+  data-art-bounds="6 6 108 108"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">RoadMap2U</title>
+  <desc id="desc">
+    Un dos verde forma el camino junto a una U de madera cuyo brazo crece como árbol.
+  </desc>
+  <rect
+    x="6"
+    y="6"
+    width="108"
+    height="108"
+    rx="28"
+    fill="#fdfbf3"
+    stroke="#d8d2bf"
+    stroke-width="2"
+  />
+  <g fill="none" stroke="#7f9a63" stroke-width="1.2" opacity=".15" aria-hidden="true">
+    <path data-part="map-line" d="M12 30C29 19 47 22 59 32S87 46 108 29" />
+    <path data-part="map-line" d="M11 96C29 86 47 88 64 99S92 106 110 93" />
+    <path data-part="map-line" d="M14 66C30 56 46 59 58 69" />
   </g>
-
-  <!-- Grass -->
-  <path d="M 26 71.5 q -2 -6 -4.5 -7.5 M 30 71 q 1 -6.5 0 -8 M 68 70.5 q 2 -6 4.5 -7 M 63 71 q -1 -6 0 -7.5"
-        fill="none" stroke="#5c8a58" stroke-width="2.2" stroke-linecap="round"/>
+  <path
+    data-part="two"
+    fill="#4e7d4a"
+    d="M20 39C20 24 31 16 45 16C59 16 68 24 68 36C68 48 60 56 48 64L33 75H66V86H17V77L40 57C52 47 56 42 56 36C56 30 51 26 44 26C36 26 31 31 30 40Z"
+  />
+  <path
+    data-part="u-trunk"
+    fill="#6f5640"
+    d="M69 48H80V78C80 87 84 92 91 92C99 92 102 87 102 78V41C102 33 100 28 97 22L107 17C112 25 113 33 113 41V78C113 95 104 104 91 104C77 104 69 95 69 78Z"
+  />
+  <path
+    data-part="branch"
+    fill="#6f5640"
+    d="M103 48C94 43 87 37 81 29L85 25C92 32 100 36 108 39Z"
+  />
+  <path
+    data-part="branch"
+    fill="#7a634b"
+    d="M104 38C98 30 95 23 95 15L101 15C101 23 105 29 110 34Z"
+  />
+  <g data-part="canopy" opacity=".94" aria-hidden="true">
+    <ellipse cx="82" cy="24" rx="13" ry="9" fill="#7f9a63" />
+    <ellipse cx="94" cy="18" rx="15" ry="10" fill="#4e7d4a" />
+    <ellipse cx="106" cy="25" rx="10" ry="8" fill="#5c8a58" />
+    <ellipse cx="94" cy="31" rx="14" ry="9" fill="#7f9a63" />
+  </g>
+  <g data-detail="flower" transform="translate(82 18)" aria-hidden="true">
+    <ellipse rx="2.2" ry="4.7" cy="-3.2" fill="#e5a8c0" />
+    <ellipse rx="2.2" ry="4.7" cy="-3.2" fill="#e5a8c0" transform="rotate(72)" />
+    <ellipse rx="2.2" ry="4.7" cy="-3.2" fill="#e5a8c0" transform="rotate(144)" />
+    <ellipse rx="2.2" ry="4.7" cy="-3.2" fill="#e5a8c0" transform="rotate(216)" />
+    <ellipse rx="2.2" ry="4.7" cy="-3.2" fill="#e5a8c0" transform="rotate(288)" />
+    <circle r="2" fill="#a8935a" />
+  </g>
+  <path
+    data-detail="bud"
+    d="M108 32C103 27 104 21 110 18C115 23 114 29 108 32Z"
+    fill="#e5a8c0"
+    stroke="#cf87a6"
+    stroke-width="1"
+  />
 </svg>

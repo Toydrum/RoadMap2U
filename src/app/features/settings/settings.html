@@ -286,6 +286,15 @@
           </span>
         </a>
       </div>
+      @if (closure.receipt(); as receipt) {
+        <div class="account-closure-status" role="status" aria-live="polite">
+          <strong>{{ i18n.t().account.closureStatusTitle }}</strong>
+          <span>{{ closureStateText(receipt.state) }}</span>
+          <a class="btn btn-soft" routerLink="/account">
+            {{ i18n.t().settings.accountClosureResume }}
+          </a>
+        </div>
+      }
     } @else {
       <p class="hint">{{ i18n.t().settings.accountGuestHint }}</p>
       <a class="btn btn-soft" routerLink="/account">🗝 {{ i18n.t().settings.accountOpen }}</a>

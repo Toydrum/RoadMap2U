@@ -1,6 +1,8 @@
 import { ApiClient } from './api-client';
 import {
   API_PATHS,
+  AccessSummary,
+  AccountClosureReceipt,
   ApiError,
   ApiErrorCode,
   CodeGrant,
@@ -13,8 +15,10 @@ import {
   FriendsResponse,
   ForestSnapshot,
   MeResponse,
+  PlanCatalog,
+  SERVER_API_ERROR_CODES,
   SyncChangesResponse,
-  SyncPushRequest,
+  SyncPushPayload,
   SyncPushResponse,
   UserProfile,
 } from './contracts';
@@ -31,20 +35,7 @@ import { APP_CONFIG } from '../config';
  * already knows it is offline.
  */
 
-const SERVER_CODES: ReadonlySet<string> = new Set([
-  'UNAUTHENTICATED',
-  'FORBIDDEN',
-  'NOT_FOUND',
-  'VALIDATION',
-  'CONFLICT',
-  'USERNAME_TAKEN',
-  'LAST_GUARDIAN',
-  'CODE_INVALID',
-  'CODE_EXPIRED',
-  'LIMIT_EXCEEDED',
-  'RATE_LIMITED',
-  'SYNC_TOO_OLD',
-]);
+const SERVER_CODES: ReadonlySet<string> = new Set(SERVER_API_ERROR_CODES);
 
 const BACKOFF_MS = [250, 1000] as const;
 
@@ -57,12 +48,26 @@ export class HttpApi implements ApiClient {
 
   constructor(private readonly auth: AuthProvider) {}
 
+  // ── commercial access ────────────────────────────────────────────────────
+  getPlans(): Promise<PlanCatalog> {
+    return this.request('GET', API_PATHS.plans, undefined, { authenticated: false });
+  }
+  getAccess(): Promise<AccessSummary> {
+    return this.request('GET', API_PATHS.access);
+  }
+  redeemAccessCode(code: string): Promise<AccessSummary> {
+    return this.request('POST', API_PATHS.accessCodesRedeem, { code }, { idempotent: true });
+  }
+
   // ── me ────────────────────────────────────────────────────────────────────
   getMe(): Promise<MeResponse> {
     return this.request('GET', API_PATHS.me);
   }
   patchMe(patch: { displayName?: string }): Promise<UserProfile> {
     return this.request('PATCH', API_PATHS.me, patch);
+  }
+  deleteMe(): Promise<AccountClosureReceipt> {
+    return this.request('DELETE', API_PATHS.me, undefined, { idempotent: true });
   }
 
   // ── family ────────────────────────────────────────────────────────────────
@@ -140,25 +145,33 @@ export class HttpApi implements ApiClient {
     const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
     return this.request('GET', `${API_PATHS.syncChanges}${query}`);
   }
-  pushSync(req: SyncPushRequest): Promise<SyncPushResponse> {
-    return this.request('POST', API_PATHS.syncPush, req, true);
+  pushSync(req: SyncPushPayload): Promise<SyncPushResponse> {
+    return this.request('POST', API_PATHS.syncPush, req, { idempotent: true });
   }
-  pushSyncFor(userId: string, req: SyncPushRequest): Promise<SyncPushResponse> {
-    return this.request('POST', API_PATHS.userSyncPush(userId), req, true);
+  pushSyncFor(userId: string, req: SyncPushPayload): Promise<SyncPushResponse> {
+    return this.request('POST', API_PATHS.userSyncPush(userId), req, { idempotent: true });
   }
 
   // ── transport ─────────────────────────────────────────────────────────────
 
-  private async request<T>(method: string, path: string, body?: unknown, idempotent?: boolean): Promise<T> {
+  private async request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    options: { authenticated?: boolean; idempotent?: boolean } = {},
+  ): Promise<T> {
     // 5xx retries are safe only when re-sending can't double an effect:
     // GETs always, sync pushes by contract (rev-LWW makes them replayable).
     // A createChild/accept retried after a committed-then-500 would run twice.
-    const retryOn5xx = method === 'GET' || idempotent === true;
+    const retryOn5xx = method === 'GET' || options.idempotent === true;
+    const authenticated = options.authenticated !== false;
     let forceRefresh = false;
     let retries = 0;
     for (;;) {
       if (typeof navigator !== 'undefined' && !navigator.onLine) throw new ApiError('offline');
-      const token = await this.auth.idToken(forceRefresh ? { forceRefresh: true } : undefined);
+      const token = authenticated
+        ? await this.auth.idToken(forceRefresh ? { forceRefresh: true } : undefined)
+        : null;
 
       let response: Response;
       try {
@@ -184,7 +197,7 @@ export class HttpApi implements ApiClient {
         throw new ApiError('offline');
       }
 
-      if (response.status === 401 && !forceRefresh) {
+      if (authenticated && response.status === 401 && !forceRefresh) {
         forceRefresh = true;
         continue;
       }

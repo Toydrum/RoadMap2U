@@ -1,0 +1,238 @@
+<a class="skip-link" href="#landing-main">{{ copy().landing.skip }}</a>
+
+<div class="landing-shell">
+  <header class="site-header">
+    <a class="brand" routerLink="/" [attr.aria-label]="copy().app.name">
+      <img src="brand/roadmap2u-lockup.svg" [alt]="copy().app.name" />
+    </a>
+
+    <nav class="site-nav" [attr.aria-label]="copy().landing.nav.label">
+      <a href="#how-it-works">{{ copy().landing.nav.how }}</a>
+      <a href="#product">{{ copy().landing.nav.product }}</a>
+      <a href="#plans">{{ copy().landing.nav.plans }}</a>
+    </nav>
+
+    <div class="header-actions">
+      <div class="locale-switch" role="group" [attr.aria-label]="copy().landing.nav.language">
+        <button
+          type="button"
+          data-lang="es"
+          [class.active]="lang() === 'es'"
+          [attr.aria-pressed]="lang() === 'es'"
+          [attr.aria-label]="copy().landing.nav.spanish"
+          (click)="setLanguage('es')"
+        >
+          ES
+        </button>
+        <span aria-hidden="true">/</span>
+        <button
+          type="button"
+          data-lang="en"
+          [class.active]="lang() === 'en'"
+          [attr.aria-pressed]="lang() === 'en'"
+          [attr.aria-label]="copy().landing.nav.english"
+          (click)="setLanguage('en')"
+        >
+          EN
+        </button>
+      </div>
+      <a class="sign-in" routerLink="/account">{{ copy().landing.nav.signIn }}</a>
+      <a class="button button-small" routerLink="/account">{{ copy().landing.nav.start }}</a>
+    </div>
+  </header>
+
+  <main id="landing-main">
+    <section class="hero" aria-labelledby="hero-title">
+      <svg class="topography" viewBox="0 0 1200 760" preserveAspectRatio="none" aria-hidden="true">
+        <g fill="none" stroke="currentColor">
+          <path d="M-50 160C120 40 265 46 390 164S675 310 905 126S1200 14 1280 74" />
+          <path d="M-70 220C112 89 260 97 385 211S682 358 924 165S1215 50 1300 112" />
+          <path d="M-90 286C106 141 259 150 383 263S691 411 944 208S1230 92 1320 154" />
+          <path d="M-130 637C85 493 264 500 412 623S742 779 1011 567S1265 449 1350 509" />
+          <path d="M45 706C180 620 318 632 421 715" />
+        </g>
+      </svg>
+
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow">{{ copy().landing.hero.eyebrow }}</p>
+          <h1 id="hero-title">{{ copy().landing.hero.title }}</h1>
+          <p class="hero-body">{{ copy().landing.hero.body }}</p>
+          <div class="hero-actions">
+            <a class="button" routerLink="/account">{{ copy().landing.hero.primary }}</a>
+            <a class="text-link" href="#how-it-works">
+              {{ copy().landing.hero.secondary }}
+              <span aria-hidden="true">↓</span>
+            </a>
+          </div>
+          <p class="microcopy">{{ copy().landing.hero.microcopy }}</p>
+        </div>
+
+        <div class="hero-visual" aria-hidden="true">
+          <span class="sun-disc"></span>
+          <app-marketing-tree variant="hero" />
+          <span class="ground-line"></span>
+        </div>
+      </div>
+    </section>
+
+    <section id="how-it-works" class="section steps-section reveal" aria-labelledby="steps-title">
+      <div class="section-heading">
+        <p class="eyebrow">{{ copy().landing.steps.eyebrow }}</p>
+        <h2 id="steps-title">{{ copy().landing.steps.title }}</h2>
+        <p>{{ copy().landing.steps.body }}</p>
+      </div>
+
+      <div class="steps-grid">
+        <article class="step">
+          <span class="step-number">{{ copy().landing.steps.plant.number }}</span>
+          <app-marketing-tree variant="sap" />
+          <h3>{{ copy().landing.steps.plant.title }}</h3>
+          <p>{{ copy().landing.steps.plant.body }}</p>
+        </article>
+        <article class="step">
+          <span class="step-number">{{ copy().landing.steps.branch.number }}</span>
+          <app-marketing-tree variant="branch" />
+          <h3>{{ copy().landing.steps.branch.title }}</h3>
+          <p>{{ copy().landing.steps.branch.body }}</p>
+        </article>
+        <article class="step">
+          <span class="step-number">{{ copy().landing.steps.advance.number }}</span>
+          <app-marketing-tree variant="grown" />
+          <h3>{{ copy().landing.steps.advance.title }}</h3>
+          <p>{{ copy().landing.steps.advance.body }}</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="product" class="product-section reveal" aria-labelledby="product-title">
+      <div class="product-copy">
+        <p class="eyebrow">{{ copy().landing.product.eyebrow }}</p>
+        <h2 id="product-title">{{ copy().landing.product.title }}</h2>
+        <p>{{ copy().landing.product.body }}</p>
+        <p class="product-proof">{{ copy().landing.product.proof }}</p>
+        <ul class="quiet-list">
+          @for (note of copy().landing.product.notes; track note) {
+            <li><span aria-hidden="true"></span>{{ note }}</li>
+          }
+        </ul>
+      </div>
+      <figure class="product-visual">
+        <app-marketing-tree variant="demo" />
+        <figcaption>{{ copy().landing.product.treeLabel }}</figcaption>
+      </figure>
+    </section>
+
+    <section id="plans" class="section plans-section reveal" aria-labelledby="plans-title">
+      <div class="section-heading">
+        <p class="eyebrow">{{ copy().landing.plans.eyebrow }}</p>
+        <h2 id="plans-title">{{ copy().landing.plans.title }}</h2>
+        <p>{{ copy().landing.plans.body }}</p>
+      </div>
+
+      <div class="plans-grid">
+        <article class="plan free-plan">
+          <div class="plan-head">
+            <h3>{{ copy().landing.plans.free.name }}</h3>
+            <div class="price-line">
+              <strong>{{ copy().landing.plans.free.price }}</strong>
+              <span>{{ copy().landing.plans.free.cadence }}</span>
+            </div>
+            <p>{{ copy().landing.plans.free.summary }}</p>
+          </div>
+          <div class="plan-body">
+            <p class="included">{{ copy().landing.plans.included }}</p>
+            <ul>
+              @for (feature of copy().landing.plans.free.features; track feature) {
+                <li><span aria-hidden="true">✓</span>{{ feature }}</li>
+              }
+            </ul>
+          </div>
+          <a class="button" routerLink="/account">{{ copy().landing.plans.free.cta }}</a>
+        </article>
+
+        <article class="plan premium-plan">
+          <div class="premium-accent" aria-hidden="true"></div>
+          <div class="plan-head">
+            <div class="plan-name-row">
+              <h3>{{ copy().landing.plans.premium.name }}</h3>
+              <span class="coming-soon">{{ copy().landing.plans.premium.badge }}</span>
+            </div>
+            <div class="premium-prices">
+              <strong>{{ copy().landing.plans.premium.monthly }}</strong>
+              <span>{{ copy().landing.plans.premium.yearly }}</span>
+            </div>
+            <p>{{ copy().landing.plans.premium.summary }}</p>
+          </div>
+          <div class="plan-body">
+            <p class="included">{{ copy().landing.plans.included }}</p>
+            <ul>
+              @for (feature of copy().landing.plans.premium.features; track feature) {
+                <li><span aria-hidden="true">✓</span>{{ feature }}</li>
+              }
+            </ul>
+            <p class="plan-note">{{ copy().landing.plans.premium.note }}</p>
+          </div>
+          <a class="button button-quiet" href="#faq">{{ copy().landing.plans.premium.cta }}</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="key-section reveal" aria-labelledby="key-title">
+      <div class="key-mark" aria-hidden="true">
+        <span></span>
+      </div>
+      <div>
+        <p class="eyebrow">{{ copy().landing.key.eyebrow }}</p>
+        <h2 id="key-title">{{ copy().landing.key.title }}</h2>
+        <p>{{ copy().landing.key.body }}</p>
+      </div>
+      <a class="button button-light" routerLink="/account">{{ copy().landing.key.cta }}</a>
+    </section>
+
+    <section id="faq" class="section faq-section reveal" aria-labelledby="faq-title">
+      <div class="section-heading faq-heading">
+        <p class="eyebrow">{{ copy().landing.faq.eyebrow }}</p>
+        <h2 id="faq-title">{{ copy().landing.faq.title }}</h2>
+      </div>
+      <div class="faq-list">
+        @for (item of copy().landing.faq.items; track item.question) {
+          <details>
+            <summary>
+              {{ item.question }}
+              <span aria-hidden="true"></span>
+            </summary>
+            <p>{{ item.answer }}</p>
+          </details>
+        }
+      </div>
+    </section>
+
+    <section class="final-cta reveal" aria-labelledby="final-title">
+      <svg viewBox="0 0 900 300" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M-30 190C102 90 229 98 331 187S552 299 722 161S907 100 956 132" />
+        <path d="M-50 244C100 127 231 137 335 226S560 339 738 193S923 127 979 169" />
+      </svg>
+      <div>
+        <p class="eyebrow">{{ copy().landing.final.eyebrow }}</p>
+        <h2 id="final-title">{{ copy().landing.final.title }}</h2>
+        <p>{{ copy().landing.final.body }}</p>
+        <a class="button button-light" routerLink="/account">{{ copy().landing.final.cta }}</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-brand">
+      <img src="brand/roadmap2u-lockup.svg" [alt]="copy().app.name" />
+      <p>{{ copy().landing.footer.tagline }}</p>
+    </div>
+    <nav [attr.aria-label]="copy().landing.nav.label">
+      <a routerLink="/privacy">{{ copy().landing.footer.privacy }}</a>
+      <a routerLink="/terms">{{ copy().landing.footer.terms }}</a>
+      <a routerLink="/support">{{ copy().landing.footer.support }}</a>
+      <a routerLink="/support">{{ copy().landing.footer.contact }}</a>
+    </nav>
+    <p class="rights">{{ copy().landing.footer.rights }}</p>
+  </footer>
+</div>

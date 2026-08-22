@@ -1,0 +1,20 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 120 120"
+  data-art-bounds="10 10 100 100"
+  role="img"
+  aria-label="RoadMap2U"
+>
+  <path
+    data-part="two"
+    fill="#2e3b32"
+    d="M18 40C18 25 30 17 44 17C58 17 67 25 67 37C67 49 59 57 47 65L33 75H65V87H16V78L39 58C51 48 55 43 55 37C55 31 50 27 43 27C35 27 30 32 29 41Z"
+  />
+  <path
+    data-part="u-trunk"
+    fill="#2e3b32"
+    d="M69 49H80V78C80 87 84 92 91 92C99 92 102 87 102 78V41C102 33 100 28 97 23L107 18C112 26 113 34 113 41V78C113 95 104 104 91 104C77 104 69 95 69 78Z"
+  />
+  <path fill="#2e3b32" d="M103 48C94 43 87 37 81 30L86 26C93 33 100 37 109 40Z" />
+  <ellipse cx="94" cy="20" rx="18" ry="10" fill="#2e3b32" />
+</svg>

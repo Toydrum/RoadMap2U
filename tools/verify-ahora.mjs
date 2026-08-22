@@ -1,10 +1,10 @@
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
+import { BASE, launchPage, newProbePage } from './lib/harness.mjs';
 
-// A — gate + landing on a FRESH store (no seed: seed patches lastCheckInAt)
-const page = await browser.newPage({ viewport: { width: 900, height: 800 } });
+// A — public landing stays public; the real /ahora deep link owns the gate.
+const { browser, page } = await launchPage({ width: 900, height: 800 });
 await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+const landingShown = (await page.locator('app-landing').count()) === 1;
+await page.goto(`${BASE}/ahora`, { waitUntil: 'networkidle' });
 await page.waitForURL('**/check-in**', { timeout: 5000 });
 // Fresh store greets with the one-time welcome first.
 await page.locator('button', { hasText: 'Empezar' }).click();
@@ -14,7 +14,7 @@ await page.waitForURL('**/ahora**', { timeout: 5000 });
 await page.waitForTimeout(400);
 const emptyShown = (await page.locator('.empty').count()) === 1;
 const tabs = await page.locator('.tabbar .tab').count();
-console.log(`A gate+landing: diverted-once + skip -> /ahora | empty=${emptyShown} tabs=${tabs} | OK=${emptyShown && tabs === 5}`);
+console.log(`A landing=${landingShown} + deep-link gate: skip -> /ahora | empty=${emptyShown} tabs=${tabs} | OK=${landingShown && emptyShown && tabs === 5}`);
 
 // B — thread + suggestion on demo data (a when-then twig outranks everything)
 await page.goto(`${BASE}/ahora?seed=demo`, { waitUntil: 'networkidle' });
@@ -74,8 +74,7 @@ await page.locator('button', { hasText: 'Terminar' }).click();
 await page.waitForTimeout(300);
 
 // G — the forest NEVER diverts (fresh context, lastCheckInAt null)
-const ctx = await browser.newContext({ viewport: { width: 900, height: 800 } });
-const p2 = await ctx.newPage();
+const { context: ctx, page: p2 } = await newProbePage(browser, { width: 900, height: 800 });
 await p2.goto(`${BASE}/forest`, { waitUntil: 'networkidle' });
 await p2.waitForTimeout(600);
 console.log(`G forest never diverts: url=${p2.url().includes('/forest')} | OK=${p2.url().includes('/forest')}`);

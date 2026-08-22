@@ -6,10 +6,8 @@
 // non-repeating path never resets. D: a ritual LEAF (lone branch with a
 // cadence) resets ITSELF and never mints fruit. E: weekday cadences —
 // today's weekday resets a stale bloom; tomorrow's weekday does not.
-import { chromium } from 'playwright-core';
-const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const page = await browser.newPage({ viewport: { width: 900, height: 800 } });
+import { BASE, launchPage } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 900, height: 800 });
 
 await page.goto(`${BASE}/check-in`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(400);
