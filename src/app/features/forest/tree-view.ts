@@ -349,7 +349,11 @@ export class TreeViewPage {
 
   protected redeemFromPlanLimit(): void {
     this.planLimit.set(null);
-    void this.router.navigate(['/account'], { queryParams: { redeem: 'access-key' } });
+    const current = this.router.url;
+    const returnUrl = current.startsWith('/') && !current.startsWith('//') ? current : '/forest';
+    void this.router.navigate(['/account'], {
+      queryParams: { intent: 'redeem', returnUrl },
+    });
   }
 
   /** The commit-time parent: the sheet's captured branch only counts if it

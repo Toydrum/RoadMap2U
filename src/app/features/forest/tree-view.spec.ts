@@ -82,6 +82,7 @@ async function harness(records: TreeNode[], options: HarnessOptions = {}) {
     if (options.plantError) throw options.plantError;
     return node('branch-new', 'heart-1');
   });
+  const router = { url: '/forest/tree-1', navigate: vi.fn(async () => true) };
   TestBed.configureTestingModule({
     imports: [TreeViewPage],
     providers: [
@@ -135,7 +136,7 @@ async function harness(records: TreeNode[], options: HarnessOptions = {}) {
           queryParamMap: of(convertToParamMap({})),
         },
       },
-      { provide: Router, useValue: { navigate: vi.fn(async () => true) } },
+      { provide: Router, useValue: router },
     ],
   });
   TestBed.overrideComponent(TreeViewPage, {
@@ -153,10 +154,12 @@ async function harness(records: TreeNode[], options: HarnessOptions = {}) {
       sowText: WritableSignal<string>;
       plant(): Promise<void>;
       sow(): Promise<void>;
+      redeemFromPlanLimit(): void;
     },
     count: (fixture.componentInstance as unknown as { branchCount: Signal<number> }).branchCount,
     byTree,
     plant,
+    router,
   };
 }
 
@@ -224,5 +227,15 @@ describe('tree view commercial branch count', () => {
     page.newTitle.set('Rama');
 
     await expect(page.plant()).rejects.toBe(failure);
+  });
+
+  it('sends a guest key intent to account with the current local tree URL', async () => {
+    const { page, router } = await harness([node('heart-1', null)]);
+
+    page.redeemFromPlanLimit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/account'], {
+      queryParams: { intent: 'redeem', returnUrl: '/forest/tree-1' },
+    });
   });
 });

@@ -1,0 +1,33 @@
+<section class="access-key" aria-labelledby="access-key-title">
+  <h2 id="access-key-title">{{ i18n.t().access.key.title }}</h2>
+  <p>{{ i18n.t().access.key.body }}</p>
+
+  <form (submit)="$event.preventDefault(); submit()">
+    <label class="field" for="access-key-code">
+      <span>{{ i18n.t().access.key.label }}</span>
+      <input
+        #codeInput
+        id="access-key-code"
+        type="text"
+        autocomplete="off"
+        autocapitalize="none"
+        spellcheck="false"
+        maxlength="256"
+        [placeholder]="i18n.t().access.key.placeholder"
+        [value]="code()"
+        (input)="code.set(inputValue($event))"
+      />
+    </label>
+
+    @if (errorText()) {
+      <p class="error-line" role="alert">{{ errorText() }}</p>
+    }
+    @if (notice()) {
+      <p class="notice" role="status">{{ notice() }}</p>
+    }
+
+    <button class="btn btn-primary" type="submit" [disabled]="busy() || !code().trim()">
+      {{ busy() ? i18n.t().access.key.busy : i18n.t().access.key.submit }}
+    </button>
+  </form>
+</section>

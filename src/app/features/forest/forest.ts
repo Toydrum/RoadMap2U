@@ -849,7 +849,11 @@ export class ForestPage {
 
   protected redeemFromPlanLimit(): void {
     this.planLimit.set(null);
-    void this.router.navigate(['/account'], { queryParams: { redeem: 'access-key' } });
+    const current = this.router.url;
+    const returnUrl = current.startsWith('/') && !current.startsWith('//') ? current : '/forest';
+    void this.router.navigate(['/account'], {
+      queryParams: { intent: 'redeem', returnUrl },
+    });
   }
 
   /** "Prefiero empezar en blanco" — the examples bow out for good. */

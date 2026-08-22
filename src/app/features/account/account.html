@@ -6,6 +6,9 @@
         <img class="logo" src="icons/logo.svg" alt="" width="64" height="64" />
         <h1>{{ i18n.t().account.welcomeTitle }}</h1>
         <p class="sub">{{ i18n.t().account.welcomeBody }}</p>
+        @if (intent() === 'redeem') {
+          <p class="hint">{{ i18n.t().access.key.signInHint }}</p>
+        }
 
         <div class="doors">
           <button type="button" class="btn btn-primary big" (click)="go('signIn')">
@@ -421,6 +424,19 @@
             }
           </div>
         } @else {
+          @if (auth.user()?.accountType === 'adult') {
+            <div class="card access-card">
+              <app-access-key-form (redeemed)="redeemCompleted.set(true)" />
+              @if (redeemCompleted()) {
+                <a class="btn btn-soft" [routerLink]="safeReturnUrl()">
+                  {{ i18n.t().access.key.returnCta }}
+                </a>
+              }
+            </div>
+          } @else if (intent() === 'redeem') {
+            <p class="hint">{{ i18n.t().access.key.adultOnly }}</p>
+          }
+
           <div class="profile-actions">
             <button
               type="button"

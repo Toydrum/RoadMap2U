@@ -7,6 +7,7 @@ import { APP_CONFIG } from '../../core/config';
 import { PASSWORD_POLICY, USERNAME_PATTERN, passwordMeetsPolicy } from '../../core/auth/auth-types';
 import { AccountClosureService } from '../../core/account-closure.service';
 import type { AccountClosureState } from '../../core/api/contracts';
+import { AccessKeyForm } from '../access/access-key-form';
 
 type Step =
   | 'welcome'
@@ -28,6 +29,21 @@ export const ACCOUNT_CLOSURE_RESTART = new InjectionToken<() => void>('ACCOUNT_C
 
 export function normalizedUsername(username: string): string {
   return username.trim().toLowerCase();
+}
+
+/** Accept only same-origin Angular paths. Browsers normalize `\\` as a
+ * separator for special-scheme URLs, so `/\\host` must be treated like
+ * protocol-relative `//host`, not as an internal route. */
+export function safeLocalReturnUrl(target: string | undefined, fallback = '/forest'): string {
+  if (
+    !target ||
+    !target.startsWith('/') ||
+    target.startsWith('//') ||
+    /[\u0000-\u001f\u007f\\]/u.test(target)
+  ) {
+    return fallback;
+  }
+  return target;
 }
 
 export function createAccountInputError(
@@ -52,7 +68,7 @@ export function createAccountInputError(
  */
 @Component({
   selector: 'app-account',
-  imports: [RouterLink],
+  imports: [RouterLink, AccessKeyForm],
   templateUrl: './account.html',
   styleUrl: './account.scss',
 })
@@ -68,6 +84,9 @@ export class AccountPage {
 
   /** Where the auth gate was headed — internal paths only. */
   readonly volver = input<string>();
+  /** Sponsored-access entry intent and a same-origin route to return to. */
+  readonly intent = input<string>();
+  readonly returnUrl = input<string>();
 
   protected readonly isMock = APP_CONFIG.backend === 'mock';
   protected readonly minLength = PASSWORD_POLICY.minLength;
@@ -85,6 +104,8 @@ export class AccountPage {
   /** Gentle success line ("your new password is ready"). */
   protected readonly notice = signal('');
   protected readonly confirmingDelete = signal(false);
+  protected readonly redeemCompleted = signal(false);
+  protected readonly safeReturnUrl = computed(() => safeLocalReturnUrl(this.returnUrl()));
 
   constructor() {
     if (this.auth.status() === 'signedIn') this.step.set('profile');
@@ -261,9 +282,12 @@ export class AccountPage {
     this.password2.set('');
     this.code.set('');
     await this.closure.hydrate();
-    const target = this.volver();
-    // '//' is protocol-relative — it would escape the origin.
-    if (target && target.startsWith('/') && !target.startsWith('//')) {
+    if (this.intent() === 'redeem') {
+      this.step.set('profile');
+      return;
+    }
+    const target = safeLocalReturnUrl(this.volver(), '');
+    if (target) {
       void this.router.navigateByUrl(target);
       return;
     }

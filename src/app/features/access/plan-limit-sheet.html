@@ -27,15 +27,21 @@
     </p>
 
     <div class="actions">
-      <a class="btn btn-primary" href="/#plans" data-action="plans" autofocus>
+      <a class="btn btn-primary" href="/#plans" data-action="plans">
         {{ i18n.t().access.planLimit.plansCta }}
       </a>
-      <button class="btn" type="button" data-action="redeem" (click)="redeemRequested.emit()">
+      <button class="btn" type="button" data-action="redeem" (click)="requestRedeem()">
         {{ i18n.t().access.planLimit.redeemCta }}
       </button>
       <button class="btn btn-ghost" type="button" data-action="stay" (click)="closed.emit()">
         {{ i18n.t().access.planLimit.stayCta }}
       </button>
     </div>
+
+    @if (showRedeem()) {
+      <div class="embedded-redeem">
+        <app-access-key-form (redeemed)="closed.emit()" />
+      </div>
+    }
   </section>
 </div>
