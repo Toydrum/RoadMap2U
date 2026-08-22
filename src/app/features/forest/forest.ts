@@ -23,7 +23,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TreesRepo } from '../../core/repos/trees.repo';
 import { NodesRepo } from '../../core/repos/nodes.repo';
-import { ForestQuotaError } from '../../core/repos/forest-mutations.service';
+import { ForestQuotaError, type QuotaDenial } from '../../core/repos/forest-mutations.service';
 import { CheckinsRepo } from '../../core/repos/checkins.repo';
 import { HarvestsRepo } from '../../core/repos/harvests.repo';
 import { SettingsService } from '../../core/repos/settings.service';
@@ -43,9 +43,14 @@ import { FlowerGlyph } from './flower';
 import { FocusSessionService } from '../../core/focus-session.service';
 import { PerchAnchorService } from '../../core/perch-anchor.service';
 import { PerchBody } from '../../shared/ui/perch-body';
+import { PlanLimitSheet } from '../access/plan-limit-sheet';
 
 const ACCENTS: AccentToken[] = ['moss', 'sage', 'sky', 'clay', 'lavender', 'sand', 'rose', 'pine'];
 const STARTER_BRANCH_FAILURE = Symbol('starter-branch-failure');
+type PlanLimitDecision = Extract<
+  QuotaDenial,
+  { readonly reason: 'ACTIVE_TREE_LIMIT' | 'VISIBLE_BRANCH_LIMIT' }
+>;
 
 /**
  * "El Prado" — the forest home as a living scene. Every tree is a real
@@ -54,7 +59,21 @@ const STARTER_BRANCH_FAILURE = Symbol('starter-branch-failure');
  */
 @Component({
   selector: 'app-forest',
-  imports: [RouterLink, MiniTree, SceneBackdrop, WeatherFront, FlowerGlyph, SpiralGlyph, SheetDirective, PerchBody, HintChip, ConfirmSheet, FinderSheet, DespedidaSheet],
+  imports: [
+    RouterLink,
+    MiniTree,
+    SceneBackdrop,
+    WeatherFront,
+    FlowerGlyph,
+    SpiralGlyph,
+    SheetDirective,
+    PerchBody,
+    HintChip,
+    ConfirmSheet,
+    FinderSheet,
+    DespedidaSheet,
+    PlanLimitSheet,
+  ],
   templateUrl: './forest.html',
   styleUrl: './forest.scss',
   // Drag listeners live on the document: live reordering moves the grip in
@@ -76,6 +95,7 @@ export class ForestPage {
   protected readonly creating = signal(false);
   protected readonly newName = signal('');
   protected readonly newAccent = signal<AccentToken>('moss');
+  protected readonly planLimit = signal<PlanLimitDecision | null>(null);
   private readonly growthError = signal<unknown | null>(null);
   protected readonly growthErrorText = computed(() => {
     const error = this.growthError();
@@ -140,9 +160,7 @@ export class ForestPage {
     effect((onCleanup) => {
       const treeId = this.sessionTreeId();
       const visible =
-        treeId !== null &&
-        !this.draggingId() &&
-        this.pageTrees().some((t) => t.id === treeId);
+        treeId !== null && !this.draggingId() && this.pageTrees().some((t) => t.id === treeId);
       this.viewportSize(); // re-measure on resize
       if (!visible) {
         this.crownPerchPos.set(null);
@@ -204,12 +222,13 @@ export class ForestPage {
   /** Crown top-center in `.plots`-band coordinates; null → corner fallback. */
   protected readonly crownPerchPos = signal<{ x: number; y: number } | null>(null);
 
-
   /* ----------------------------------------- «buscar una rama» (finder) */
 
   protected readonly finderOpen = signal(false);
   /** `?mood=` dev/demo override, else the latest check-in's feeling. */
-  private readonly moodOverride = new URLSearchParams(location.search).get('mood') as Feeling | null;
+  private readonly moodOverride = new URLSearchParams(location.search).get(
+    'mood',
+  ) as Feeling | null;
   protected readonly mood = computed<Feeling | null>(
     () => this.moodOverride ?? this.checkins.latest()?.feeling ?? null,
   );
@@ -249,7 +268,6 @@ export class ForestPage {
   protected readonly stones = STONES;
 
   protected readonly petalAngles = PETAL_ANGLES;
-
 
   /* -------------------------------------------- arrange your own forest */
 
@@ -428,7 +446,10 @@ export class ForestPage {
       const prev = this.dragPos();
       this.dragPos.set({
         x: Math.min(100, Math.max(0, ((ev.clientX - this.grabDX - band.left) / band.width) * 100)),
-        b: Math.max(-8, Math.min(108, ((band.bottom - (ev.clientY - this.grabDY)) / band.height) * 100)),
+        b: Math.max(
+          -8,
+          Math.min(108, ((band.bottom - (ev.clientY - this.grabDY)) / band.height) * 100),
+        ),
         s: prev?.s ?? 1,
       });
     }
@@ -573,13 +594,38 @@ export class ForestPage {
   private static readonly ARRANGEMENTS: ReadonlyArray<ReadonlyArray<{ x: number; b: number }>> = [
     [],
     [{ x: 50, b: 10 }],
-    [{ x: 28, b: 8 }, { x: 72, b: 38 }],
-    [{ x: 18, b: 6 }, { x: 50, b: 38 }, { x: 82, b: 10 }],
+    [
+      { x: 28, b: 8 },
+      { x: 72, b: 38 },
+    ],
+    [
+      { x: 18, b: 6 },
+      { x: 50, b: 38 },
+      { x: 82, b: 10 },
+    ],
     // Back-row anchors sit mid-BETWEEN front ones: every tree's heart stays
     // clear of its taller front neighbors (tappable by construction).
-    [{ x: 28, b: 8 }, { x: 72, b: 6 }, { x: 50, b: 38 }, { x: 13, b: 34 }],
-    [{ x: 18, b: 8 }, { x: 50, b: 6 }, { x: 82, b: 10 }, { x: 34, b: 37 }, { x: 66, b: 38 }],
-    [{ x: 15, b: 6 }, { x: 45, b: 10 }, { x: 75, b: 8 }, { x: 30, b: 37 }, { x: 60, b: 38 }, { x: 88, b: 35 }],
+    [
+      { x: 28, b: 8 },
+      { x: 72, b: 6 },
+      { x: 50, b: 38 },
+      { x: 13, b: 34 },
+    ],
+    [
+      { x: 18, b: 8 },
+      { x: 50, b: 6 },
+      { x: 82, b: 10 },
+      { x: 34, b: 37 },
+      { x: 66, b: 38 },
+    ],
+    [
+      { x: 15, b: 6 },
+      { x: 45, b: 10 },
+      { x: 75, b: 8 },
+      { x: 30, b: 37 },
+      { x: 60, b: 38 },
+      { x: 88, b: 35 },
+    ],
   ];
 
   /** Live viewport — the stream's on-screen position depends on it. */
@@ -745,6 +791,7 @@ export class ForestPage {
     try {
       await this.trees.create(name, this.newAccent());
     } catch (error) {
+      if (this.capturePlanLimit(error)) return;
       this.growthError.set(error);
       return;
     }
@@ -764,6 +811,7 @@ export class ForestPage {
     try {
       tree = await this.trees.create(s.name, accent);
     } catch (error) {
+      if (this.capturePlanLimit(error)) return;
       this.growthError.set(error);
       return;
     }
@@ -779,12 +827,33 @@ export class ForestPage {
 
   protected openCreate(): void {
     this.growthError.set(null);
+    this.planLimit.set(null);
     this.creating.set(true);
   }
 
   protected closeCreate(): void {
     this.creating.set(false);
     this.growthError.set(null);
+    this.planLimit.set(null);
+  }
+
+  private capturePlanLimit(error: unknown): boolean {
+    if (!(error instanceof ForestQuotaError)) return false;
+    const decision = error.decision;
+    if (decision.reason !== 'ACTIVE_TREE_LIMIT' && decision.reason !== 'VISIBLE_BRANCH_LIMIT') {
+      return false;
+    }
+    this.planLimit.set(decision);
+    return true;
+  }
+
+  protected redeemFromPlanLimit(): void {
+    this.planLimit.set(null);
+    const current = this.router.url;
+    const returnUrl = current.startsWith('/') && !current.startsWith('//') ? current : '/forest';
+    void this.router.navigate(['/account'], {
+      queryParams: { intent: 'redeem', returnUrl },
+    });
   }
 
   /** "Prefiero empezar en blanco" — the examples bow out for good. */

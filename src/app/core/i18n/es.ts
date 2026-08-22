@@ -865,6 +865,38 @@ export const ES = {
     repairHint:
       'Reinstala la app y su caché desde cero. Tus árboles, notitas y ajustes NO se tocan.',
   },
+  access: {
+    planLimit: {
+      title: 'Llegaste al límite de tu plan Free',
+      activeTrees: 'Tu bosque puede tener hasta {limit} árboles activos en Free.',
+      visibleBranches: 'Tu árbol puede tener hasta {limit} ramas visibles en Free.',
+      usage: '{current}/{limit}',
+      plansCta: 'Ver planes',
+      redeemCta: 'Canjear una llave',
+      stayCta: 'Seguir con Free',
+    },
+    key: {
+      title: 'Canjear una llave',
+      body: 'La llave se vincula a esta cuenta. No la guardamos en este dispositivo.',
+      label: 'Llave de acceso',
+      placeholder: 'RM2U1.…',
+      submit: 'Activar Premium',
+      busy: 'Revisando…',
+      success: 'Premium ya está activo en tu cuenta 🌿',
+      returnCta: 'Volver a mi bosque',
+      adultOnly: 'Las llaves se canjean desde una cuenta adulta con correo confirmado.',
+      signInHint: 'Entra o crea tu cuenta; después podrás pegar la llave aquí.',
+      errors: {
+        invalid: 'Esta llave no es válida o ya venció.',
+        rateLimited: 'Hiciste varios intentos. Intenta más tarde.',
+        alreadyRedeemed: 'Esta llave ya fue canjeada.',
+        unavailable: 'El canje está en pausa por ahora.',
+        unauthenticated: 'Vuelve a entrar antes de canjearla.',
+        offline: 'Necesitas conexión para canjear la llave.',
+        unknown: 'No pudimos revisar la llave. Intenta de nuevo.',
+      },
+    },
+  },
   account: {
     welcomeTitle: 'Una llave para tu bosque',
     welcomeBody:

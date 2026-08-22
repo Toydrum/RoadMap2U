@@ -67,7 +67,9 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
     // insertion order — two devices could derive a DIFFERENT first root
     // (the heart). createdAt then id settles every sibling everywhere.
     for (const list of map.values())
-      list.sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+      list.sort(
+        (a, b) => a.order - b.order || a.createdAt - b.createdAt || a.id.localeCompare(b.id),
+      );
     return map;
   });
 
@@ -87,7 +89,11 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
           // — three banners advocating for a field the user can't see or edit
           // is the 0.0.108 wound again. The date persists silently; the
           // conversation returns if the heart ever goes bare again.
-          !(n.parentId === null && this.heartOf(n.treeId)?.id === n.id && this.childrenOf(n).length > 0) &&
+          !(
+            n.parentId === null &&
+            this.heartOf(n.treeId)?.id === n.id &&
+            this.childrenOf(n).length > 0
+          ) &&
           n.status !== 'achieved' &&
           n.status !== 'branched',
       )
@@ -118,12 +124,19 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
     return node;
   }
 
+  /** Validate a whole user gesture before its first write. Multi-line sowing
+   *  creates parent/child records in sequence, so this preflight prevents a
+   *  quota denial halfway through the pasted outline. */
+  assertCanPlant(treeId: string, count: number): void {
+    if (this.usesLocalForestMutations()) {
+      this.forestMutations.assertPlantBranches(treeId, count);
+    }
+  }
+
   /** One gesture, one aggregate quota decision, one nodes transaction. */
   async plantMany(treeId: string, drafts: readonly PlantNodeDraft[]): Promise<TreeNode[]> {
     if (!drafts.length) return [];
-    if (this.usesLocalForestMutations()) {
-      this.forestMutations.assertPlantBranches(treeId, drafts.length);
-    }
+    this.assertCanPlant(treeId, drafts.length);
     const now = Date.now();
     const nextOrder = new Map<string, number>();
     const nodes = drafts.map((draft) => {
@@ -192,7 +205,21 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
 
   async update(
     node: TreeNode,
-    patch: Partial<Pick<TreeNode, 'title' | 'note' | 'targetDate' | 'trigger' | 'flow' | 'priority' | 'estimateMin' | 'repeatsDaily' | 'repeats' | 'remindAt'>>,
+    patch: Partial<
+      Pick<
+        TreeNode,
+        | 'title'
+        | 'note'
+        | 'targetDate'
+        | 'trigger'
+        | 'flow'
+        | 'priority'
+        | 'estimateMin'
+        | 'repeatsDaily'
+        | 'repeats'
+        | 'remindAt'
+      >
+    >,
   ): Promise<TreeNode> {
     return this.save({ ...node, ...patch });
   }

@@ -1,13 +1,17 @@
 <div class="meadow-page">
   <app-scene-backdrop mountainsBottom="min(430px, 54vh)" [mood]="mood()" />
 
-
   <!-- Header floats over the sky -->
   <header class="head container">
-<!-- The brand is the standing door back to /ahora (0.0.106 — the home had
+    <!-- The brand is the standing door back to /ahora (0.0.106 — the home had
      ZERO walk-up doors once its tab became the Conservería). -->
-    <a routerLink="/ahora" class="brand" [title]="i18n.t().nav.ahoraDoor" [attr.aria-label]="i18n.t().nav.ahoraDoor">
-      <img src="icons/logo.svg" alt="" width="34" height="34">
+    <a
+      routerLink="/ahora"
+      class="brand"
+      [title]="i18n.t().nav.ahoraDoor"
+      [attr.aria-label]="i18n.t().nav.ahoraDoor"
+    >
+      <img src="icons/logo.svg" alt="" width="34" height="34" />
       <h1>{{ i18n.t().forest.title }}</h1>
     </a>
     <span class="head-actions">
@@ -18,26 +22,28 @@
           (click)="finderOpen.set(true)"
           [attr.aria-label]="i18n.t().finder.title"
           [title]="i18n.t().finder.title"
-        >🔍</button>
+        >
+          🔍
+        </button>
       }
       <a
         routerLink="/trail"
         class="btn btn-ghost paw-btn"
         [attr.aria-label]="i18n.t().trail.title"
         [title]="i18n.t().trail.settingsHint"
-      >🐾</a>
-      <a
-        routerLink="/check-in"
-        class="btn btn-ghost checkin-btn"
-        [title]="i18n.t().checkIn.title"
+        >🐾</a
       >
+      <a routerLink="/check-in" class="btn btn-ghost checkin-btn" [title]="i18n.t().checkIn.title">
         <svg class="rose" viewBox="0 0 24 24" aria-hidden="true">
           <path
             class="rose-diag"
             transform="rotate(45 12 12)"
             d="M12 3.4 L13.5 10.5 L20.6 12 L13.5 13.5 L12 20.6 L10.5 13.5 L3.4 12 L10.5 10.5 Z"
           />
-          <path class="rose-card" d="M12 0.8 L14 10 L23.2 12 L14 14 L12 23.2 L10 14 L0.8 12 L10 10 Z" />
+          <path
+            class="rose-card"
+            d="M12 0.8 L14 10 L23.2 12 L14 14 L12 23.2 L10 14 L0.8 12 L10 10 Z"
+          />
           <circle class="rose-heart" cx="12" cy="12" r="2.1" />
         </svg>
         <span class="rose-label">{{ i18n.t().forest.checkinCta }}</span>
@@ -62,13 +68,24 @@
 
   <!-- The meadow: backdrop + planted trees share the same band -->
   <div class="meadow">
-    <svg class="scene" viewBox="0 0 1000 260" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <svg
+      class="scene"
+      viewBox="0 0 1000 260"
+      preserveAspectRatio="xMidYMax slice"
+      aria-hidden="true"
+    >
       <ellipse cx="200" cy="290" rx="580" ry="140" class="hill far" />
       <ellipse cx="830" cy="310" rx="640" ry="160" class="hill near" />
 
       <!-- Dappled light resting on the grass -->
       @for (p of sunPatches; track $index) {
-        <ellipse class="sunpatch" [attr.cx]="p.x" [attr.cy]="p.y" [attr.rx]="64 * p.s" [attr.ry]="13 * p.s" />
+        <ellipse
+          class="sunpatch"
+          [attr.cx]="p.x"
+          [attr.cy]="p.y"
+          [attr.rx]="64 * p.s"
+          [attr.ry]="13 * p.s"
+        />
       }
 
       @if (hasStream()) {
@@ -80,13 +97,21 @@
 
         <!-- Stones and cattails settle on the banks -->
         @for (st of stones; track $index) {
-          <g class="stone" [attr.transform]="'translate(' + st.x + ' ' + st.y + ') scale(' + st.s + ')'">
+          <g
+            class="stone"
+            [attr.transform]="'translate(' + st.x + ' ' + st.y + ') scale(' + st.s + ')'"
+          >
             <ellipse rx="9" ry="5.5" />
             <ellipse class="shine" cx="-2.5" cy="-2" rx="4" ry="2" />
           </g>
         }
         @for (c of cattails; track $index) {
-          <g class="cattail" [attr.transform]="'translate(' + c.x + ' ' + c.y + ') scale(' + (c.flip ? -c.s : c.s) + ' ' + c.s + ')'">
+          <g
+            class="cattail"
+            [attr.transform]="
+              'translate(' + c.x + ' ' + c.y + ') scale(' + (c.flip ? -c.s : c.s) + ' ' + c.s + ')'
+            "
+          >
             <path class="blade" d="M -3 0 C -9 -8 -8 -18 -12 -24" />
             <path class="blade" d="M 3 0 C 7 -9 6 -16 10 -22" />
             <path class="stem" d="M 0 0 L 0 -26" />
@@ -97,7 +122,12 @@
 
       <!-- Low shrubs anchor the mid-ground -->
       @for (b of bushes; track $index) {
-        <g class="bush" [attr.transform]="'translate(' + b.x + ' ' + b.y + ') scale(' + (b.flip ? -b.s : b.s) + ' ' + b.s + ')'">
+        <g
+          class="bush"
+          [attr.transform]="
+            'translate(' + b.x + ' ' + b.y + ') scale(' + (b.flip ? -b.s : b.s) + ' ' + b.s + ')'
+          "
+        >
           <ellipse class="lobe" cx="-9" cy="-4" rx="13" ry="8.5" />
           <ellipse class="lobe" cx="9" cy="-3.5" rx="12" ry="8" />
           <ellipse class="lobe top" cx="0" cy="-9" rx="12" ry="8.5" />
@@ -106,7 +136,12 @@
       }
 
       @for (flower of flowers(); track $index) {
-        <g class="meadow-flower" [attr.transform]="'translate(' + flower.x + ' ' + flower.y + ') rotate(' + flower.sway + ')'">
+        <g
+          class="meadow-flower"
+          [attr.transform]="
+            'translate(' + flower.x + ' ' + flower.y + ') rotate(' + flower.sway + ')'
+          "
+        >
           <line x1="0" y1="0" x2="0" [attr.y2]="flower.scale * 18" class="stem" />
           <g appFlower [flower]="flower.spec" [scale]="flower.scale" />
         </g>
@@ -117,8 +152,17 @@
           class="tuft"
           [class]="'tuft sh' + cluster.shade"
           [attr.transform]="
-            'translate(' + cluster.x + ' ' + cluster.y + ') rotate(' + cluster.rot + ') scale(' +
-            (cluster.flip ? -cluster.s : cluster.s) + ' ' + cluster.s + ')'
+            'translate(' +
+            cluster.x +
+            ' ' +
+            cluster.y +
+            ') rotate(' +
+            cluster.rot +
+            ') scale(' +
+            (cluster.flip ? -cluster.s : cluster.s) +
+            ' ' +
+            cluster.s +
+            ')'
           "
         >
           @switch (cluster.variant) {
@@ -159,7 +203,12 @@
 
       <!-- Tall silhouette tufts (7 blades) and seed-head spikes -->
       @for (r of richTufts; track $index) {
-        <g class="tuft rich" [attr.transform]="'translate(' + r.x + ' ' + r.y + ') scale(' + (r.flip ? -r.s : r.s) + ' ' + r.s + ')'">
+        <g
+          class="tuft rich"
+          [attr.transform]="
+            'translate(' + r.x + ' ' + r.y + ') scale(' + (r.flip ? -r.s : r.s) + ' ' + r.s + ')'
+          "
+        >
           <path d="M 0 0 C -2 -8 -5 -13 -9 -17" />
           <path d="M 1 0 C -1 -10 -2 -16 -4 -21" />
           <path d="M 2 0 C 2 -11 2 -17 1 -24" />
@@ -170,9 +219,25 @@
         </g>
       }
       @for (sp of spikes; track $index) {
-        <g class="spike" [attr.transform]="'translate(' + sp.x + ' ' + sp.y + ') scale(' + (sp.flip ? -sp.s : sp.s) + ' ' + sp.s + ')'">
+        <g
+          class="spike"
+          [attr.transform]="
+            'translate(' +
+            sp.x +
+            ' ' +
+            sp.y +
+            ') scale(' +
+            (sp.flip ? -sp.s : sp.s) +
+            ' ' +
+            sp.s +
+            ')'
+          "
+        >
           <path class="stem" d="M 0 0 C 1 -8 -1 -14 0 -21" />
-          <path class="awn" d="M 0 -21 l -3.4 -3.2 M 0.2 -18.4 l 3.2 -3 M -0.2 -16 l -3 -2.8 M 0.4 -13.6 l 2.8 -2.8" />
+          <path
+            class="awn"
+            d="M 0 -21 l -3.4 -3.2 M 0.2 -18.4 l 3.2 -3 M -0.2 -16 l -3 -2.8 M 0.4 -13.6 l 2.8 -2.8"
+          />
         </g>
       }
 
@@ -182,14 +247,24 @@
           <line class="stem" x1="0" y1="0" x2="0" y2="-9" />
           <g transform="translate(0 -11.5)">
             @for (a of petalAngles; track a) {
-              <ellipse class="petal" [attr.transform]="'rotate(' + a + ')'" cx="0" cy="-3.1" rx="1.7" ry="3.1" />
+              <ellipse
+                class="petal"
+                [attr.transform]="'rotate(' + a + ')'"
+                cx="0"
+                cy="-3.1"
+                rx="1.7"
+                ry="3.1"
+              />
             }
             <circle class="heart" r="1.8" />
           </g>
         </g>
       }
       @for (c of clovers; track $index) {
-        <g class="clover" [attr.transform]="'translate(' + c.x + ' ' + c.y + ') scale(' + c.s + ')'">
+        <g
+          class="clover"
+          [attr.transform]="'translate(' + c.x + ' ' + c.y + ') scale(' + c.s + ')'"
+        >
           <circle cx="-2.2" cy="0" r="1.5" />
           <circle cx="2.2" cy="-0.4" r="1.4" />
           <circle cx="0" cy="-2.4" r="1.5" />
@@ -199,7 +274,11 @@
 
     <!-- Planted trees: one clearing at a time, scattered like real sprouts -->
     @if (trees.active().length) {
-      <div class="plots container" [class.paged]="pageCount() > 1" [class.crowded]="pageTrees().length >= 5">
+      <div
+        class="plots container"
+        [class.paged]="pageCount() > 1"
+        [class.crowded]="pageTrees().length >= 5"
+      >
         @for (tree of pageTrees(); track tree.id; let i = $index) {
           @let slot = slotFor(i, tree);
           @let drag = draggingId() === tree.id ? dragPos() : null;
@@ -228,12 +307,16 @@
               (click)="askArchive($event, tree)"
               [attr.aria-label]="i18n.t().tree.archiveAction + ': ' + tree.name"
               [title]="i18n.t().tree.archiveAction"
-            >🗃</button>
+            >
+              🗃
+            </button>
             <span class="mound" aria-hidden="true"></span>
             <app-mini-tree [tree]="tree" />
             <span class="plot-grass" aria-hidden="true">
               <svg viewBox="0 0 60 14" width="60" height="14">
-                <path d="M 6 13 q -2 -9 -5 -11 M 12 13 q 1 -10 0 -12 M 18 13 q 3 -8 6 -10 M 40 13 q -2 -8 -4 -10 M 48 13 q 2 -9 4 -11" />
+                <path
+                  d="M 6 13 q -2 -9 -5 -11 M 12 13 q 1 -10 0 -12 M 18 13 q 3 -8 6 -10 M 40 13 q -2 -8 -4 -10 M 48 13 q 2 -9 4 -11"
+                />
               </svg>
             </span>
             <span class="sign">
@@ -277,14 +360,18 @@
             [disabled]="page() === 0 || !!draggingId()"
             (click)="goPage(-1)"
             [attr.aria-label]="i18n.t().forest.prevClearing"
-          >‹</button>
+          >
+            ‹
+          </button>
           <button
             type="button"
             class="clearing-nav next"
             [disabled]="page() >= pageCount() - 1 || !!draggingId()"
             (click)="goPage(1)"
             [attr.aria-label]="i18n.t().forest.nextClearing"
-          >›</button>
+          >
+            ›
+          </button>
           <div class="clearing-dots" role="tablist">
             @for (d of dots(); track d) {
               <button
@@ -298,7 +385,9 @@
               ></button>
             }
           </div>
-          <span class="sr-live" aria-live="polite">{{ i18n.fill(i18n.t().forest.clearingDot, { n: page() + 1 }) }}</span>
+          <span class="sr-live" aria-live="polite">{{
+            i18n.fill(i18n.t().forest.clearingDot, { n: page() + 1 })
+          }}</span>
         }
 
         <!-- (0.0.99) The meadow jar was removed — the Conservería has its own
@@ -319,7 +408,9 @@
             <div class="starter-row">
               @for (kind of starterKinds; track kind) {
                 <button type="button" class="starter card" (click)="plantStarter(kind)">
-                  <span class="starter-emoji" aria-hidden="true">{{ kind === 'school' ? '🎒' : kind === 'home' ? '🏡' : '🚀' }}</span>
+                  <span class="starter-emoji" aria-hidden="true">{{
+                    kind === 'school' ? '🎒' : kind === 'home' ? '🏡' : '🚀'
+                  }}</span>
                   <span class="starter-name">{{ i18n.t().sow.starters[kind].name }}</span>
                 </button>
               }
@@ -361,7 +452,13 @@
   <!-- Plant-a-tree sheet -->
   @if (creating()) {
     <div class="sheet-backdrop" (click)="closeCreate()">
-      <form class="sheet card" appSheet (sheetClose)="closeCreate()" (click)="$event.stopPropagation()" (submit)="$event.preventDefault(); create()">
+      <form
+        class="sheet card"
+        appSheet
+        (sheetClose)="closeCreate()"
+        (click)="$event.stopPropagation()"
+        (submit)="$event.preventDefault(); create()"
+      >
         <h2>{{ i18n.t().forest.newTree }}</h2>
         <div class="field">
           <label for="tree-name">{{ i18n.t().forest.treeNameLabel }}</label>
@@ -373,7 +470,7 @@
             [placeholder]="i18n.t().forest.treeNamePlaceholder"
             maxlength="60"
             autofocus
-          >
+          />
           <span class="hint">{{ i18n.t().forest.firstSproutHint }}</span>
         </div>
         <div class="field">
@@ -406,6 +503,16 @@
         </div>
       </form>
     </div>
+  }
+
+  @if (planLimit(); as limit) {
+    <app-plan-limit-sheet
+      [reason]="limit.reason"
+      [current]="limit.current"
+      [limit]="limit.limit"
+      (closed)="planLimit.set(null)"
+      (redeemRequested)="redeemFromPlanLimit()"
+    />
   }
 
   <!-- «Buscar una rama» — the utilitarian finder (the wind rose stays the

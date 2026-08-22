@@ -862,6 +862,38 @@ export const EN: Dict = {
     repairHint:
       'Reinstalls the app and its cache from scratch. Your trees, notes and settings are NOT touched.',
   },
+  access: {
+    planLimit: {
+      title: 'You reached your Free plan limit',
+      activeTrees: 'Your forest can have up to {limit} active trees on Free.',
+      visibleBranches: 'Your tree can have up to {limit} visible branches on Free.',
+      usage: '{current}/{limit}',
+      plansCta: 'View plans',
+      redeemCta: 'Redeem a key',
+      stayCta: 'Keep using Free',
+    },
+    key: {
+      title: 'Redeem a key',
+      body: 'The key is linked to this account. We do not store it on this device.',
+      label: 'Access key',
+      placeholder: 'RM2U1.…',
+      submit: 'Activate Premium',
+      busy: 'Checking…',
+      success: 'Premium is now active on your account 🌿',
+      returnCta: 'Return to my forest',
+      adultOnly: 'Keys are redeemed from an adult account with a confirmed email.',
+      signInHint: 'Sign in or create your account; then you can paste the key here.',
+      errors: {
+        invalid: 'This key is invalid or has expired.',
+        rateLimited: 'There were several attempts. Try again later.',
+        alreadyRedeemed: 'This key has already been redeemed.',
+        unavailable: 'Key redemption is paused for now.',
+        unauthenticated: 'Sign in again before redeeming it.',
+        offline: 'You need a connection to redeem the key.',
+        unknown: 'We could not check the key. Try again.',
+      },
+    },
+  },
   account: {
     welcomeTitle: 'A key for your forest',
     welcomeBody:

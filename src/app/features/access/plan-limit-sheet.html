@@ -1,0 +1,47 @@
+<div class="sheet-backdrop" (click)="closed.emit()">
+  <section
+    class="sheet card"
+    appSheet
+    (sheetClose)="closed.emit()"
+    (click)="$event.stopPropagation()"
+    role="dialog"
+    aria-modal="true"
+    aria-live="polite"
+    [attr.aria-label]="i18n.t().access.planLimit.title"
+  >
+    <span class="limit-icon" aria-hidden="true">🌿</span>
+    <h2>{{ i18n.t().access.planLimit.title }}</h2>
+
+    <p data-limit-copy>
+      {{
+        i18n.fill(
+          reason() === 'ACTIVE_TREE_LIMIT'
+            ? i18n.t().access.planLimit.activeTrees
+            : i18n.t().access.planLimit.visibleBranches,
+          { limit: limit() }
+        )
+      }}
+    </p>
+    <p class="usage" data-limit-usage>
+      {{ i18n.fill(i18n.t().access.planLimit.usage, { current: current(), limit: limit() }) }}
+    </p>
+
+    <div class="actions">
+      <a class="btn btn-primary" href="/#plans" data-action="plans">
+        {{ i18n.t().access.planLimit.plansCta }}
+      </a>
+      <button class="btn" type="button" data-action="redeem" (click)="requestRedeem()">
+        {{ i18n.t().access.planLimit.redeemCta }}
+      </button>
+      <button class="btn btn-ghost" type="button" data-action="stay" (click)="closed.emit()">
+        {{ i18n.t().access.planLimit.stayCta }}
+      </button>
+    </div>
+
+    @if (showRedeem()) {
+      <div class="embedded-redeem">
+        <app-access-key-form (redeemed)="closed.emit()" />
+      </div>
+    }
+  </section>
+</div>

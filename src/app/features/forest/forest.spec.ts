@@ -66,6 +66,7 @@ async function forestHarness(options: { createError?: unknown; plantManyError?: 
     plural: (count: number, forms: { one: string; many: string }) =>
       (count === 1 ? forms.one : forms.many).replace('{count}', String(count)),
   };
+  const router = { url: '/forest?plant=1', navigate: vi.fn(async () => true) };
 
   TestBed.configureTestingModule({
     imports: [ForestPage],
@@ -89,7 +90,7 @@ async function forestHarness(options: { createError?: unknown; plantManyError?: 
           snapshot: { queryParamMap: { has: () => false }, queryParams: {} },
         },
       },
-      { provide: Router, useValue: { navigate: vi.fn(async () => true) } },
+      { provide: Router, useValue: router },
     ],
   });
   TestBed.overrideComponent(ForestPage, {
@@ -98,30 +99,34 @@ async function forestHarness(options: { createError?: unknown; plantManyError?: 
   await TestBed.compileComponents();
   const fixture = TestBed.createComponent(ForestPage);
   fixture.detectChanges();
-  return { fixture, create, plantMany };
+  return { fixture, create, plantMany, router };
 }
 
 describe('forest growth errors', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
-  it('keeps the planting sheet open and explains an active-tree limit', async () => {
+  it('keeps the planting sheet and draft open while presenting the third-tree upgrade choice', async () => {
     const { fixture } = await forestHarness({
       createError: quotaError('ACTIVE_TREE_LIMIT'),
     });
     const page = fixture.componentInstance as unknown as {
       creating: WritableSignal<boolean>;
       newName: WritableSignal<string>;
+      newAccent: WritableSignal<string>;
       create(): Promise<void>;
     };
     page.creating.set(true);
     page.newName.set('Mi tercer árbol');
+    page.newAccent.set('sky');
 
     await page.create();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('form')).not.toBeNull();
-    const alert = fixture.nativeElement.querySelector('[role="alert"]') as HTMLElement;
-    expect(alert.textContent).toContain('2 árboles activos');
+    expect(page.newName()).toBe('Mi tercer árbol');
+    expect(page.newAccent()).toBe('sky');
+    expect(fixture.nativeElement.querySelector('app-plan-limit-sheet')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
   });
 
   it('explains a starter denial in the empty clearing', async () => {
@@ -155,5 +160,16 @@ describe('forest growth errors', () => {
     expect(alert.textContent).toContain(
       'El árbol se creó, pero no pudimos plantar sus ramas de ejemplo',
     );
+  });
+
+  it('sends a guest key intent to account with a local return URL', async () => {
+    const { fixture, router } = await forestHarness({});
+    const page = fixture.componentInstance as unknown as { redeemFromPlanLimit(): void };
+
+    page.redeemFromPlanLimit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/account'], {
+      queryParams: { intent: 'redeem', returnUrl: '/forest?plant=1' },
+    });
   });
 });

@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AccountClosureService } from '../../core/account-closure.service';
+import { AccessService } from '../../core/access/access.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { EN } from '../../core/i18n/en';
@@ -16,6 +17,7 @@ import {
   AccountPage,
   createAccountInputError,
   normalizedUsername,
+  safeLocalReturnUrl,
 } from './account';
 
 function accountHarness(dict: Dict = ES) {
@@ -62,6 +64,7 @@ function accountHarness(dict: Dict = ES) {
   };
   const constructed = { backup: 0, sync: 0, trees: 0 };
   const restart = vi.fn();
+  const access = { redeem: vi.fn(async () => undefined) };
 
   TestBed.configureTestingModule({
     imports: [AccountPage],
@@ -71,6 +74,7 @@ function accountHarness(dict: Dict = ES) {
       { provide: AccountClosureService, useValue: closure },
       { provide: ACCOUNT_CLOSURE_RESTART, useValue: restart },
       { provide: I18nService, useValue: i18n },
+      { provide: AccessService, useValue: access },
       {
         provide: BackupService,
         useFactory: () => {
@@ -94,7 +98,7 @@ function accountHarness(dict: Dict = ES) {
       },
     ],
   });
-  return { auth, closure, constructed, restart };
+  return { auth, closure, constructed, restart, access };
 }
 
 describe('account create validation', () => {
@@ -112,6 +116,18 @@ describe('account create validation', () => {
     expect(createAccountInputError('lynxpardelle', '', 'Abc12345', 'Abc12345')).toBe(
       'invalidEmail',
     );
+  });
+});
+
+describe('account return URL validation', () => {
+  it.each([
+    ['https://evil.example/forest', '/forest'],
+    ['//evil.example/forest', '/forest'],
+    ['/\\evil.example/forest', '/forest'],
+    ['/forest/tree-a\n', '/forest'],
+    ['/forest/tree-a?plant=1', '/forest/tree-a?plant=1'],
+  ])('maps %s to %s', (target, expected) => {
+    expect(safeLocalReturnUrl(target)).toBe(expected);
   });
 });
 
@@ -236,9 +252,12 @@ describe('account closure recovery UI', () => {
   it.each([
     ['ES', ES.account.closureRetryError, /conservamos todo/i],
     ['EN', EN.account.closureRetryError, /everything on this device was preserved/i],
-  ] as const)('does not promise that every local row survived an unknown late failure in %s', (_lang, copy, unsafeClaim) => {
-    expect(copy).not.toMatch(unsafeClaim);
-  });
+  ] as const)(
+    'does not promise that every local row survived an unknown late failure in %s',
+    (_lang, copy, unsafeClaim) => {
+      expect(copy).not.toMatch(unsafeClaim);
+    },
+  );
 
   it('restarts with a fresh service graph only after terminal cleanup succeeds', async () => {
     const h = accountHarness();
@@ -250,7 +269,9 @@ describe('account closure recovery UI', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    await (fixture.componentInstance as unknown as { retryClosure(): Promise<void> }).retryClosure();
+    await (
+      fixture.componentInstance as unknown as { retryClosure(): Promise<void> }
+    ).retryClosure();
 
     expect(h.restart).toHaveBeenCalledOnce();
   });
@@ -261,5 +282,53 @@ describe('account closure recovery UI', () => {
     await Promise.resolve();
 
     expect(h.constructed).toEqual({ backup: 0, sync: 0, trees: 0 });
+  });
+});
+
+describe('account sponsored access UI', () => {
+  beforeEach(() => TestBed.resetTestingModule());
+
+  it('shows the reusable key form on an adult profile', async () => {
+    const h = accountHarness();
+    h.closure.receipt.set(null);
+    h.auth.user.set({
+      userId: 'owner-a',
+      username: 'owner-a',
+      displayName: 'Owner',
+      email: 'owner@example.test',
+      accountType: 'adult',
+    });
+    h.auth.status.set('signedIn');
+    const fixture = TestBed.createComponent(AccountPage);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-access-key-form')).not.toBeNull();
+    expect(fixture.nativeElement.textContent as string).toContain(ES.access.key.title);
+  });
+
+  it('keeps a redeem intent on the profile after sign-in instead of navigating away', async () => {
+    const h = accountHarness();
+    h.closure.receipt.set(null);
+    h.auth.signIn.mockImplementationOnce(async () => {
+      h.auth.user.set({
+        userId: 'owner-a',
+        username: 'owner-a',
+        displayName: 'Owner',
+        email: 'owner@example.test',
+        accountType: 'adult',
+      });
+      h.auth.status.set('signedIn');
+      return 'done' as const;
+    });
+    const fixture = TestBed.createComponent(AccountPage);
+    fixture.componentRef.setInput('intent', 'redeem');
+    fixture.componentRef.setInput('returnUrl', '/forest/tree-a');
+    fixture.detectChanges();
+
+    await (fixture.componentInstance as unknown as { doSignIn(): Promise<void> }).doSignIn();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-access-key-form')).not.toBeNull();
+    expect(fixture.nativeElement.textContent as string).toContain(ES.access.key.title);
   });
 });

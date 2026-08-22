@@ -1,0 +1,38 @@
+:host {
+  display: block;
+}
+
+.access-key {
+  display: grid;
+  gap: 0.7rem;
+  text-align: left;
+}
+
+h2,
+p {
+  margin: 0;
+}
+
+.access-key > p {
+  color: var(--text-dim);
+}
+
+form,
+.field {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.field span {
+  font-weight: 700;
+}
+
+input {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.btn {
+  width: 100%;
+  justify-content: center;
+}
