@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '../auth/auth-provider';
 import { AuthError } from '../auth/auth-types';
 import { MockAuthProvider, parseMockToken } from '../auth/mock-auth.provider';
+import { APP_CONFIG } from '../config';
 import { Tree } from '../db/schema';
 import { EN } from '../i18n/en';
 import { ES } from '../i18n/es';
@@ -27,6 +28,7 @@ import { MockApi } from './mock-api';
 
 const NOW = 1_800_000_000_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const expectedHttpUrl = (path: string): string => `${APP_CONFIG.aws.apiBaseUrl}/v1${path}`;
 
 const EXPECTED_CATALOG = {
   version: '2026-08-prepayment-v1',
@@ -1263,7 +1265,7 @@ describe('HttpApi commercial transport', () => {
     await expect(new HttpApi(auth).getPlans()).resolves.toEqual(EXPECTED_CATALOG);
 
     expect(auth.idToken).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledWith('/v1' + API_PATHS.plans, {
+    expect(fetchMock).toHaveBeenCalledWith(expectedHttpUrl(API_PATHS.plans), {
       method: 'GET',
       headers: {},
       body: undefined,
@@ -1292,9 +1294,9 @@ describe('HttpApi commercial transport', () => {
     await expect(api.deleteMe()).resolves.toEqual(receipt);
 
     expect(fetchMock.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
-      ['/v1' + API_PATHS.access, 'GET'],
-      ['/v1' + API_PATHS.accessCodesRedeem, 'POST'],
-      ['/v1' + API_PATHS.me, 'DELETE'],
+      [expectedHttpUrl(API_PATHS.access), 'GET'],
+      [expectedHttpUrl(API_PATHS.accessCodesRedeem), 'POST'],
+      [expectedHttpUrl(API_PATHS.me), 'DELETE'],
     ]);
     expect(fetchMock.mock.calls[1][1]?.body).toBe(JSON.stringify({ code: 'RM2U1.issue.secret' }));
   });
