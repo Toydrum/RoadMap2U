@@ -104,24 +104,28 @@ async function forestHarness(options: { createError?: unknown; plantManyError?: 
 describe('forest growth errors', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
-  it('keeps the planting sheet open and explains an active-tree limit', async () => {
+  it('keeps the planting sheet and draft open while presenting the third-tree upgrade choice', async () => {
     const { fixture } = await forestHarness({
       createError: quotaError('ACTIVE_TREE_LIMIT'),
     });
     const page = fixture.componentInstance as unknown as {
       creating: WritableSignal<boolean>;
       newName: WritableSignal<string>;
+      newAccent: WritableSignal<string>;
       create(): Promise<void>;
     };
     page.creating.set(true);
     page.newName.set('Mi tercer árbol');
+    page.newAccent.set('sky');
 
     await page.create();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('form')).not.toBeNull();
-    const alert = fixture.nativeElement.querySelector('[role="alert"]') as HTMLElement;
-    expect(alert.textContent).toContain('2 árboles activos');
+    expect(page.newName()).toBe('Mi tercer árbol');
+    expect(page.newAccent()).toBe('sky');
+    expect(fixture.nativeElement.querySelector('app-plan-limit-sheet')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
   });
 
   it('explains a starter denial in the empty clearing', async () => {

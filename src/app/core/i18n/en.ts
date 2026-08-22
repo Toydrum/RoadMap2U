@@ -862,6 +862,17 @@ export const EN: Dict = {
     repairHint:
       'Reinstalls the app and its cache from scratch. Your trees, notes and settings are NOT touched.',
   },
+  access: {
+    planLimit: {
+      title: 'You reached your Free plan limit',
+      activeTrees: 'Your forest can have up to {limit} active trees on Free.',
+      visibleBranches: 'Your tree can have up to {limit} visible branches on Free.',
+      usage: '{current}/{limit}',
+      plansCta: 'View plans',
+      redeemCta: 'Redeem a key',
+      stayCta: 'Keep using Free',
+    },
+  },
   account: {
     welcomeTitle: 'A key for your forest',
     welcomeBody:

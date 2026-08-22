@@ -5,8 +5,10 @@ import { ConfirmSheet } from '../../shared/ui/confirm-sheet';
 import { HintChip } from '../../shared/ui/hint-chip';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
+import { AccessService } from '../../core/access/access.service';
 import { TreesRepo } from '../../core/repos/trees.repo';
 import { NodesRepo } from '../../core/repos/nodes.repo';
+import { ForestQuotaError, type QuotaDenial } from '../../core/repos/forest-mutations.service';
 import { ToastService, UNDO_MS } from '../../shared/ui/toast.service';
 import { FocusSessionService } from '../../core/focus-session.service';
 import { CheckinsRepo } from '../../core/repos/checkins.repo';
@@ -26,10 +28,30 @@ import { SheetDirective } from '../../shared/ui/sheet.directive';
 import { NodeDetail } from '../node-detail/node-detail';
 import { DateReview } from '../check-in/date-review';
 import { VisitSession } from '../../core/visit/visit-session';
+import { PlanLimitSheet } from '../access/plan-limit-sheet';
+
+type PlanLimitDecision = Extract<
+  QuotaDenial,
+  { readonly reason: 'ACTIVE_TREE_LIMIT' | 'VISIBLE_BRANCH_LIMIT' }
+>;
 
 @Component({
   selector: 'app-tree-view',
-  imports: [RouterLink, TreeCanvas, TreeOutline, SceneBackdrop, WeatherFront, NodeDetail, DateReview, SheetDirective, HintChip, ConfirmSheet, CadencePicker, DespedidaSheet],
+  imports: [
+    RouterLink,
+    TreeCanvas,
+    TreeOutline,
+    SceneBackdrop,
+    WeatherFront,
+    NodeDetail,
+    DateReview,
+    SheetDirective,
+    HintChip,
+    ConfirmSheet,
+    CadencePicker,
+    DespedidaSheet,
+    PlanLimitSheet,
+  ],
   templateUrl: './tree-view.html',
   styleUrl: './tree-view.scss',
 })
@@ -42,6 +64,7 @@ export class TreeViewPage {
   protected readonly i18n = inject(I18nService);
   protected readonly trees = inject(TreesRepo);
   protected readonly nodes = inject(NodesRepo);
+  private readonly access = inject(AccessService);
   private readonly router = inject(Router);
 
   /** Present only under /visit/:userId — the page then works on SOMEONE
@@ -66,7 +89,9 @@ export class TreeViewPage {
   protected readonly canEdit = computed(() => !this.visit || this.visit.editable());
 
   private readonly checkins = inject(CheckinsRepo);
-  private readonly moodOverride = new URLSearchParams(location.search).get('mood') as Feeling | null;
+  private readonly moodOverride = new URLSearchParams(location.search).get(
+    'mood',
+  ) as Feeling | null;
   protected readonly mood = computed<Feeling | null>(() =>
     this.visit ? null : (this.moodOverride ?? this.checkins.latest()?.feeling ?? null),
   );
@@ -137,7 +162,14 @@ export class TreeViewPage {
     this.nodes.needsDateReview().filter((n) => n.treeId === this.id()),
   );
 
-  protected readonly branchCount = computed(() => (this.nodes.byTree().get(this.id()) ?? []).length);
+  protected readonly branchCount = computed(() => {
+    const heartId = this.tree()?.heartId;
+    return (this.nodes.byTree().get(this.id()) ?? []).filter((node) => node.id !== heartId).length;
+  });
+  protected readonly branchLimit = computed(
+    () => this.access.access().limits.maxVisibleBranchesPerTree,
+  );
+  protected readonly planLimit = signal<PlanLimitDecision | null>(null);
   protected readonly bloomCount = computed(
     () => (this.nodes.byTree().get(this.id()) ?? []).filter((n) => n.status === 'achieved').length,
   );
@@ -237,10 +269,16 @@ export class TreeViewPage {
     // can outlive the branch — archived or pruned in another tab while the
     // title was being typed — and a ramita must never hang from a ghost.
     const parentId = this.liveParentId(target.parent, tree.id);
-    const node = await this.nodes.plant(tree.id, parentId, {
-      title,
-      repeats: this.plantCadence() ?? undefined,
-    });
+    let node: TreeNode;
+    try {
+      node = await this.nodes.plant(tree.id, parentId, {
+        title,
+        repeats: this.plantCadence() ?? undefined,
+      });
+    } catch (error) {
+      if (this.capturePlanLimit(error)) return;
+      throw error;
+    }
     if (!tree.currentNodeId) await this.trees.setCurrentNode(tree, node.id);
     this.burstFirstId ??= node.id;
     this.newTitle.set('');
@@ -271,13 +309,19 @@ export class TreeViewPage {
     // the goal's first ramitas, not a row of new trunks. Same commit-time
     // re-read as plant() (0.0.115 M5).
     const baseParentId = this.liveParentId(target.parent, tree.id);
-    for (const line of lines) {
-      while (stack.length && stack[stack.length - 1].depth >= line.depth) stack.pop();
-      const parentId = stack.length ? stack[stack.length - 1].node.id : baseParentId;
-      const node = await this.nodes.plant(tree.id, parentId, { title: line.title });
-      this.burstFirstId ??= node.id;
-      stack.push({ depth: line.depth, node });
-      count++;
+    try {
+      this.nodes.assertCanPlant(tree.id, lines.length);
+      for (const line of lines) {
+        while (stack.length && stack[stack.length - 1].depth >= line.depth) stack.pop();
+        const parentId = stack.length ? stack[stack.length - 1].node.id : baseParentId;
+        const node = await this.nodes.plant(tree.id, parentId, { title: line.title });
+        this.burstFirstId ??= node.id;
+        stack.push({ depth: line.depth, node });
+        count++;
+      }
+    } catch (error) {
+      if (this.capturePlanLimit(error)) return;
+      throw error;
     }
     const fresh = this.tree();
     if (fresh && !fresh.currentNodeId && this.burstFirstId) {
@@ -291,6 +335,21 @@ export class TreeViewPage {
     // (0.0.109, owner ask; since 0.0.110 plant() closes too). closePlanting()
     // runs AFTER the count update so the ≥6 burst invitation still fires.
     this.closePlanting();
+  }
+
+  private capturePlanLimit(error: unknown): boolean {
+    if (!(error instanceof ForestQuotaError)) return false;
+    const decision = error.decision;
+    if (decision.reason !== 'ACTIVE_TREE_LIMIT' && decision.reason !== 'VISIBLE_BRANCH_LIMIT') {
+      return false;
+    }
+    this.planLimit.set(decision);
+    return true;
+  }
+
+  protected redeemFromPlanLimit(): void {
+    this.planLimit.set(null);
+    void this.router.navigate(['/account'], { queryParams: { redeem: 'access-key' } });
   }
 
   /** The commit-time parent: the sheet's captured branch only counts if it

@@ -6,10 +6,16 @@
         <h1 [style.color]="'var(--accent-' + t.accent + ')'">{{ t.name }}</h1>
         <span class="tree-stats">
           @if (visit?.owner(); as owner) {
-            <span class="visit-chip">🌿 {{ i18n.fill(i18n.t().visita.treeChip, { name: owner.displayName }) }}</span>
+            <span class="visit-chip"
+              >🌿 {{ i18n.fill(i18n.t().visita.treeChip, { name: owner.displayName }) }}</span
+            >
             ·
           }
-          {{ i18n.plural(branchCount(), i18n.t().forest.branches) }}
+          @if (branchLimit(); as limit) {
+            {{ branchCount() }}/{{ limit }}
+          } @else {
+            {{ i18n.plural(branchCount(), i18n.t().forest.branches) }}
+          }
           @if (bloomCount()) {
             · {{ bloomCount() }} 🌸
           }
@@ -22,14 +28,17 @@
           [queryParams]="t.currentNodeId ? { node: t.currentNodeId } : {}"
           [attr.aria-label]="i18n.t().tree.focusLink"
           [title]="i18n.t().tree.focusLink"
-        >⏳</a>
+          >⏳</a
+        >
         <button
           type="button"
           class="btn btn-ghost tree-archive"
           (click)="askArchive()"
           [attr.aria-label]="i18n.t().tree.archiveAction"
           [title]="i18n.t().tree.archiveAction"
-        >🗃</button>
+        >
+          🗃
+        </button>
       }
       <button
         type="button"
@@ -38,7 +47,9 @@
         [attr.aria-label]="i18n.t().tree.outlineToggle"
         [title]="i18n.t().tree.outlineToggle"
         [attr.aria-expanded]="outlineOpen()"
-      >📋</button>
+      >
+        📋
+      </button>
       @if (canEdit()) {
         <button type="button" class="btn btn-primary plant" (click)="openPlanting(null)">
           + {{ i18n.t().tree.plant }}
@@ -79,23 +90,29 @@
       <!-- The "tablita": browse every branch without leaving the map. -->
       @defer (when outlineOpen()) {
         @if (outlineOpen()) {
-        <aside class="outline-rail card">
-          <app-tree-outline
-            [tree]="t"
-            [focusedId]="outlineFocusId()"
-            [editable]="canEdit()"
-            (locate)="locateNode($event)"
-            (open)="outlineOpenNode($event)"
-            (closed)="outlineOpen.set(false)"
-          />
-        </aside>
+          <aside class="outline-rail card">
+            <app-tree-outline
+              [tree]="t"
+              [focusedId]="outlineFocusId()"
+              [editable]="canEdit()"
+              (locate)="locateNode($event)"
+              (open)="outlineOpenNode($event)"
+              (closed)="outlineOpen.set(false)"
+            />
+          </aside>
         }
       }
     </div>
 
     @if (planting()) {
       <div class="sheet-backdrop" (click)="closePlanting()">
-        <form class="sheet card" appSheet (sheetClose)="closePlanting()" (click)="$event.stopPropagation()" (submit)="$event.preventDefault(); sowMode() ? sow() : plant()">
+        <form
+          class="sheet card"
+          appSheet
+          (sheetClose)="closePlanting()"
+          (click)="$event.stopPropagation()"
+          (submit)="$event.preventDefault(); sowMode() ? sow() : plant()"
+        >
           <h2>{{ plantSheetTitle() }}</h2>
 
           @if (!sowMode()) {
@@ -109,7 +126,7 @@
                 [placeholder]="i18n.t().node.titlePlaceholder"
                 maxlength="80"
                 autofocus
-              >
+              />
             </div>
           } @else {
             <div class="field">
@@ -131,40 +148,76 @@
           <!-- «El ritmo» (0.0.103): recurrence is answered where the thought
                is born — one extra tap, zero extra screens. -->
           @if (!sowMode()) {
-            <div class="repeat-chips" role="radiogroup" [attr.aria-label]="i18n.t().tree.repeatAria">
-              <button type="button" class="repeat-chip repeat-once" [class.selected]="!plantCadence()" [attr.aria-pressed]="!plantCadence()" (click)="plantCadence.set(null)">
+            <div
+              class="repeat-chips"
+              role="radiogroup"
+              [attr.aria-label]="i18n.t().tree.repeatAria"
+            >
+              <button
+                type="button"
+                class="repeat-chip repeat-once"
+                [class.selected]="!plantCadence()"
+                [attr.aria-pressed]="!plantCadence()"
+                (click)="plantCadence.set(null)"
+              >
                 {{ i18n.t().tree.repeatOnce }}
               </button>
-              <button type="button" class="repeat-chip repeat-ritual" [class.selected]="!!plantCadence()" [attr.aria-pressed]="!!plantCadence()" (click)="plantCadence.set(plantCadence() ?? 'daily')">
+              <button
+                type="button"
+                class="repeat-chip repeat-ritual"
+                [class.selected]="!!plantCadence()"
+                [attr.aria-pressed]="!!plantCadence()"
+                (click)="plantCadence.set(plantCadence() ?? 'daily')"
+              >
                 🌀 {{ i18n.t().tree.repeatRitual }}
               </button>
             </div>
             @if (plantCadence(); as c) {
-              <app-cadence-picker class="plant-cadence" [value]="c" (changed)="plantCadence.set($event)" />
+              <app-cadence-picker
+                class="plant-cadence"
+                [value]="c"
+                (changed)="plantCadence.set($event)"
+              />
             }
           }
 
           <!-- The planner's door: dump a whole list; growers never open it. -->
           <label class="sow-toggle">
-            <input type="checkbox" [checked]="sowMode()" (change)="sowMode.set(!sowMode())">
+            <input type="checkbox" [checked]="sowMode()" (change)="sowMode.set(!sowMode())" />
             {{ i18n.t().sow.toggle }}
           </label>
 
           @if (plantedCount()) {
-            <p class="planted-flash">🌱 {{ i18n.plural(plantedCount(), i18n.t().tree.plantedCount) }}</p>
+            <p class="planted-flash">
+              🌱 {{ i18n.plural(plantedCount(), i18n.t().tree.plantedCount) }}
+            </p>
           }
           <div class="row">
-<!-- Always «Cancelar»: committing closes the sheet itself (0.0.110),
+            <!-- Always «Cancelar»: committing closes the sheet itself (0.0.110),
      so «Listo» became unreachable — the ghost is the pre-commit exit only. -->
             <button type="button" class="btn btn-ghost" (click)="closePlanting()">
               {{ i18n.t().common.cancel }}
             </button>
-            <button type="submit" class="btn btn-primary" [disabled]="sowMode() ? !sowText().trim() : !newTitle().trim()">
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="sowMode() ? !sowText().trim() : !newTitle().trim()"
+            >
               {{ sowMode() ? i18n.t().sow.sowCta : i18n.t().tree.plant }}
             </button>
           </div>
         </form>
       </div>
+    }
+
+    @if (planLimit(); as limit) {
+      <app-plan-limit-sheet
+        [reason]="limit.reason"
+        [current]="limit.current"
+        [limit]="limit.limit"
+        (closed)="planLimit.set(null)"
+        (redeemRequested)="redeemFromPlanLimit()"
+      />
     }
 
     <!-- Sheets load their code the first time they're needed (@defer):

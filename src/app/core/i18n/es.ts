@@ -865,6 +865,17 @@ export const ES = {
     repairHint:
       'Reinstala la app y su caché desde cero. Tus árboles, notitas y ajustes NO se tocan.',
   },
+  access: {
+    planLimit: {
+      title: 'Llegaste al límite de tu plan Free',
+      activeTrees: 'Tu bosque puede tener hasta {limit} árboles activos en Free.',
+      visibleBranches: 'Tu árbol puede tener hasta {limit} ramas visibles en Free.',
+      usage: '{current}/{limit}',
+      plansCta: 'Ver planes',
+      redeemCta: 'Canjear una llave',
+      stayCta: 'Seguir con Free',
+    },
+  },
   account: {
     welcomeTitle: 'Una llave para tu bosque',
     welcomeBody:
