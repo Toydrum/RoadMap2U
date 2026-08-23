@@ -689,7 +689,8 @@ export class ForestPage {
   }
 
   protected countFor(treeId: string): number {
-    return (this.nodes.byTree().get(treeId) ?? []).length;
+    const heartId = this.trees.byId().get(treeId)?.heartId;
+    return (this.nodes.byTree().get(treeId) ?? []).filter((node) => node.id !== heartId).length;
   }
 
   protected bloomsFor(treeId: string): number {
