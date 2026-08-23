@@ -7,7 +7,7 @@ import { FocusSessionService } from '../../core/focus-session.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ES } from '../../core/i18n/es';
 import { PerchAnchorService } from '../../core/perch-anchor.service';
-import { type Tree, newSyncBase } from '../../core/db/schema';
+import { type Tree, type TreeNode, newSyncBase } from '../../core/db/schema';
 import { CheckinsRepo } from '../../core/repos/checkins.repo';
 import { ForestQuotaError } from '../../core/repos/forest-mutations.service';
 import { HarvestsRepo } from '../../core/repos/harvests.repo';
@@ -53,10 +53,11 @@ async function forestHarness(options: { createError?: unknown; plantManyError?: 
   const plantMany = vi.fn(async () => {
     if (options.plantManyError) throw options.plantManyError;
   });
+  const nodesByTree = signal(new Map<string, TreeNode[]>());
   const nodes = {
     visible: signal([]),
     byId: signal(new Map()),
-    byTree: signal(new Map()),
+    byTree: nodesByTree,
     plantMany,
   };
   const i18n = {
@@ -99,11 +100,27 @@ async function forestHarness(options: { createError?: unknown; plantManyError?: 
   await TestBed.compileComponents();
   const fixture = TestBed.createComponent(ForestPage);
   fixture.detectChanges();
-  return { fixture, create, plantMany, router };
+  return { fixture, create, newborn, nodesByTree, plantMany, router, treeById: byId };
 }
 
 describe('forest growth errors', () => {
   beforeEach(() => TestBed.resetTestingModule());
+
+  it('excludes the technical heart from the forest card branch count', async () => {
+    const { fixture, newborn, nodesByTree, treeById } = await forestHarness({});
+    const heart = { id: newborn.heartId } as TreeNode;
+    const branches = Array.from(
+      { length: 10 },
+      (_, index) => ({ id: `branch-${index}` }) as TreeNode,
+    );
+    treeById.set(new Map([[newborn.id, newborn]]));
+    nodesByTree.set(new Map([[newborn.id, [heart, ...branches]]]));
+    const page = fixture.componentInstance as unknown as {
+      countFor(treeId: string): number;
+    };
+
+    expect(page.countFor(newborn.id)).toBe(10);
+  });
 
   it('keeps the planting sheet and draft open while presenting the third-tree upgrade choice', async () => {
     const { fixture } = await forestHarness({
