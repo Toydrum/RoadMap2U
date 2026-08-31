@@ -1072,6 +1072,26 @@ export const ES = {
         'La nube está preparando tus límites. Tu cambio sigue en este dispositivo; inténtalo en un momento.',
       COMMERCIAL_CONFIGURATION_UNAVAILABLE:
         'No pudimos confirmar tu acceso ahora. Tu copia local sigue disponible; inténtalo después.',
+      ADULT_MINOR_FRIENDSHIP_FORBIDDEN: 'Ese vínculo de amistad no está disponible.',
+      ACCOUNT_TYPE_INCOMPATIBLE: 'Esa combinación de cuentas no puede usar este camino.',
+      RESPONSIBLE_SCOPE_REQUIRED:
+        'Ese menor no está dentro del alcance autorizado de este vínculo.',
+      CONSENT_INCOMPLETE: 'La amistad aún está reuniendo todos sus vistos buenos.',
+      MINOR_ALREADY_COVERED: 'Esa cuenta ya tiene una cobertura familiar activa.',
+      HOUSEHOLD_CAPACITY_EXCEEDED: 'Ese hogar ya ocupa los lugares disponibles.',
+      CURRENT_PRIMARY_APPROVAL_REQUIRED:
+        'El responsable principal actual todavía necesita dar su visto bueno.',
+      LEGAL_REGION_UNSUPPORTED:
+        'Por ahora, este camino para menores sólo está disponible en México.',
+      OFFER_NOT_ALLOWED: 'Esa oferta no corresponde a la composición actual del hogar.',
+      CHECKOUT_IN_PROGRESS:
+        'Ya hay una compra en curso para este hogar. Puedes retomarla con calma.',
+      SUBSCRIPTION_CONFLICT:
+        'Encontramos una suscripción que necesita conciliación. No hicimos cambios.',
+      PAYMENT_REQUIRED: 'Este cambio necesita confirmar el pago antes de abrir cobertura.',
+      REAUTHENTICATION_REQUIRED: 'Para cuidar esta cuenta, vuelve a entrar antes de continuar.',
+      STALE_REVISION:
+        'El hogar cambió mientras estabas aquí. Actualiza para partir de su estado más reciente.',
       offline: 'Sin conexión ahora mismo — inténtalo cuando vuelva.',
       server: 'La nube tuvo un tropiezo. Intenta de nuevo en un momento.',
       unknown: 'Algo no salió. Intenta de nuevo en un momento.',

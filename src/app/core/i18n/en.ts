@@ -1071,6 +1071,24 @@ export const EN: Dict = {
         'The cloud is preparing your limits. Your change remains on this device; try again in a moment.',
       COMMERCIAL_CONFIGURATION_UNAVAILABLE:
         'We could not confirm your access right now. Your local copy remains available; try again later.',
+      ADULT_MINOR_FRIENDSHIP_FORBIDDEN: 'That friendship link is not available.',
+      ACCOUNT_TYPE_INCOMPATIBLE: 'That account combination cannot use this path.',
+      RESPONSIBLE_SCOPE_REQUIRED: 'That minor is not within the authorized scope of this link.',
+      CONSENT_INCOMPLETE: 'The friendship is still gathering every required approval.',
+      MINOR_ALREADY_COVERED: 'That account already has active family coverage.',
+      HOUSEHOLD_CAPACITY_EXCEEDED: 'That household is already using its available places.',
+      CURRENT_PRIMARY_APPROVAL_REQUIRED:
+        'The current primary responsible person still needs to approve this.',
+      LEGAL_REGION_UNSUPPORTED: 'For now, this path for minors is available only in Mexico.',
+      OFFER_NOT_ALLOWED: 'That offer does not match the household’s current composition.',
+      CHECKOUT_IN_PROGRESS:
+        'A purchase is already underway for this household. You can return to it calmly.',
+      SUBSCRIPTION_CONFLICT:
+        'We found a subscription that needs reconciliation. We did not make changes.',
+      PAYMENT_REQUIRED: 'This change needs payment confirmation before coverage can open.',
+      REAUTHENTICATION_REQUIRED: 'To protect this account, sign in again before continuing.',
+      STALE_REVISION:
+        'The household changed while you were here. Refresh to start from its latest state.',
       offline: 'No connection right now — try again when it returns.',
       server: 'The cloud stumbled. Try again in a moment.',
       unknown: 'Something didn’t work. Try again in a moment.',

@@ -14,6 +14,7 @@ import {
   ApiError,
   ApiErrorCode,
   CONTRACT_VERSION,
+  FAMILY_OFFER_DEFINITIONS,
   LIMITS,
   PlanCatalog,
   PREPAYMENT_PLAN_CATALOG,
@@ -31,11 +32,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const expectedHttpUrl = (path: string): string => `${APP_CONFIG.aws.apiBaseUrl}/v1${path}`;
 
 const EXPECTED_CATALOG = {
-  version: '2026-08-prepayment-v1',
-  pricingVersion: 'launch-2026',
+  version: '2026-09-family-v1',
+  pricingVersion: 'family-launch-2026',
   currency: 'MXN',
   taxInclusive: true,
   paymentsEnabled: false,
+  offers: FAMILY_OFFER_DEFINITIONS,
   plans: {
     free: {
       limits: { maxActiveTrees: 2, maxVisibleBranchesPerTree: 10 },
@@ -54,7 +56,7 @@ const EXPECTED_CATALOG = {
 
 const EXPECTED_FREE_ACCESS: AccessSummary = {
   effectivePlanKey: 'free',
-  catalogVersion: '2026-08-prepayment-v1',
+  catalogVersion: '2026-09-family-v1',
   status: 'active',
   activeSources: [{ kind: 'default', sourceId: 'default', planKey: 'free', validUntil: null }],
   limits: { maxActiveTrees: 2, maxVisibleBranchesPerTree: 10 },

@@ -1,28 +1,53 @@
 import { ApiClient } from './api-client';
 import {
   AccessSummary,
+  AcceptAdditionalResponsibleInvitationRequest,
   AccountClosureReceipt,
+  AdditionalResponsibleInvitationView,
   ApiError,
   ApiErrorCode,
+  ApplySubscriptionChangeRequest,
+  ApproveMinorLinkRequest,
+  BillingActionView,
+  BillingRedirectView,
+  BillingSummary,
   CONTRACT_VERSION,
   CodeGrant,
+  CreateAdditionalResponsibleInvitationRequest,
+  CreateAdultFriendRequestRequest,
   CreateChildRequest,
   CreateChildResponse,
+  CreateCheckoutRequest,
+  CreateMinorFriendRequestRequest,
+  CreateMinorInviteCodeRequest,
+  CreateMinorLinkRequest,
+  CreateMinorRequest,
+  CreateMinorResponse,
+  CreatePortalRequest,
   FamilyInviteRequest,
   FamilyLinkView,
   FriendRequestView,
   FriendView,
   FriendsResponse,
   ForestSnapshot,
+  HouseholdView,
   LIMITS,
   MeResponse,
+  MinorFriendActionRequest,
+  MinorFriendRequestView,
+  MinorLinkRequestView,
   PREPAYMENT_PLAN_CATALOG,
   PlanCatalog,
+  PreviewSubscriptionChangeRequest,
   PublicProfile,
+  ReplaceAdditionalResponsibleScopeRequest,
+  RevokeAdditionalResponsibleRequest,
+  SubscriptionChangePreviewView,
   SyncChangesResponse,
   SyncPushPayload,
   SyncRecord,
   SyncPushResponse,
+  TransferPrimaryResponsibilityRequest,
   UserProfile,
   createFreeAccessSummary,
 } from './contracts';
@@ -530,6 +555,59 @@ export class MockApi implements ApiClient {
     );
   }
 
+  // ── family v2 ─────────────────────────────────────────────────────────────
+  // The additive surface is intentionally fail-closed until its versioned
+  // stores and policy engine land. The legacy executable model remains intact.
+  async getHousehold(): Promise<HouseholdView> {
+    return this.unavailable('api.getHousehold');
+  }
+
+  async createMinor(_req: CreateMinorRequest): Promise<CreateMinorResponse> {
+    return this.unavailable('api.createMinor');
+  }
+
+  async createMinorLinkRequest(_req: CreateMinorLinkRequest): Promise<MinorLinkRequestView> {
+    return this.unavailable('api.createMinorLinkRequest');
+  }
+
+  async approveMinorLinkRequest(
+    _requestId: string,
+    _req: ApproveMinorLinkRequest,
+  ): Promise<HouseholdView> {
+    return this.unavailable('api.approveMinorLinkRequest');
+  }
+
+  async createAdditionalResponsibleInvitation(
+    _req: CreateAdditionalResponsibleInvitationRequest,
+  ): Promise<AdditionalResponsibleInvitationView> {
+    return this.unavailable('api.createAdditionalResponsibleInvitation');
+  }
+
+  async acceptAdditionalResponsibleInvitation(
+    _invitationId: string,
+    _req: AcceptAdditionalResponsibleInvitationRequest,
+  ): Promise<HouseholdView> {
+    return this.unavailable('api.acceptAdditionalResponsibleInvitation');
+  }
+
+  async replaceAdditionalResponsibleScope(
+    _req: ReplaceAdditionalResponsibleScopeRequest,
+  ): Promise<HouseholdView> {
+    return this.unavailable('api.replaceAdditionalResponsibleScope');
+  }
+
+  async revokeAdditionalResponsible(
+    _req: RevokeAdditionalResponsibleRequest,
+  ): Promise<HouseholdView> {
+    return this.unavailable('api.revokeAdditionalResponsible');
+  }
+
+  async transferPrimaryResponsibility(
+    _req: TransferPrimaryResponsibilityRequest,
+  ): Promise<HouseholdView> {
+    return this.unavailable('api.transferPrimaryResponsibility');
+  }
+
   // ── friends ───────────────────────────────────────────────────────────────
 
   async getFriends(): Promise<FriendsResponse> {
@@ -715,6 +793,79 @@ export class MockApi implements ApiClient {
       },
       () => this.friendshipParticipantIds(friendshipId),
     );
+  }
+
+  // ── social v2 ─────────────────────────────────────────────────────────────
+  async createAdultFriendRequest(
+    _req: CreateAdultFriendRequestRequest,
+  ): Promise<FriendRequestView> {
+    return this.unavailable('api.createAdultFriendRequest');
+  }
+
+  async acceptAdultFriendRequest(_requestId: string): Promise<FriendView> {
+    return this.unavailable('api.acceptAdultFriendRequest');
+  }
+
+  async removeSocialFriendship(_friendshipId: string): Promise<void> {
+    return this.unavailable('api.removeSocialFriendship');
+  }
+
+  async createMinorInviteCode(_req: CreateMinorInviteCodeRequest): Promise<CodeGrant> {
+    return this.unavailable('api.createMinorInviteCode');
+  }
+
+  async createMinorFriendRequest(
+    _req: CreateMinorFriendRequestRequest,
+  ): Promise<MinorFriendRequestView> {
+    return this.unavailable('api.createMinorFriendRequest');
+  }
+
+  async acceptMinorFriendRequest(
+    _requestId: string,
+    _req: MinorFriendActionRequest,
+  ): Promise<MinorFriendRequestView> {
+    return this.unavailable('api.acceptMinorFriendRequest');
+  }
+
+  async approveMinorFriendRequest(
+    _requestId: string,
+    _req: MinorFriendActionRequest,
+  ): Promise<MinorFriendRequestView> {
+    return this.unavailable('api.approveMinorFriendRequest');
+  }
+
+  async rejectMinorFriendRequest(
+    _requestId: string,
+    _req: MinorFriendActionRequest,
+  ): Promise<void> {
+    return this.unavailable('api.rejectMinorFriendRequest');
+  }
+
+  async removeMinorFriendship(_friendshipId: string): Promise<void> {
+    return this.unavailable('api.removeMinorFriendship');
+  }
+
+  // ── billing v1 ────────────────────────────────────────────────────────────
+  async getBillingSummary(): Promise<BillingSummary> {
+    return this.unavailable('api.getBillingSummary');
+  }
+
+  async createCheckout(_req: CreateCheckoutRequest): Promise<BillingRedirectView> {
+    return this.unavailable('api.createCheckout');
+  }
+
+  async previewSubscriptionChange(
+    _req: PreviewSubscriptionChangeRequest,
+  ): Promise<SubscriptionChangePreviewView> {
+    return this.unavailable('api.previewSubscriptionChange');
+  }
+
+  async applySubscriptionChange(_req: ApplySubscriptionChangeRequest): Promise<BillingActionView> {
+    return this.unavailable('api.applySubscriptionChange');
+  }
+
+  async createPortalSession(_req: CreatePortalRequest): Promise<BillingRedirectView> {
+    return this.unavailable('api.createPortalSession');
   }
 
   // ── forests & sync ────────────────────────────────────────────────────────
@@ -911,6 +1062,12 @@ export class MockApi implements ApiClient {
   }
 
   // ── internals ─────────────────────────────────────────────────────────────
+
+  private async unavailable<T>(operation: string): Promise<T> {
+    await simLatency(operation);
+    await this.caller();
+    throw new ApiError('COMMERCIAL_CONFIGURATION_UNAVAILABLE');
+  }
 
   /** Bearer-token gate — same 401 semantics HttpApi will meet in production. */
   private async caller(): Promise<MockUserRow> {
