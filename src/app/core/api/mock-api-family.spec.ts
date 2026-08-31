@@ -13,6 +13,15 @@ const KEY_PATH: Record<MockStore, string> = {
   codes: 'code',
   records: 'key',
   kv: 'key',
+  households: 'householdId',
+  supervisionLinks: 'linkId',
+  seatAssignments: 'assignmentId',
+  coverages: 'coverageId',
+  minorFriendRequests: 'requestId',
+  consents: 'consentId',
+  subscriptionProjections: 'projectionId',
+  checkoutReservations: 'reservationId',
+  accountNotices: 'noticeId',
 };
 
 class MemoryRequest<T> {
@@ -37,12 +46,17 @@ class MemoryTransaction {
   onerror: ((event: Event) => void) | null = null;
   onabort: ((event: Event) => void) | null = null;
   private completion: ((event: Event) => void) | null = null;
+  private readonly pendingWrites: Promise<void>[] = [];
 
   constructor(private readonly memory: MemoryIndexedDb) {}
 
   set oncomplete(handler: ((event: Event) => void) | null) {
     this.completion = handler;
-    if (handler) queueMicrotask(() => this.completion?.(new Event('complete')));
+    if (handler) {
+      void Promise.all(this.pendingWrites).then(() =>
+        queueMicrotask(() => this.completion?.(new Event('complete'))),
+      );
+    }
   }
 
   get oncomplete(): ((event: Event) => void) | null {
@@ -50,7 +64,11 @@ class MemoryTransaction {
   }
 
   objectStore(name: string): IDBObjectStore {
-    return new MemoryObjectStore(this.memory, name) as unknown as IDBObjectStore;
+    return new MemoryObjectStore(this.memory, name, this) as unknown as IDBObjectStore;
+  }
+
+  trackWrite(write: Promise<void>): void {
+    this.pendingWrites.push(write);
   }
 }
 
@@ -58,6 +76,7 @@ class MemoryObjectStore {
   constructor(
     private readonly memory: MemoryIndexedDb,
     private readonly name: string,
+    private readonly transaction?: MemoryTransaction,
   ) {}
 
   get(key: IDBValidKey): IDBRequest {
@@ -76,9 +95,18 @@ class MemoryObjectStore {
     const path = KEY_PATH[this.name as MockStore];
     const key = (value as Record<string, unknown>)[path];
     if (typeof key !== 'string') throw new Error(`missing key for ${this.name}`);
-    this.memory.store(this.name).set(key, value);
     const request = new MemoryRequest<IDBValidKey>();
-    request.resolve(key);
+    const commit = () => {
+      this.memory.store(this.name).set(key, value);
+      request.resolve(key);
+    };
+    const held = this.memory.takeWriteHold(this.name);
+    if (held) {
+      const write = held.then(commit);
+      this.transaction?.trackWrite(write);
+    } else {
+      commit();
+    }
     return request as unknown as IDBRequest;
   }
 
@@ -112,9 +140,16 @@ class MemoryDatabase {
 class MemoryIndexedDb {
   private readonly stores = new Map<string, Map<string, unknown>>();
   private opened = false;
+  private readonly writeHolds: Array<{
+    store: string;
+    started: () => void;
+    released: Promise<void>;
+    release: () => void;
+  }> = [];
   private readonly database = new MemoryDatabase(this);
 
   reset(): void {
+    for (const hold of this.writeHolds.splice(0)) hold.release();
     this.stores.clear();
     for (const store of Object.keys(KEY_PATH)) this.store(store);
     this.seed('kv', 'seeded', { key: 'seeded', value: 1 });
@@ -139,6 +174,27 @@ class MemoryIndexedDb {
 
   rows(store: MockStore): unknown[] {
     return [...this.store(store).values()];
+  }
+
+  holdNextPut(store: MockStore): { started: Promise<void>; release: () => void } {
+    let markStarted!: () => void;
+    let release!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.writeHolds.push({ store, started: markStarted, released, release });
+    return { started, release };
+  }
+
+  takeWriteHold(store: string): Promise<void> | null {
+    const index = this.writeHolds.findIndex((hold) => hold.store === store);
+    if (index < 0) return null;
+    const [hold] = this.writeHolds.splice(index, 1);
+    hold.started();
+    return hold.released;
   }
 
   open(): IDBOpenDBRequest {
@@ -192,6 +248,61 @@ function apiFor(caller: MockUserRow): MockApi {
   return new MockApi(auth);
 }
 
+function seedHousehold(primary: MockUserRow, minors: MockUserRow[] = []): string {
+  const householdId = `household:${primary.userId}`;
+  memoryIndexedDb.seed('households', householdId, {
+    householdId,
+    primaryResponsibleId: primary.userId,
+    country: 'MX',
+    state: 'active',
+    revision: 1,
+    createdAt: NOW,
+    updatedAt: NOW,
+  });
+  minors.forEach((minor, index) => {
+    const seat = index + 1;
+    memoryIndexedDb.seed('seatAssignments', `${householdId}:minor:${seat}`, {
+      assignmentId: `${householdId}:minor:${seat}`,
+      householdId,
+      seatType: 'minor',
+      position: seat,
+      accountId: minor.userId,
+      majorityAt: '2035-01-01',
+      assignedAt: NOW,
+    });
+    memoryIndexedDb.seed('supervisionLinks', `${householdId}:${primary.userId}:${minor.userId}`, {
+      linkId: `${householdId}:${primary.userId}:${minor.userId}`,
+      householdId,
+      adultId: primary.userId,
+      minorId: minor.userId,
+      role: 'primary_responsible',
+      state: 'active',
+      createdAt: NOW,
+      revokedAt: null,
+    });
+    memoryIndexedDb.seed('coverages', minor.userId, {
+      coverageId: minor.userId,
+      householdId,
+      accountId: minor.userId,
+      seatType: 'minor',
+      state: 'active',
+      source: 'test_seed',
+      validUntil: null,
+      createdAt: NOW,
+    });
+  });
+  return householdId;
+}
+
+function familyCommand(householdId: string, revision: number, suffix: string) {
+  return {
+    householdId,
+    expectedHouseholdRevision: revision,
+    commandId: `command-${suffix}`,
+    policyVersion: 'family-policy-v1',
+  };
+}
+
 beforeEach(() => memoryIndexedDb.reset());
 
 describe('MockApi family authorization', () => {
@@ -233,5 +344,327 @@ describe('MockApi family authorization', () => {
       code: 'CODE_INVALID',
     });
     expect(memoryIndexedDb.rows('guardianLinks')).toHaveLength(0);
+  });
+
+  it('creates a deterministic household, enforces two minor seats, and marks test coverage', async () => {
+    const rocio = user('rocio', 'adult');
+    memoryIndexedDb.seed('users', rocio.userId, rocio);
+    const api = apiFor(rocio);
+
+    const initial = await api.getHousehold();
+    expect(await api.getHousehold()).toEqual(initial);
+    expect(initial).toMatchObject({
+      country: 'MX',
+      state: 'active',
+      myRole: 'primary_responsible',
+      primaryResponsible: { userId: rocio.userId },
+      minors: [],
+      availableMinorSeats: 2,
+      additionalResponsibleSeatAvailable: true,
+    });
+
+    await expect(
+      api.createMinor({
+        ...familyCommand(initial.householdId, initial.revision, 'wrong-region'),
+        username: 'nico',
+        country: 'US' as 'MX',
+        majorityAt: '2035-01-01',
+        declarationVersion: 'responsible-declaration-v1',
+        consentVersion: 'minor-privacy-v1',
+      }),
+    ).rejects.toMatchObject({ code: 'LEGAL_REGION_UNSUPPORTED' });
+
+    const first = await api.createMinor({
+      ...familyCommand(initial.householdId, initial.revision, 'nico'),
+      username: 'nico',
+      country: 'MX',
+      majorityAt: '2035-01-01',
+      declarationVersion: 'responsible-declaration-v1',
+      consentVersion: 'minor-privacy-v1',
+    });
+    expect(first.minor).toMatchObject({ accountType: 'minor', username: 'nico' });
+    expect(first.tempPassword).toEqual(expect.any(String));
+    expect(first.household).toMatchObject({
+      availableMinorSeats: 1,
+      revision: initial.revision + 1,
+    });
+    expect(first.household.minors[0]).toMatchObject({
+      user: { userId: first.minor.userId },
+      seat: 1,
+      majorityAt: '2035-01-01',
+      coverageState: 'active',
+    });
+    expect(memoryIndexedDb.rows('coverages')).toContainEqual(
+      expect.objectContaining({
+        accountId: first.minor.userId,
+        householdId: initial.householdId,
+        source: 'test_seed',
+        state: 'active',
+      }),
+    );
+
+    await expect(
+      api.createMinor({
+        ...familyCommand(initial.householdId, initial.revision, 'stale'),
+        username: 'stale',
+        country: 'MX',
+        majorityAt: '2035-01-01',
+        declarationVersion: 'responsible-declaration-v1',
+        consentVersion: 'minor-privacy-v1',
+      }),
+    ).rejects.toMatchObject({ code: 'STALE_REVISION' });
+
+    const second = await api.createMinor({
+      ...familyCommand(first.household.householdId, first.household.revision, 'val'),
+      username: 'val',
+      country: 'MX',
+      majorityAt: '2036-01-01',
+      declarationVersion: 'responsible-declaration-v1',
+      consentVersion: 'minor-privacy-v1',
+    });
+    expect(second.household).toMatchObject({ availableMinorSeats: 0 });
+
+    await expect(
+      api.createMinor({
+        ...familyCommand(second.household.householdId, second.household.revision, 'third'),
+        username: 'third',
+        country: 'MX',
+        majorityAt: '2037-01-01',
+        declarationVersion: 'responsible-declaration-v1',
+        consentVersion: 'minor-privacy-v1',
+      }),
+    ).rejects.toMatchObject({ code: 'HOUSEHOLD_CAPACITY_EXCEEDED' });
+  });
+
+  it('lets only the current primary approve moving an existing minor account', async () => {
+    const rocio = user('rocio', 'adult');
+    const ana = user('ana', 'adult');
+    const nico = user('nico', 'minor');
+    for (const account of [rocio, ana, nico]) {
+      memoryIndexedDb.seed('users', account.userId, account);
+    }
+    const sourceHouseholdId = seedHousehold(rocio, [nico]);
+    const targetHouseholdId = seedHousehold(ana);
+    memoryIndexedDb.seed('codes', 'LINKNICO', {
+      code: 'LINKNICO',
+      kind: 'linkExisting',
+      userId: rocio.userId,
+      minorId: nico.userId,
+      expiresAt: Date.now() + 60_000,
+    });
+
+    const request = await apiFor(ana).createMinorLinkRequest({
+      ...familyCommand(targetHouseholdId, 1, 'link-nico'),
+      code: 'LINKNICO',
+    });
+    expect(request).toMatchObject({
+      householdId: targetHouseholdId,
+      minor: { userId: nico.userId },
+      state: 'pending',
+    });
+    expect(memoryIndexedDb.rows('seatAssignments')).toContainEqual(
+      expect.objectContaining({ householdId: sourceHouseholdId, accountId: nico.userId }),
+    );
+
+    await expect(
+      apiFor(ana).approveMinorLinkRequest(
+        request.requestId,
+        familyCommand(targetHouseholdId, 1, 'self-approve'),
+      ),
+    ).rejects.toMatchObject({ code: 'CURRENT_PRIMARY_APPROVAL_REQUIRED' });
+
+    const moved = await apiFor(rocio).approveMinorLinkRequest(
+      request.requestId,
+      familyCommand(targetHouseholdId, 1, 'current-primary-approve'),
+    );
+    expect(moved).toMatchObject({
+      householdId: targetHouseholdId,
+      primaryResponsible: { userId: ana.userId },
+      minors: [{ user: { userId: nico.userId }, coverageState: 'active' }],
+    });
+    expect(memoryIndexedDb.rows('seatAssignments')).not.toContainEqual(
+      expect.objectContaining({ householdId: sourceHouseholdId, accountId: nico.userId }),
+    );
+  });
+
+  it('limits an additional responsible account to the minors selected by the primary', async () => {
+    const rocio = user('rocio', 'adult');
+    const sam = user('sam', 'adult');
+    const nico = user('nico', 'minor');
+    const val = user('val', 'minor');
+    for (const account of [rocio, sam, nico, val]) {
+      memoryIndexedDb.seed('users', account.userId, account);
+    }
+    const householdId = seedHousehold(rocio, [nico, val]);
+    const primaryApi = apiFor(rocio);
+
+    const invitation = await primaryApi.createAdditionalResponsibleInvitation({
+      ...familyCommand(householdId, 1, 'invite-sam'),
+      minorIds: [nico.userId],
+    });
+    const accepted = await apiFor(sam).acceptAdditionalResponsibleInvitation(
+      invitation.invitationId,
+      familyCommand(householdId, 1, 'accept-sam'),
+    );
+    expect(accepted).toMatchObject({
+      myRole: 'additional_responsible',
+      additionalResponsible: { user: { userId: sam.userId }, minorIds: [nico.userId] },
+    });
+
+    await expect(
+      apiFor(sam).replaceAdditionalResponsibleScope({
+        ...familyCommand(householdId, accepted.revision, 'sam-widens-scope'),
+        minorIds: [nico.userId, val.userId],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    const widened = await primaryApi.replaceAdditionalResponsibleScope({
+      ...familyCommand(householdId, accepted.revision, 'primary-widens-scope'),
+      minorIds: [nico.userId, val.userId],
+    });
+    expect(widened.additionalResponsible?.minorIds).toEqual([nico.userId, val.userId]);
+
+    await expect(apiFor(sam).resetChildPassword(nico.userId)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+
+    const revoked = await primaryApi.revokeAdditionalResponsible(
+      familyCommand(householdId, widened.revision, 'revoke-sam'),
+    );
+    expect(revoked).toMatchObject({
+      additionalResponsible: null,
+      additionalResponsibleSeatAvailable: true,
+    });
+  });
+
+  it('accepts an additional-responsible seat exactly once under concurrent claims', async () => {
+    const rocio = user('rocio', 'adult');
+    const sam = user('sam', 'adult');
+    const lee = user('lee', 'adult');
+    const nico = user('nico', 'minor');
+    for (const account of [rocio, sam, lee, nico]) {
+      memoryIndexedDb.seed('users', account.userId, account);
+    }
+    const householdId = seedHousehold(rocio, [nico]);
+    const invitation = await apiFor(rocio).createAdditionalResponsibleInvitation({
+      ...familyCommand(householdId, 1, 'single-seat-race'),
+      minorIds: [nico.userId],
+    });
+    const heldWrite = memoryIndexedDb.holdNextPut('seatAssignments');
+    const first = apiFor(sam).acceptAdditionalResponsibleInvitation(
+      invitation.invitationId,
+      familyCommand(householdId, 1, 'sam-claims'),
+    );
+    await heldWrite.started;
+    const second = apiFor(lee).acceptAdditionalResponsibleInvitation(
+      invitation.invitationId,
+      familyCommand(householdId, 1, 'lee-claims'),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    heldWrite.release();
+    const outcomes = await Promise.allSettled([first, second]);
+
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toHaveLength(1);
+    const additionalSeats = memoryIndexedDb
+      .rows('seatAssignments')
+      .filter(
+        (row) =>
+          (row as { householdId: string }).householdId === householdId &&
+          (row as { seatType: string }).seatType === 'additional_responsible',
+      );
+    expect(additionalSeats).toHaveLength(1);
+    const winner = (additionalSeats[0] as { accountId: string }).accountId;
+    expect(
+      memoryIndexedDb
+        .rows('supervisionLinks')
+        .filter(
+          (row) =>
+            (row as { householdId: string }).householdId === householdId &&
+            (row as { role: string }).role === 'additional_responsible',
+        ),
+    ).toEqual([expect.objectContaining({ adultId: winner, minorId: nico.userId })]);
+  });
+
+  it('does not recreate additional authority after that account closes concurrently', async () => {
+    const rocio = user('rocio', 'adult');
+    const sam = user('sam', 'adult');
+    const nico = user('nico', 'minor');
+    const val = user('val', 'minor');
+    for (const account of [rocio, sam, nico, val]) {
+      memoryIndexedDb.seed('users', account.userId, account);
+    }
+    const householdId = seedHousehold(rocio, [nico, val]);
+    const invitation = await apiFor(rocio).createAdditionalResponsibleInvitation({
+      ...familyCommand(householdId, 1, 'invite-sam-for-close-race'),
+      minorIds: [nico.userId],
+    });
+    const accepted = await apiFor(sam).acceptAdditionalResponsibleInvitation(
+      invitation.invitationId,
+      familyCommand(householdId, 1, 'sam-accepts-before-close'),
+    );
+    const heldWrite = memoryIndexedDb.holdNextPut('supervisionLinks');
+    const replace = apiFor(rocio).replaceAdditionalResponsibleScope({
+      ...familyCommand(householdId, accepted.revision, 'widen-while-sam-closes'),
+      minorIds: [nico.userId, val.userId],
+    });
+    await heldWrite.started;
+    const closure = apiFor(sam).deleteMe();
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    heldWrite.release();
+
+    await expect(Promise.all([replace, closure])).resolves.toHaveLength(2);
+    expect(memoryIndexedDb.rows('seatAssignments')).not.toContainEqual(
+      expect.objectContaining({ accountId: sam.userId }),
+    );
+    expect(memoryIndexedDb.rows('supervisionLinks')).not.toContainEqual(
+      expect.objectContaining({ adultId: sam.userId, state: 'active' }),
+    );
+    expect(memoryIndexedDb.rows('coverages')).not.toContainEqual(
+      expect.objectContaining({ accountId: sam.userId }),
+    );
+  });
+
+  it('serializes primary transfer before the incoming responsible can close', async () => {
+    const rocio = user('rocio', 'adult');
+    const sam = user('sam', 'adult');
+    const nico = user('nico', 'minor');
+    for (const account of [rocio, sam, nico]) {
+      memoryIndexedDb.seed('users', account.userId, account);
+    }
+    const householdId = seedHousehold(rocio, [nico]);
+    const invitation = await apiFor(rocio).createAdditionalResponsibleInvitation({
+      ...familyCommand(householdId, 1, 'invite-sam-for-transfer'),
+      minorIds: [nico.userId],
+    });
+    const accepted = await apiFor(sam).acceptAdditionalResponsibleInvitation(
+      invitation.invitationId,
+      familyCommand(householdId, 1, 'sam-accepts-before-transfer'),
+    );
+    const heldWrite = memoryIndexedDb.holdNextPut('households');
+    const transfer = apiFor(rocio).transferPrimaryResponsibility({
+      ...familyCommand(householdId, accepted.revision, 'transfer-to-sam'),
+      newPrimaryAccountId: sam.userId,
+    });
+    await heldWrite.started;
+    const closure = apiFor(sam).deleteMe();
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    heldWrite.release();
+    const outcomes = await Promise.allSettled([transfer, closure]);
+
+    expect(outcomes[0]).toMatchObject({ status: 'fulfilled' });
+    expect(outcomes[1]).toMatchObject({
+      status: 'rejected',
+      reason: expect.objectContaining({ code: 'CONFLICT' }),
+    });
+    expect(memoryIndexedDb.rows('households')).toContainEqual(
+      expect.objectContaining({
+        householdId,
+        primaryResponsibleId: sam.userId,
+      }),
+    );
+    expect(memoryIndexedDb.rows('users')).toContainEqual(
+      expect.objectContaining({ userId: sam.userId }),
+    );
   });
 });
