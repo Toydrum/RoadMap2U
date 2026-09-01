@@ -296,6 +296,9 @@ describe('family and billing contract', () => {
     expect(path('familyMinorLinkRequestApprove', 'link-1')).toBe(
       '/family/minor-link-requests/link-1/approve',
     );
+    expect(path('familyMinorLinkRequestAccept', 'link-1')).toBe(
+      '/family/minor-link-requests/link-1/accept',
+    );
     expect(path('familyAdditionalResponsibleInvitationAccept', 'invite-1')).toBe(
       '/family/additional-responsible-invitations/invite-1/accept',
     );
@@ -330,8 +333,14 @@ describe('family and billing contract', () => {
     await api['createMinor']({ ...command, username: 'minor_a' });
     await api['createMinorLinkRequest']({ ...command, code: 'opaque-code' });
     await api['approveMinorLinkRequest']('link-1', command);
+    await api['acceptMinorLinkRequest']('link-1', {
+      ...command,
+      responsibilityVersion: 'minor-link-responsibility-v1',
+      privacyVersion: 'minor-link-privacy-v1',
+    });
     await api['createAdditionalResponsibleInvitation']({
       ...command,
+      intendedAdultId: 'adult-b',
       minorIds: ['minor-a'],
     });
     await api['acceptAdditionalResponsibleInvitation']('invite-1', command);
@@ -357,8 +366,17 @@ describe('family and billing contract', () => {
       },
       {
         method: 'POST',
+        path: '/family/minor-link-requests/link-1/accept',
+        body: {
+          ...command,
+          responsibilityVersion: 'minor-link-responsibility-v1',
+          privacyVersion: 'minor-link-privacy-v1',
+        },
+      },
+      {
+        method: 'POST',
         path: '/family/additional-responsible-invitations',
-        body: { ...command, minorIds: ['minor-a'] },
+        body: { ...command, intendedAdultId: 'adult-b', minorIds: ['minor-a'] },
       },
       {
         method: 'POST',

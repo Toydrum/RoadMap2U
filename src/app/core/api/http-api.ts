@@ -3,6 +3,7 @@ import {
   API_PATHS,
   AccessSummary,
   AcceptAdditionalResponsibleInvitationRequest,
+  AcceptMinorLinkRequest,
   AccountClosureReceipt,
   AdditionalResponsibleInvitationView,
   ApiError,
@@ -146,8 +147,19 @@ export class HttpApi implements ApiClient {
   createMinorLinkRequest(req: CreateMinorLinkRequest): Promise<MinorLinkRequestView> {
     return this.request('POST', API_PATHS.familyMinorLinkRequests, req, { idempotent: true });
   }
-  approveMinorLinkRequest(requestId: string, req: ApproveMinorLinkRequest): Promise<HouseholdView> {
+  approveMinorLinkRequest(
+    requestId: string,
+    req: ApproveMinorLinkRequest,
+  ): Promise<MinorLinkRequestView> {
     return this.request('POST', API_PATHS.familyMinorLinkRequestApprove(requestId), req, {
+      idempotent: true,
+    });
+  }
+  acceptMinorLinkRequest(
+    requestId: string,
+    req: AcceptMinorLinkRequest,
+  ): Promise<HouseholdView> {
+    return this.request('POST', API_PATHS.familyMinorLinkRequestAccept(requestId), req, {
       idempotent: true,
     });
   }

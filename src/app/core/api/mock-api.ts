@@ -2,6 +2,7 @@ import { ApiClient } from './api-client';
 import {
   AccessSummary,
   AcceptAdditionalResponsibleInvitationRequest,
+  AcceptMinorLinkRequest,
   AccountType,
   AccountClosureReceipt,
   AdditionalResponsibleInvitationView,
@@ -15,6 +16,8 @@ import {
   BillingSummary,
   CONTRACT_VERSION,
   CONSENT_KINDS,
+  CURRENT_MINOR_LINK_PRIVACY_VERSION,
+  CURRENT_MINOR_LINK_RESPONSIBILITY_VERSION,
   CodeGrant,
   ConsentKind,
   CreateAdditionalResponsibleInvitationRequest,
@@ -888,8 +891,12 @@ export class MockApi implements ApiClient {
         minorId: minor.userId,
         minorIds: [minor.userId],
         sourceHouseholdId: sourceHousehold.householdId,
+        sourceHouseholdRevision: sourceHousehold.revision,
         sourcePrimaryId: sourceHousehold.primaryResponsibleId,
+        intendedAdultId: null,
         acceptedById: null,
+        sourceApprovalCommandId: null,
+        sourceApprovedAt: null,
         state: 'pending',
         createdAt: now,
         expiresAt: Math.min(grant.expiresAt, now + INVITE_TTL_MS),
@@ -904,7 +911,7 @@ export class MockApi implements ApiClient {
   async approveMinorLinkRequest(
     requestId: string,
     req: ApproveMinorLinkRequest,
-  ): Promise<HouseholdView> {
+  ): Promise<MinorLinkRequestView> {
     await simLatency('api.approveMinorLinkRequest');
     return this.withAccountMutation(
       async (caller) => {
@@ -915,6 +922,7 @@ export class MockApi implements ApiClient {
           notice.state !== 'pending' ||
           !notice.minorId ||
           !notice.sourceHouseholdId ||
+          notice.sourceHouseholdRevision === null ||
           !notice.sourcePrimaryId ||
           notice.expiresAt <= Date.now()
         ) {
@@ -928,12 +936,74 @@ export class MockApi implements ApiClient {
         if (!target || !source) throw new ApiError('NOT_FOUND');
         if (
           source.primaryResponsibleId !== caller.userId ||
-          source.primaryResponsibleId !== notice.sourcePrimaryId
+          source.primaryResponsibleId !== notice.sourcePrimaryId ||
+          source.revision !== notice.sourceHouseholdRevision ||
+          target.primaryResponsibleId !== notice.createdById
         ) {
           throw new ApiError('CURRENT_PRIMARY_APPROVAL_REQUIRED');
         }
         this.assertFamilyCommand(req);
         if (req.householdId !== target.householdId) throw new ApiError('NOT_FOUND');
+        this.assertHouseholdRevision(target, req.expectedHouseholdRevision);
+        const minor = await mockGet<MockUserRow>('users', notice.minorId);
+        if (!minor) throw new ApiError('NOT_FOUND');
+        const now = Date.now();
+        const approved = {
+          ...notice,
+          state: 'approved',
+          sourceApprovalCommandId: req.commandId,
+          sourceApprovedAt: now,
+          revision: notice.revision + 1,
+        } satisfies MockAccountNoticeRow;
+        await mockPut('accountNotices', approved);
+        return this.minorLinkRequestView(approved, minor);
+      },
+      () => this.minorLinkNoticeParticipantIds(requestId),
+      async () => [`resource:account-notice:${requestId}`, `resource:household:${req.householdId}`],
+    );
+  }
+
+  async acceptMinorLinkRequest(
+    requestId: string,
+    req: AcceptMinorLinkRequest,
+  ): Promise<HouseholdView> {
+    await simLatency('api.acceptMinorLinkRequest');
+    return this.withAccountMutation(
+      async (caller) => {
+        const notice = await mockGet<MockAccountNoticeRow>('accountNotices', requestId);
+        if (
+          !notice ||
+          notice.kind !== 'minor_link_request' ||
+          notice.state !== 'approved' ||
+          !notice.minorId ||
+          !notice.sourceHouseholdId ||
+          notice.sourceHouseholdRevision === null ||
+          !notice.sourcePrimaryId ||
+          !notice.sourceApprovalCommandId ||
+          notice.sourceApprovedAt === null ||
+          notice.expiresAt <= Date.now()
+        ) {
+          throw new ApiError('NOT_FOUND');
+        }
+        this.assertFamilyCommand(req);
+        if (
+          req.responsibilityVersion !== CURRENT_MINOR_LINK_RESPONSIBILITY_VERSION ||
+          req.privacyVersion !== CURRENT_MINOR_LINK_PRIVACY_VERSION
+        ) {
+          throw new ApiError('VALIDATION');
+        }
+        const target = await mockGet<MockHouseholdRow>('households', notice.householdId);
+        const source = await mockGet<MockHouseholdRow>('households', notice.sourceHouseholdId);
+        if (!target || !source) throw new ApiError('NOT_FOUND');
+        if (
+          req.householdId !== target.householdId ||
+          caller.userId !== notice.createdById ||
+          target.primaryResponsibleId !== caller.userId ||
+          source.primaryResponsibleId !== notice.sourcePrimaryId ||
+          source.revision !== notice.sourceHouseholdRevision
+        ) {
+          throw new ApiError('CURRENT_PRIMARY_APPROVAL_REQUIRED');
+        }
         this.assertHouseholdRevision(target, req.expectedHouseholdRevision);
         if ((await this.minorSeats(target.householdId)).length >= 2) {
           throw new ApiError('HOUSEHOLD_CAPACITY_EXCEEDED');
@@ -983,7 +1053,7 @@ export class MockApi implements ApiClient {
         const updatedTarget = await this.bumpHousehold(target);
         await mockPut('accountNotices', {
           ...notice,
-          state: 'approved',
+          state: 'accepted',
           acceptedById: caller.userId,
           revision: notice.revision + 1,
         } satisfies MockAccountNoticeRow);
@@ -1001,6 +1071,11 @@ export class MockApi implements ApiClient {
     await simLatency('api.createAdditionalResponsibleInvitation');
     return this.withAccountMutation(async (caller) => {
       const household = await this.requirePrimaryHousehold(caller, req);
+      const intendedAdult = await mockGet<MockUserRow>('users', req.intendedAdultId);
+      if (!intendedAdult || intendedAdult.accountType !== 'adult') {
+        throw new ApiError('ACCOUNT_TYPE_INCOMPATIBLE');
+      }
+      if (intendedAdult.userId === caller.userId) throw new ApiError('CONFLICT');
       const minorIds = await this.validateHouseholdMinorScope(household.householdId, req.minorIds);
       if (await this.additionalSeat(household.householdId)) {
         throw new ApiError('HOUSEHOLD_CAPACITY_EXCEEDED');
@@ -1015,8 +1090,12 @@ export class MockApi implements ApiClient {
         minorId: null,
         minorIds,
         sourceHouseholdId: null,
+        sourceHouseholdRevision: null,
         sourcePrimaryId: caller.userId,
+        intendedAdultId: req.intendedAdultId,
         acceptedById: null,
+        sourceApprovalCommandId: null,
+        sourceApprovedAt: null,
         state: 'pending',
         createdAt: now,
         expiresAt: now + INVITE_TTL_MS,
@@ -1041,6 +1120,7 @@ export class MockApi implements ApiClient {
           !notice ||
           notice.kind !== 'additional_responsible_invitation' ||
           notice.state !== 'pending' ||
+          !notice.intendedAdultId ||
           notice.expiresAt <= Date.now()
         ) {
           throw new ApiError('NOT_FOUND');
@@ -1049,6 +1129,7 @@ export class MockApi implements ApiClient {
         if (!household) throw new ApiError('NOT_FOUND');
         this.assertFamilyCommand(req);
         if (req.householdId !== household.householdId) throw new ApiError('NOT_FOUND');
+        if (caller.userId !== notice.intendedAdultId) throw new ApiError('FORBIDDEN');
         this.assertHouseholdRevision(household, req.expectedHouseholdRevision);
         if (
           notice.createdById !== household.primaryResponsibleId ||
@@ -2206,6 +2287,7 @@ export class MockApi implements ApiClient {
       contractVersion: FAMILY_BILLING_CONTRACT_VERSION,
       invitationId: notice.noticeId,
       householdId: notice.householdId,
+      intendedAdultId: notice.intendedAdultId!,
       minorIds: [...notice.minorIds],
       state: notice.state as AdditionalResponsibleInvitationView['state'],
       expiresAt: notice.expiresAt,
@@ -2579,6 +2661,7 @@ export class MockApi implements ApiClient {
       notice
         ? [
             notice.createdById,
+            ...(notice.intendedAdultId ? [notice.intendedAdultId] : []),
             ...notice.minorIds,
             ...(notice.acceptedById ? [notice.acceptedById] : []),
           ]

@@ -404,6 +404,7 @@ export interface CreateMinorResponse {
 export const MINOR_LINK_REQUEST_STATES = Object.freeze([
   'pending',
   'approved',
+  'accepted',
   'rejected',
   'expired',
 ] as const);
@@ -425,6 +426,15 @@ export interface CreateMinorLinkRequest extends FamilyCommandBase {
 
 export interface ApproveMinorLinkRequest extends FamilyCommandBase {}
 
+export const CURRENT_MINOR_LINK_RESPONSIBILITY_VERSION =
+  'minor-link-responsibility-v1' as const;
+export const CURRENT_MINOR_LINK_PRIVACY_VERSION = 'minor-link-privacy-v1' as const;
+
+export interface AcceptMinorLinkRequest extends FamilyCommandBase {
+  responsibilityVersion: typeof CURRENT_MINOR_LINK_RESPONSIBILITY_VERSION;
+  privacyVersion: typeof CURRENT_MINOR_LINK_PRIVACY_VERSION;
+}
+
 export const ADDITIONAL_RESPONSIBLE_INVITATION_STATES = Object.freeze([
   'pending',
   'accepted',
@@ -438,6 +448,7 @@ export interface AdditionalResponsibleInvitationView {
   contractVersion: typeof FAMILY_BILLING_CONTRACT_VERSION;
   invitationId: string;
   householdId: string;
+  intendedAdultId: string;
   minorIds: string[];
   state: AdditionalResponsibleInvitationState;
   expiresAt: number;
@@ -445,6 +456,7 @@ export interface AdditionalResponsibleInvitationView {
 }
 
 export interface CreateAdditionalResponsibleInvitationRequest extends FamilyCommandBase {
+  intendedAdultId: string;
   minorIds: string[];
 }
 
@@ -811,7 +823,11 @@ export interface RoadmapApi {
   getHousehold(): Promise<HouseholdView>;
   createMinor(req: CreateMinorRequest): Promise<CreateMinorResponse>;
   createMinorLinkRequest(req: CreateMinorLinkRequest): Promise<MinorLinkRequestView>;
-  approveMinorLinkRequest(requestId: string, req: ApproveMinorLinkRequest): Promise<HouseholdView>;
+  approveMinorLinkRequest(
+    requestId: string,
+    req: ApproveMinorLinkRequest,
+  ): Promise<MinorLinkRequestView>;
+  acceptMinorLinkRequest(requestId: string, req: AcceptMinorLinkRequest): Promise<HouseholdView>;
   createAdditionalResponsibleInvitation(
     req: CreateAdditionalResponsibleInvitationRequest,
   ): Promise<AdditionalResponsibleInvitationView>;
@@ -896,6 +912,7 @@ export const API_PATHS = Object.freeze({
   familyMinors: '/family/minors',
   familyMinorLinkRequests: '/family/minor-link-requests',
   familyMinorLinkRequestApprove: (id: string) => `/family/minor-link-requests/${id}/approve`,
+  familyMinorLinkRequestAccept: (id: string) => `/family/minor-link-requests/${id}/accept`,
   familyAdditionalResponsibleInvitations: '/family/additional-responsible-invitations',
   familyAdditionalResponsibleInvitationAccept: (id: string) =>
     `/family/additional-responsible-invitations/${id}/accept`,

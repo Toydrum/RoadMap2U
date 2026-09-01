@@ -179,8 +179,12 @@ export interface MockAccountNoticeRow {
   minorId: string | null;
   minorIds: string[];
   sourceHouseholdId: string | null;
+  sourceHouseholdRevision: number | null;
   sourcePrimaryId: string | null;
+  intendedAdultId: string | null;
   acceptedById: string | null;
+  sourceApprovalCommandId: string | null;
+  sourceApprovedAt: number | null;
   state: MinorLinkRequestState | AdditionalResponsibleInvitationState;
   createdAt: number;
   expiresAt: number;

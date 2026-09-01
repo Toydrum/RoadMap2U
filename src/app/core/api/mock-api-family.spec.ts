@@ -473,10 +473,20 @@ describe('MockApi family authorization', () => {
       ),
     ).rejects.toMatchObject({ code: 'CURRENT_PRIMARY_APPROVAL_REQUIRED' });
 
-    const moved = await apiFor(rocio).approveMinorLinkRequest(
+    const approved = await apiFor(rocio).approveMinorLinkRequest(
       request.requestId,
       familyCommand(targetHouseholdId, 1, 'current-primary-approve'),
     );
+    expect(approved).toMatchObject({ state: 'approved' });
+    expect(memoryIndexedDb.rows('seatAssignments')).toContainEqual(
+      expect.objectContaining({ householdId: sourceHouseholdId, accountId: nico.userId }),
+    );
+
+    const moved = await apiFor(ana).acceptMinorLinkRequest(request.requestId, {
+      ...familyCommand(targetHouseholdId, 1, 'target-primary-accepts'),
+      responsibilityVersion: 'minor-link-responsibility-v1',
+      privacyVersion: 'minor-link-privacy-v1',
+    });
     expect(moved).toMatchObject({
       householdId: targetHouseholdId,
       primaryResponsible: { userId: ana.userId },
@@ -500,6 +510,7 @@ describe('MockApi family authorization', () => {
 
     const invitation = await primaryApi.createAdditionalResponsibleInvitation({
       ...familyCommand(householdId, 1, 'invite-sam'),
+      intendedAdultId: sam.userId,
       minorIds: [nico.userId],
     });
     const accepted = await apiFor(sam).acceptAdditionalResponsibleInvitation(
@@ -548,6 +559,7 @@ describe('MockApi family authorization', () => {
     const householdId = seedHousehold(rocio, [nico]);
     const invitation = await apiFor(rocio).createAdditionalResponsibleInvitation({
       ...familyCommand(householdId, 1, 'single-seat-race'),
+      intendedAdultId: sam.userId,
       minorIds: [nico.userId],
     });
     const heldWrite = memoryIndexedDb.holdNextPut('seatAssignments');
@@ -575,6 +587,7 @@ describe('MockApi family authorization', () => {
       );
     expect(additionalSeats).toHaveLength(1);
     const winner = (additionalSeats[0] as { accountId: string }).accountId;
+    expect(winner).toBe(sam.userId);
     expect(
       memoryIndexedDb
         .rows('supervisionLinks')
@@ -597,6 +610,7 @@ describe('MockApi family authorization', () => {
     const householdId = seedHousehold(rocio, [nico, val]);
     const invitation = await apiFor(rocio).createAdditionalResponsibleInvitation({
       ...familyCommand(householdId, 1, 'invite-sam-for-close-race'),
+      intendedAdultId: sam.userId,
       minorIds: [nico.userId],
     });
     const accepted = await apiFor(sam).acceptAdditionalResponsibleInvitation(
@@ -635,6 +649,7 @@ describe('MockApi family authorization', () => {
     const householdId = seedHousehold(rocio, [nico]);
     const invitation = await apiFor(rocio).createAdditionalResponsibleInvitation({
       ...familyCommand(householdId, 1, 'invite-sam-for-transfer'),
+      intendedAdultId: sam.userId,
       minorIds: [nico.userId],
     });
     const accepted = await apiFor(sam).acceptAdditionalResponsibleInvitation(
