@@ -236,6 +236,11 @@ describe('family and billing contract', () => {
       householdId: household.householdId,
       seatType: 'minor',
     } satisfies AccessSource;
+    const primarySource = {
+      ...accessSource,
+      seatType: 'primary_responsible',
+    } satisfies AccessSource;
+    expect(primarySource.seatType).toBe('primary_responsible');
     const billing = {
       contractVersion: 1,
       availability: 'available',

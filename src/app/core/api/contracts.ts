@@ -150,7 +150,7 @@ export interface AccessSource {
   validUntil: number | null;
   scope?: 'individual' | 'family_member';
   householdId?: string;
-  seatType?: SeatType;
+  seatType?: SeatType | 'primary_responsible';
 }
 
 export interface AccessSummary {
