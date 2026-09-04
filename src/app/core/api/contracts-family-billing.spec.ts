@@ -97,6 +97,12 @@ function captureHttpApi(): {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('family and billing contract', () => {
+  it('reads a paginated family inbox through the authenticated API seam', async () => {
+    const { api, calls } = captureHttpApi();
+    expect(api['getFamilyInbox']).toBeTypeOf('function');
+    await api['getFamilyInbox']('entry-a');
+    expect(calls()).toEqual([{ method: 'GET', path: '/family/inbox?cursor=entry-a', body: undefined }]);
+  });
   it('publishes the five approved offers with exact seat capacities and MXN prices', () => {
     const catalog = PREPAYMENT_PLAN_CATALOG as unknown as {
       version: string;

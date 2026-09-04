@@ -32,6 +32,7 @@ import {
   FriendsResponse,
   ForestSnapshot,
   HouseholdView,
+  FamilyInboxView,
   MeResponse,
   MinorFriendActionRequest,
   MinorFriendRequestView,
@@ -140,6 +141,9 @@ export class HttpApi implements ApiClient {
   // ── family v2 ─────────────────────────────────────────────────────────────
   getHousehold(): Promise<HouseholdView> {
     return this.request('GET', API_PATHS.familyHousehold);
+  }
+  getFamilyInbox(cursor?: string): Promise<FamilyInboxView> {
+    return this.request('GET', API_PATHS.familyInbox + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''));
   }
   createMinor(req: CreateMinorRequest): Promise<CreateMinorResponse> {
     return this.request('POST', API_PATHS.familyMinors, req, { idempotent: true });

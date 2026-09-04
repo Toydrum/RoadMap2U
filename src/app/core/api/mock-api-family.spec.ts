@@ -306,6 +306,25 @@ function familyCommand(householdId: string, revision: number, suffix: string) {
 beforeEach(() => memoryIndexedDb.reset());
 
 describe('MockApi family authorization', () => {
+  it('lists only the caller own family notices, with no bearer codes or private fields', async () => {
+    const rocio = user('rocio', 'adult');
+    const stranger = user('stranger', 'adult');
+    memoryIndexedDb.seed('users', rocio.userId, rocio);
+    memoryIndexedDb.seed('users', stranger.userId, stranger);
+    memoryIndexedDb.seed('accountNotices', 'notice-a', {
+      noticeId: 'notice-a', kind: 'additional_responsible_invitation', householdId: 'household-a',
+      createdById: 'someone', intendedAdultId: rocio.userId, sourcePrimaryId: 'someone',
+      minorId: null, minorIds: ['private-minor'], state: 'pending', createdAt: Date.now() - 1000,
+      expiresAt: Date.now() - 1, revision: 1, code: 'SECRET',
+    });
+    const api = apiFor(rocio) as unknown as Record<string, () => Promise<unknown>>;
+    expect(api['getFamilyInbox']).toBeTypeOf('function');
+    const inbox = await api['getFamilyInbox']();
+    expect(inbox).toMatchObject({ entries: [{ noticeId: 'notice-a', state: 'expired' }], nextCursor: null });
+    expect(JSON.stringify(inbox)).not.toMatch(/SECRET|private-minor|intendedAdultId/);
+    const outsider = apiFor(stranger) as unknown as Record<string, () => Promise<unknown>>;
+    expect(await outsider['getFamilyInbox']()).toMatchObject({ entries: [] });
+  });
   it('does not let an invited guardian promote another adult to created', async () => {
     const rocio = user('rocio', 'adult');
     const nico = user('nico', 'minor');

@@ -310,6 +310,24 @@ export interface HouseholdView {
   revision: number;
 }
 
+/** Account-private inbox. A pointer never grants authority; commands reauthorize. */
+export interface FamilyInboxEntry {
+  noticeId: string;
+  kind: 'minor_link_request' | 'additional_responsible_invitation' | 'primary_transfer';
+  householdId: string;
+  state: 'pending' | 'approved' | 'accepted' | 'rejected' | 'revoked' | 'expired';
+  createdAt: number;
+  expiresAt: number;
+  revision: number;
+}
+
+export interface FamilyInboxView {
+  contractVersion: typeof FAMILY_BILLING_CONTRACT_VERSION;
+  entries: FamilyInboxEntry[];
+  /** Opaque cursor scoped to the authenticated account, never a user selector. */
+  nextCursor: string | null;
+}
+
 export const MINOR_FRIEND_REQUEST_STATES = Object.freeze([
   'pending',
   'active',
@@ -821,6 +839,7 @@ export interface RoadmapApi {
 
   // family v2 (additive while legacy routes remain available)
   getHousehold(): Promise<HouseholdView>;
+  getFamilyInbox(cursor?: string): Promise<FamilyInboxView>;
   createMinor(req: CreateMinorRequest): Promise<CreateMinorResponse>;
   createMinorLinkRequest(req: CreateMinorLinkRequest): Promise<MinorLinkRequestView>;
   approveMinorLinkRequest(
@@ -909,6 +928,7 @@ export const API_PATHS = Object.freeze({
   familyInvitesAccept: '/family/invites/accept',
   familyInvite: (code: string) => `/family/invites/${code}`,
   familyHousehold: '/family/household',
+  familyInbox: '/family/inbox',
   familyMinors: '/family/minors',
   familyMinorLinkRequests: '/family/minor-link-requests',
   familyMinorLinkRequestApprove: (id: string) => `/family/minor-link-requests/${id}/approve`,

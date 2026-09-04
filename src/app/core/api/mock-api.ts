@@ -41,6 +41,7 @@ import {
   FriendsResponse,
   ForestSnapshot,
   HouseholdView,
+  FamilyInboxView,
   LIMITS,
   MeResponse,
   MinorFriendActionRequest,
@@ -763,6 +764,26 @@ export class MockApi implements ApiClient {
     const caller = await this.caller();
     const household = await this.householdForCaller(caller);
     return this.householdView(household, caller.userId);
+  }
+
+  async getFamilyInbox(cursor?: string): Promise<FamilyInboxView> {
+    await simLatency('api.getFamilyInbox');
+    const caller = await this.caller();
+    if (cursor && !/^[A-Za-z0-9:._@-]{1,256}$/.test(cursor)) throw new ApiError('VALIDATION');
+    const notices = (await mockGetAll<MockAccountNoticeRow>('accountNotices'))
+      .filter((notice) => [notice.createdById, notice.intendedAdultId, notice.sourcePrimaryId, notice.minorId].includes(caller.userId))
+      .filter((notice) => !cursor || notice.noticeId > cursor)
+      .sort((a, b) => a.noticeId < b.noticeId ? -1 : a.noticeId > b.noticeId ? 1 : 0);
+    const page = notices.slice(0, 50);
+    return {
+      contractVersion: FAMILY_BILLING_CONTRACT_VERSION,
+      entries: page.map((notice) => ({
+        noticeId: notice.noticeId, kind: notice.kind, householdId: notice.householdId,
+        state: (notice.state === 'pending' || notice.state === 'approved') && notice.expiresAt <= Date.now() ? 'expired' : notice.state,
+        createdAt: notice.createdAt, expiresAt: notice.expiresAt, revision: notice.revision,
+      })),
+      nextCursor: notices.length > page.length ? page.at(-1)!.noticeId : null,
+    };
   }
 
   async createMinor(req: CreateMinorRequest): Promise<CreateMinorResponse> {
