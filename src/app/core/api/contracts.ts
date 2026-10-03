@@ -303,6 +303,11 @@ export interface HouseholdView {
   state: HouseholdState;
   myRole: SupervisionRole | null;
   primaryResponsible: PublicProfile;
+  /** Pilot or subscription coverage of the household's primary account. */
+  familyCoverage?: {
+    source: 'sponsored_pilot' | 'subscription_projection' | 'test_seed';
+    state: CoverageState;
+  } | null;
   additionalResponsible: HouseholdAdditionalResponsibleView | null;
   minors: HouseholdMinorView[];
   availableMinorSeats: 0 | 1 | 2;
@@ -315,6 +320,8 @@ export interface FamilyInboxEntry {
   noticeId: string;
   kind: 'minor_link_request' | 'additional_responsible_invitation' | 'primary_transfer';
   householdId: string;
+  /** Revision of the household named by this notice when it was created. */
+  expectedHouseholdRevision: number;
   state: 'pending' | 'approved' | 'accepted' | 'rejected' | 'revoked' | 'expired';
   createdAt: number;
   expiresAt: number;
@@ -440,6 +447,11 @@ export interface MinorLinkRequestView {
 
 export interface CreateMinorLinkRequest extends FamilyCommandBase {
   code: string;
+}
+
+/** Source primary issues a single-use code for one already supervised minor. */
+export interface CreateMinorLinkCodeRequest {
+  minorId: string;
 }
 
 export interface ApproveMinorLinkRequest extends FamilyCommandBase {}
@@ -841,6 +853,7 @@ export interface RoadmapApi {
   getHousehold(): Promise<HouseholdView>;
   getFamilyInbox(cursor?: string): Promise<FamilyInboxView>;
   createMinor(req: CreateMinorRequest): Promise<CreateMinorResponse>;
+  createMinorLinkCode(req: CreateMinorLinkCodeRequest): Promise<CodeGrant>;
   createMinorLinkRequest(req: CreateMinorLinkRequest): Promise<MinorLinkRequestView>;
   approveMinorLinkRequest(
     requestId: string,
@@ -881,6 +894,8 @@ export interface RoadmapApi {
   removeSocialFriendship(friendshipId: string): Promise<void>;
   createMinorInviteCode(req: CreateMinorInviteCodeRequest): Promise<CodeGrant>;
   createMinorFriendRequest(req: CreateMinorFriendRequestRequest): Promise<MinorFriendRequestView>;
+  /** Pending four-consent requests visible to the minor or an authorized responsible. */
+  getMinorFriendRequests(minorId: string): Promise<MinorFriendRequestView[]>;
   acceptMinorFriendRequest(
     requestId: string,
     req: MinorFriendActionRequest,
@@ -931,6 +946,7 @@ export const API_PATHS = Object.freeze({
   familyInbox: '/family/inbox',
   familyMinors: '/family/minors',
   familyMinorLinkRequests: '/family/minor-link-requests',
+  familyMinorLinkCodes: '/family/minor-link-codes',
   familyMinorLinkRequestApprove: (id: string) => `/family/minor-link-requests/${id}/approve`,
   familyMinorLinkRequestAccept: (id: string) => `/family/minor-link-requests/${id}/accept`,
   familyAdditionalResponsibleInvitations: '/family/additional-responsible-invitations',
@@ -952,6 +968,7 @@ export const API_PATHS = Object.freeze({
   socialFriendship: (id: string) => `/social/friendships/${id}`,
   socialMinorInviteCodes: '/social/minor-invite-codes',
   socialMinorFriendRequests: '/social/minor-friend-requests',
+  socialMinorFriendRequestsFor: (minorId: string) => `/social/minor-friend-requests/${minorId}`,
   socialMinorFriendRequestAccept: (id: string) =>
     `/social/minor-friend-requests/${id}/minor-accept`,
   socialMinorFriendRequestResponsibleApprove: (id: string) =>
