@@ -173,8 +173,9 @@ export interface MockCodeRow {
 
 export interface MockAccountNoticeRow {
   noticeId: string;
-  kind: 'minor_link_request' | 'additional_responsible_invitation';
+  kind: 'minor_link_request' | 'additional_responsible_invitation' | 'primary_transfer';
   householdId: string;
+  targetHouseholdRevision: number;
   createdById: string;
   minorId: string | null;
   minorIds: string[];

@@ -43,7 +43,9 @@
   text-align: left;
   color: var(--text);
   font: inherit;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
 
   &:hover {
     border-color: var(--primary);
@@ -69,7 +71,39 @@
 .fam-kind {
   color: var(--text-dim);
   font-size: 0.82rem;
-  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.fam-name,
+.fam-handle,
+.fam-scope,
+.temp-password {
+  overflow-wrap: anywhere;
+}
+
+.fam-consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin: 0.9rem 0;
+  font-size: 0.95rem;
+
+  input {
+    flex: 0 0 auto;
+    width: 1.2rem;
+    height: 1.2rem;
+    margin-top: 0.1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fam-open {
+    transition: none;
+    transform: none;
+  }
+  .fam-open:hover {
+    transform: none;
+  }
 }
 
 .fam-actions {
@@ -117,6 +151,7 @@
 
   .row {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 0.7rem;
     margin-top: 0.8rem;

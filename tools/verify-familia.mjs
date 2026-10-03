@@ -1,183 +1,238 @@
-// The familia phase (0.0.49): create a minor (temp password once), per-child
-// admin, LAST_GUARDIAN → co-guardian arc, link-existing invites, redemption,
-// the guardians view — all on the mock cloud, zero network.
-import {
-  BASE,
-  launchPage,
-  provisionSignedInAccess,
-  signInAs as signInPage,
-} from './lib/harness.mjs';
-const { browser, page } = await launchPage({ width: 1280, height: 900 });
+// Household v2: real UI over isolated practice data; no AWS, no payments.
+import { mkdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { BASE, launchPage, signInAs, ok } from './lib/harness.mjs';
+const { browser, page } = await launchPage({ width: 1280, height: 800 });
+const errors = [];
+page.on('pageerror', (error) => errors.push(String(error)));
+const output = resolve('tools/battery-logs/familia');
+await mkdir(output, { recursive: true });
+try {
+  await signInAs(page, 'rocio', 'Bosque123');
+  await page.goto(BASE + '/settings', { waitUntil: 'networkidle' });
+  await page.locator('.familia').waitFor();
+  // Canonical v2 fixture, intentionally separate from legacy demo links.
+  await page.evaluate(
+    () =>
+      new Promise((yes, no) => {
+        const req = indexedDB.open('roadmap2u-mockcloud');
+        req.onerror = () => no(req.error);
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction(
+            ['users', 'households', 'seatAssignments', 'supervisionLinks', 'coverages'],
+            'readwrite',
+          );
+          const users = tx.objectStore('users').getAll();
+          users.onsuccess = () => {
+            const primary = users.result.find((user) => user.username === 'rocio');
+            const minor = users.result.find((user) => user.username === 'nico');
+            const additional = users.result.find((user) => user.username === 'ambar');
+            const homes = tx.objectStore('households').getAll();
+            homes.onsuccess = () => {
+              const householdId =
+                homes.result.find((home) => home.primaryResponsibleId === primary.userId)
+                  ?.householdId ?? 'qa-family';
+              const now = Date.now();
+              // The demo already has two children. Free only its second canonical
+              // seat in this disposable context so creation can exercise the limit.
+              tx.objectStore('seatAssignments').delete(householdId + ':minor:2');
+              tx.objectStore('households').put({
+                householdId,
+                primaryResponsibleId: primary.userId,
+                country: 'MX',
+                state: 'active',
+                revision: 1,
+                createdAt: now,
+                updatedAt: now,
+              });
+              tx.objectStore('seatAssignments').put({
+                assignmentId: householdId + ':minor:1',
+                householdId,
+                seatType: 'minor',
+                position: 1,
+                accountId: minor.userId,
+                majorityAt: '2035-01-01',
+                assignedAt: now,
+              });
+              tx.objectStore('seatAssignments').put({
+                assignmentId: householdId + ':additional',
+                householdId,
+                seatType: 'additional_responsible',
+                position: null,
+                accountId: additional.userId,
+                majorityAt: null,
+                assignedAt: now,
+              });
+              for (const [adult, role] of [
+                [primary, 'primary_responsible'],
+                [additional, 'additional_responsible'],
+              ]) {
+                tx.objectStore('supervisionLinks').put({
+                  linkId: householdId + ':' + adult.userId + ':' + minor.userId,
+                  householdId,
+                  adultId: adult.userId,
+                  minorId: minor.userId,
+                  role,
+                  state: 'active',
+                  createdAt: now,
+                  revokedAt: null,
+                });
+              }
+              for (const [account, seatType] of [
+                [primary, null],
+                [minor, 'minor'],
+                [additional, 'additional_responsible'],
+              ]) {
+                tx.objectStore('coverages').put({
+                  coverageId: account.userId,
+                  accountId: account.userId,
+                  householdId,
+                  seatType,
+                  source: 'test_seed',
+                  state: 'active',
+                  validUntil: null,
+                  createdAt: now,
+                });
+              }
+            };
+          };
+          tx.oncomplete = () => {
+            db.close();
+            yes();
+          };
+          tx.onerror = () => no(tx.error);
+        };
+      }),
+  );
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('.fam-open', { hasText: 'Nico' }).waitFor();
+  ok(
+    'canonical roles and scope',
+    (await page.locator('.familia').innerText())
+      .toLowerCase()
+      .includes('responsable principal de la cuenta') &&
+      (await page.locator('.fam-scope').innerText()).includes('Nico'),
+  );
 
-const pageErrors = [];
-page.on('pageerror', (error) => pageErrors.push(String(error)));
-const foreign = [];
-page.on('request', (request) => {
-  const url = request.url();
-  if (!url.startsWith(BASE) && !url.startsWith('data:')) foreign.push(url);
-});
+  for (const [width, height] of [
+    [375, 812],
+    [768, 1024],
+    [1280, 800],
+    [1920, 1080],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.locator('.familia').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: resolve(output, 'household-' + width + '.png') });
+    const fits = await page
+      .locator('.familia')
+      .evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
+    ok('household fits ' + width, fits);
+  }
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.locator('.fam-create').click();
+  await page.locator('.fam-username').fill('luna');
+  ok('creation requires declarations', await page.locator('.fam-create-submit').isDisabled());
+  await page.locator('.fam-majority-date').fill('2035-01-01');
+  await page.locator('.fam-declaration').check();
+  await page.locator('.fam-consent').check();
+  await page.screenshot({ path: resolve(output, 'create-375.png') });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  ok(
+    '200 percent form fits',
+    await page.locator('.familia-sheet').evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+  );
+  await page.screenshot({ path: resolve(output, 'create-375-text-200.png') });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '';
+  });
+  await page.locator('.fam-create-submit').focus();
+  await page.keyboard.press('Tab');
+  ok(
+    'keyboard focus trap',
+    await page.locator('.fam-username').evaluate((el) => document.activeElement === el),
+  );
+  await page.keyboard.press('Escape');
+  await page.locator('.familia-sheet').waitFor({ state: 'detached' });
+  ok(
+    'Escape dismisses and restores opener',
+    (await page.locator('.familia-sheet').count()) === 0 &&
+      (await page.locator('.fam-create').evaluate((el) => document.activeElement === el)),
+  );
 
-const stage = (title) => page.locator('h1', { hasText: title });
-const sheetTitle = (title) => page.locator('.familia-sheet h2', { hasText: title });
+  await page.locator('.fam-create').click();
+  await page.locator('.fam-username').fill('luna');
+  await page.locator('.fam-majority-date').fill('2035-01-01');
+  await page.locator('.fam-declaration').check();
+  await page.locator('.fam-consent').check();
+  await page.locator('.fam-create-submit').click();
+  await page.locator('.temp-password').waitFor();
+  ok(
+    'temporary password revealed once',
+    (await page.locator('.temp-password').innerText()).length > 0,
+  );
+  await page.locator('.familia-sheet button', { hasText: 'Listo' }).click();
+  ok('two seats enforce capacity', await page.locator('.fam-create').isDisabled());
 
-async function signInAs(username, password, options) {
-  await signInPage(page, username, password, options);
+  await page.locator('.fam-open', { hasText: 'luna' }).click();
+  await page.locator('.fam-reset').waitFor();
+  ok(
+    'primary identity tools',
+    (await page.locator('.fam-reset').count()) === 1 &&
+      (await page.locator('.fam-export').count()) === 1 &&
+      (await page.locator('.fam-delete').count()) === 1,
+  );
+  await page.keyboard.press('Escape');
+  await page.locator('.familia-sheet').waitFor({ state: 'detached' });
+  await page.locator('.fam-transfer').click();
+  await page.locator('.fam-transfer-confirm').click();
+  await page.locator('.familia-sheet').waitFor({ state: 'detached' });
+  ok(
+    'transfer proposal preserves primary',
+    (await page.locator('.fam-name').first().innerText()) === 'Rocío',
+  );
+  await signInAs(page, 'ambar', 'Bosque123');
+  await page.goto(BASE + '/settings', { waitUntil: 'networkidle' });
+  await page.locator('.fam-open', { hasText: 'Nico' }).waitFor();
+  ok(
+    'additional sees only scoped management',
+    (await page.locator('.fam-open').count()) === 1 &&
+      (await page.locator('.fam-create').count()) === 0 &&
+      (await page.locator('.fam-transfer').count()) === 0,
+  );
+  await page.locator('.fam-open').click();
+  ok(
+    'additional has no identity tools',
+    (await page
+      .locator('.fam-reset, .fam-export, .fam-delete, .fam-rename, .fam-social')
+      .count()) === 0,
+  );
+  await page.keyboard.press('Escape');
+  await page.locator('.familia-sheet').waitFor({ state: 'detached' });
+  await page.locator('.fam-transfer-accept').click();
+  await page.locator('.fam-transfer-confirm').click();
+  await page.locator('.familia-sheet').waitFor({ state: 'detached' });
+  ok(
+    'recipient explicitly accepts transfer',
+    (await page.locator('.fam-name').first().innerText()) === 'Ámbar',
+  );
+  await signInAs(page, 'nico', 'Semilla1!', { expect: 'challenge' });
+  const newPasswords = page.locator('.auth-form input[autocomplete="new-password"]');
+  await newPasswords.nth(0).fill('SemillaNueva123!');
+  await newPasswords.nth(1).fill('SemillaNueva123!');
+  await page.locator('.auth-form button[type="submit"]').click();
+  await page.locator('h1', { hasText: 'Tu cuenta' }).waitFor();
+  await page.goto(BASE + '/settings', { waitUntil: 'networkidle' });
+  await page.locator('.fam-scope').waitFor();
+  ok(
+    'minor is informed without administration',
+    (await page.locator('.fam-open, .fam-create, .fam-transfer').count()) === 0 &&
+      (await page.locator('.familia').innerText()).includes('siguen siendo solo tuyos'),
+  );
+  ok('no runtime errors', errors.length === 0, errors.join(' | '));
+} finally {
+  await browser.close();
 }
-
-async function openSettings() {
-  await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
-  await page.locator('.familia').waitFor({ timeout: 6000 });
-  await page.waitForTimeout(700); // let the background refresh land
-}
-
-// A — the seeded family paints for the parent.
-await signInAs('rocio', 'Bosque123');
-await stage('Tu cuenta').waitFor({ timeout: 6000 });
-await openSettings();
-const minorNames = await page.locator('.familia .fam-open .fam-name').allTextContents();
-const okA = minorNames.includes('Nico') && minorNames.includes('Val');
-console.log(`A seeded family: minors=[${minorNames.join(', ')}] | OK=${okA}`);
-
-// B — create a child; the temp password is revealed once.
-await page.locator('button', { hasText: 'Crear cuenta de peque' }).click();
-await sheetTitle('Una cuenta para tu peque').waitFor();
-// ONE field since 0.0.108: the username doubles as the display name.
-await page.fill('.familia-sheet input[autocapitalize="none"]', 'luna');
-await page.locator('.familia-sheet button[type=submit]').click();
-await sheetTitle('La cuenta de luna está lista').waitFor({ timeout: 8000 });
-const tempLuna = (await page.locator('.temp-password').textContent())?.trim() ?? '';
-console.log(`B create child: temp="${tempLuna}" | OK=${/^Brote\d{4}$/.test(tempLuna)}`);
-await page.locator('.familia-sheet button', { hasText: 'Listo' }).click();
-
-// C — the child's first login uses the temp password → newPassword → family card.
-await signInAs('luna', tempLuna, { expect: 'challenge' });
-await stage('Estrena tu contraseña').waitFor({ timeout: 6000 });
-const pw = page.locator('.auth-form input[type="password"]');
-await pw.nth(0).fill('Lunita2026');
-await pw.nth(1).fill('Lunita2026');
-await page.locator('.auth-form button[type=submit]').click();
-await stage('Tu cuenta').waitFor({ timeout: 8000 });
-await provisionSignedInAccess(page, { reload: true });
-await openSettings();
-const guardianNames = await page.locator('.familia .fam-group .fam-name').allTextContents();
-const disclosure = await page.locator('.familia .fam-group .hint').textContent();
-const okC = guardianNames.includes('Rocío') && !!disclosure?.includes('siguen siendo solo tuyos');
-console.log(`C child view: guardians=[${guardianNames.join(', ')}] disclosure=${!!disclosure} | OK=${okC}`);
-
-// D — rename + social toggle from the child sheet (as rocio, on Val).
-await signInAs('rocio', 'Bosque123');
-await stage('Tu cuenta').waitFor({ timeout: 6000 });
-await openSettings();
-await page.locator('.fam-open', { hasText: 'Val' }).click();
-await sheetTitle('Val').waitFor();
-// 0.0.77: the social boolean is an app-switch now (state = aria-checked).
-const socialBefore = await page.locator('.fam-switch-row .switch').getAttribute('aria-checked');
-await page.locator('.fam-switch-row .switch').click();
-await page.waitForTimeout(900);
-const socialAfter = await page.locator('.fam-switch-row .switch').getAttribute('aria-checked');
-const okD = socialBefore !== socialAfter;
-console.log(`D social toggle: ${socialBefore} → ${socialAfter} | OK=${okD}`);
-await page.locator('.fam-switch-row .switch').click(); // leave Val social ON as seeded
-await page.waitForTimeout(900);
-await page.locator('.familia-sheet button', { hasText: 'Cerrar' }).click();
-
-// E — reset Luna's password → NEW temp ≠ old.
-await page.locator('.fam-open', { hasText: 'luna' }).click();
-await sheetTitle('luna').waitFor();
-await page.locator('button', { hasText: 'Nueva contraseña temporal' }).click();
-await sheetTitle('Contraseña nueva para luna').waitFor({ timeout: 8000 });
-const tempLuna2 = (await page.locator('.temp-password').textContent())?.trim() ?? '';
-const okE = /^Brote\d{4}$/.test(tempLuna2) && tempLuna2 !== tempLuna;
-console.log(`E reset password: "${tempLuna2}" (old "${tempLuna}") | OK=${okE}`);
-await page.locator('.familia-sheet button', { hasText: 'Listo' }).click();
-
-// F — LAST_GUARDIAN: unlinking Nico's only guardian is refused with calm copy.
-await page.locator('.fam-open', { hasText: 'Nico' }).click();
-await sheetTitle('Nico').waitFor();
-await page.locator('button', { hasText: 'Dejar de cuidar esta cuenta' }).click();
-await sheetTitle('¿Dejar de cuidar a Nico?').waitFor();
-await page.locator('button', { hasText: 'Sí, soltar el vínculo' }).click();
-await page.locator('.familia-sheet .error-line').waitFor({ timeout: 8000 });
-const lastGuardianCopy = await page.locator('.familia-sheet .error-line').textContent();
-const okF = !!lastGuardianCopy?.includes('única persona cuidadora');
-console.log(`F LAST_GUARDIAN: "${lastGuardianCopy?.trim().slice(0, 50)}…" | OK=${okF}`);
-await page.locator('.familia-sheet button', { hasText: 'Cancelar' }).click();
-
-// G — co-guardian invite for Nico → Ámbar redeems → now the unlink SUCCEEDS.
-await page.locator('.fam-open', { hasText: 'Nico' }).click();
-await sheetTitle('Nico').waitFor();
-await page.locator('button', { hasText: 'Invitar a otro adulto' }).click();
-await sheetTitle('Código de invitación').waitFor({ timeout: 8000 });
-const coCode = ((await page.locator('.temp-password').textContent()) ?? '').trim();
-await page.locator('.familia-sheet button', { hasText: 'Listo' }).click();
-await signInAs('ambar', 'Bosque123');
-await stage('Tu cuenta').waitFor({ timeout: 6000 });
-await openSettings();
-await page.locator('button', { hasText: 'Tengo un código' }).click();
-await sheetTitle('Canjear un código').waitFor();
-await page.fill('.familia-sheet .code-entry', coCode);
-await page.locator('.familia-sheet button[type=submit]').click();
-await page.waitForTimeout(1200);
-const ambarMinors = await page.locator('.familia .fam-open .fam-name').allTextContents();
-const okG1 = ambarMinors.includes('Nico');
-await signInAs('rocio', 'Bosque123');
-await stage('Tu cuenta').waitFor({ timeout: 6000 });
-await openSettings();
-await page.locator('.fam-open', { hasText: 'Nico' }).click();
-await page.locator('button', { hasText: 'Dejar de cuidar esta cuenta' }).click();
-await page.locator('button', { hasText: 'Sí, soltar el vínculo' }).click();
-await page.waitForTimeout(1200);
-const rocioMinors = await page.locator('.familia .fam-open .fam-name').allTextContents();
-const okG2 = !rocioMinors.includes('Nico');
-console.log(`G co-guardian arc: ambar-has-nico=${okG1} rocio-released=${okG2} | OK=${okG1 && okG2}`);
-
-// H — linkExisting: rocio invites; Val (existing minor account) redeems.
-await page.locator('button', { hasText: 'Invitar una cuenta existente' }).click();
-await sheetTitle('Código de invitación').waitFor({ timeout: 8000 });
-const linkCode = ((await page.locator('.temp-password').textContent()) ?? '').trim();
-await page.locator('.familia-sheet button', { hasText: 'Listo' }).click();
-await signInAs('ambar', 'Bosque123');
-await stage('Tu cuenta').waitFor({ timeout: 6000 });
-await openSettings();
-await page.locator('button', { hasText: 'Tengo un código' }).click();
-await sheetTitle('Canjear un código').waitFor();
-await page.fill('.familia-sheet .code-entry', linkCode);
-await page.locator('.familia-sheet button[type=submit]').click();
-await page.waitForTimeout(1200);
-const ambarGuardians = await page.locator('.familia .fam-group').first().locator('.fam-name').allTextContents();
-const okH1 = ambarGuardians.includes('Rocío');
-await signInAs('rocio', 'Bosque123');
-await stage('Tu cuenta').waitFor({ timeout: 6000 });
-await openSettings();
-const kindChips = await page.locator('.fam-open', { hasText: 'Ámbar' }).locator('.fam-kind').textContent();
-const okH2 = !!kindChips?.includes('vinculada');
-// Invited links expose NO identity admin: open the sheet, expect no reset button.
-await page.locator('.fam-open', { hasText: 'Ámbar' }).click();
-await sheetTitle('Ámbar').waitFor();
-const resetCount = await page.locator('.familia-sheet button', { hasText: 'Nueva contraseña temporal' }).count();
-const deleteCount = await page.locator('.familia-sheet button', { hasText: 'Borrar su cuenta' }).count();
-console.log(`H link-existing: ambar-sees-rocio=${okH1} kind=${okH2} no-identity-admin=${resetCount === 0 && deleteCount === 0} | OK=${okH1 && okH2 && resetCount === 0 && deleteCount === 0}`);
-await page.locator('.familia-sheet button', { hasText: 'Cerrar' }).click();
-
-// I — export-first delete of Luna: a download fires BEFORE the purge.
-let downloaded = '';
-page.on('download', (d) => (downloaded = d.suggestedFilename()));
-await page.locator('.fam-open', { hasText: 'luna' }).click();
-await page.locator('button', { hasText: 'Borrar su cuenta' }).click();
-await sheetTitle('¿Borrar la cuenta de luna?').waitFor();
-await page.locator('button', { hasText: 'Sí, borrar su cuenta' }).click();
-await page.waitForTimeout(1800);
-const lunaGone = !(await page.locator('.familia .fam-open .fam-name').allTextContents()).includes('luna');
-console.log(`I export-first delete: download="${downloaded}" gone=${lunaGone} | OK=${downloaded.includes('luna') && lunaGone}`);
-
-// J — Luna's login is truly gone.
-await signInAs('luna', 'Lunita2026', { expect: 'error' });
-await page.locator('.error-line').waitFor({ timeout: 6000 });
-const lunaError = await page.locator('.error-line').textContent();
-console.log(`J deleted login: "${lunaError?.trim().slice(0, 40)}" | OK=${!!lunaError}`);
-
-console.log(`invariants: pageErrors=${pageErrors.length} foreign=${foreign.length} | OK=${pageErrors.length === 0 && foreign.length === 0}`);
-if (pageErrors.length) console.log(pageErrors.join('\n'));
-
-await browser.close();
-console.log('familia done');

@@ -21,6 +21,7 @@ import {
   CreateCheckoutRequest,
   CreateMinorFriendRequestRequest,
   CreateMinorInviteCodeRequest,
+  CreateMinorLinkCodeRequest,
   CreateMinorLinkRequest,
   CreateMinorRequest,
   CreateMinorResponse,
@@ -148,6 +149,9 @@ export class HttpApi implements ApiClient {
   createMinor(req: CreateMinorRequest): Promise<CreateMinorResponse> {
     return this.request('POST', API_PATHS.familyMinors, req, { idempotent: true });
   }
+  createMinorLinkCode(req: CreateMinorLinkCodeRequest): Promise<CodeGrant> {
+    return this.request('POST', API_PATHS.familyMinorLinkCodes, req);
+  }
   createMinorLinkRequest(req: CreateMinorLinkRequest): Promise<MinorLinkRequestView> {
     return this.request('POST', API_PATHS.familyMinorLinkRequests, req, { idempotent: true });
   }
@@ -246,6 +250,9 @@ export class HttpApi implements ApiClient {
   }
   createMinorFriendRequest(req: CreateMinorFriendRequestRequest): Promise<MinorFriendRequestView> {
     return this.request('POST', API_PATHS.socialMinorFriendRequests, req);
+  }
+  getMinorFriendRequests(minorId: string): Promise<MinorFriendRequestView[]> {
+    return this.request('GET', API_PATHS.socialMinorFriendRequestsFor(minorId));
   }
   acceptMinorFriendRequest(
     requestId: string,

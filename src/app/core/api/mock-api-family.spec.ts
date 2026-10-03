@@ -312,15 +312,27 @@ describe('MockApi family authorization', () => {
     memoryIndexedDb.seed('users', rocio.userId, rocio);
     memoryIndexedDb.seed('users', stranger.userId, stranger);
     memoryIndexedDb.seed('accountNotices', 'notice-a', {
-      noticeId: 'notice-a', kind: 'additional_responsible_invitation', householdId: 'household-a',
-      createdById: 'someone', intendedAdultId: rocio.userId, sourcePrimaryId: 'someone',
-      minorId: null, minorIds: ['private-minor'], state: 'pending', createdAt: Date.now() - 1000,
-      expiresAt: Date.now() - 1, revision: 1, code: 'SECRET',
+      noticeId: 'notice-a',
+      kind: 'additional_responsible_invitation',
+      householdId: 'household-a',
+      createdById: 'someone',
+      intendedAdultId: rocio.userId,
+      sourcePrimaryId: 'someone',
+      minorId: null,
+      minorIds: ['private-minor'],
+      state: 'pending',
+      createdAt: Date.now() - 1000,
+      expiresAt: Date.now() - 1,
+      revision: 1,
+      code: 'SECRET',
     });
     const api = apiFor(rocio) as unknown as Record<string, () => Promise<unknown>>;
     expect(api['getFamilyInbox']).toBeTypeOf('function');
     const inbox = await api['getFamilyInbox']();
-    expect(inbox).toMatchObject({ entries: [{ noticeId: 'notice-a', state: 'expired' }], nextCursor: null });
+    expect(inbox).toMatchObject({
+      entries: [{ noticeId: 'notice-a', state: 'expired' }],
+      nextCursor: null,
+    });
     expect(JSON.stringify(inbox)).not.toMatch(/SECRET|private-minor|intendedAdultId/);
     const outsider = apiFor(stranger) as unknown as Record<string, () => Promise<unknown>>;
     expect(await outsider['getFamilyInbox']()).toMatchObject({ entries: [] });
@@ -675,11 +687,17 @@ describe('MockApi family authorization', () => {
       invitation.invitationId,
       familyCommand(householdId, 1, 'sam-accepts-before-transfer'),
     );
-    const heldWrite = memoryIndexedDb.holdNextPut('households');
-    const transfer = apiFor(rocio).transferPrimaryResponsibility({
+    const transferCommand = {
       ...familyCommand(householdId, accepted.revision, 'transfer-to-sam'),
       newPrimaryAccountId: sam.userId,
-    });
+    };
+    const proposed = await apiFor(rocio).transferPrimaryResponsibility(transferCommand);
+    expect(proposed.primaryResponsible.userId).toBe(rocio.userId);
+    expect((await apiFor(sam).getFamilyInbox()).entries).toContainEqual(
+      expect.objectContaining({ kind: 'primary_transfer', state: 'pending' }),
+    );
+    const heldWrite = memoryIndexedDb.holdNextPut('households');
+    const transfer = apiFor(sam).transferPrimaryResponsibility(transferCommand);
     await heldWrite.started;
     const closure = apiFor(sam).deleteMe();
     await new Promise((resolve) => setTimeout(resolve, 450));

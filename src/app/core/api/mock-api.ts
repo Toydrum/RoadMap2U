@@ -27,6 +27,7 @@ import {
   CreateCheckoutRequest,
   CreateMinorFriendRequestRequest,
   CreateMinorInviteCodeRequest,
+  CreateMinorLinkCodeRequest,
   CreateMinorLinkRequest,
   CreateMinorRequest,
   CreateMinorResponse,
@@ -771,16 +772,32 @@ export class MockApi implements ApiClient {
     const caller = await this.caller();
     if (cursor && !/^[A-Za-z0-9:._@-]{1,256}$/.test(cursor)) throw new ApiError('VALIDATION');
     const notices = (await mockGetAll<MockAccountNoticeRow>('accountNotices'))
-      .filter((notice) => [notice.createdById, notice.intendedAdultId, notice.sourcePrimaryId, notice.minorId].includes(caller.userId))
+      .filter((notice) =>
+        [
+          notice.createdById,
+          notice.intendedAdultId,
+          notice.sourcePrimaryId,
+          notice.minorId,
+        ].includes(caller.userId),
+      )
       .filter((notice) => !cursor || notice.noticeId > cursor)
-      .sort((a, b) => a.noticeId < b.noticeId ? -1 : a.noticeId > b.noticeId ? 1 : 0);
+      .sort((a, b) => (a.noticeId < b.noticeId ? -1 : a.noticeId > b.noticeId ? 1 : 0));
     const page = notices.slice(0, 50);
     return {
       contractVersion: FAMILY_BILLING_CONTRACT_VERSION,
       entries: page.map((notice) => ({
-        noticeId: notice.noticeId, kind: notice.kind, householdId: notice.householdId,
-        state: (notice.state === 'pending' || notice.state === 'approved') && notice.expiresAt <= Date.now() ? 'expired' : notice.state,
-        createdAt: notice.createdAt, expiresAt: notice.expiresAt, revision: notice.revision,
+        noticeId: notice.noticeId,
+        kind: notice.kind,
+        householdId: notice.householdId,
+        expectedHouseholdRevision: notice.targetHouseholdRevision,
+        state:
+          (notice.state === 'pending' || notice.state === 'approved') &&
+          notice.expiresAt <= Date.now()
+            ? 'expired'
+            : notice.state,
+        createdAt: notice.createdAt,
+        expiresAt: notice.expiresAt,
+        revision: notice.revision,
       })),
       nextCursor: notices.length > page.length ? page.at(-1)!.noticeId : null,
     };
@@ -873,6 +890,24 @@ export class MockApi implements ApiClient {
     );
   }
 
+  async createMinorLinkCode(req: CreateMinorLinkCodeRequest): Promise<CodeGrant> {
+    await simLatency('api.createMinorLinkCode');
+    return this.withAccountMutation(async (caller) => {
+      if (caller.accountType !== 'adult') throw new ApiError('FORBIDDEN');
+      const minor = await mockGet<MockUserRow>('users', req.minorId);
+      const source = await this.primaryHouseholdForMinor(req.minorId);
+      if (!minor || minor.accountType !== 'minor' || !source ||
+        source.primaryResponsibleId !== caller.userId || source.state !== 'active') {
+        throw new ApiError('NOT_FOUND');
+      }
+      const code = await this.mintCode();
+      const expiresAt = Date.now() + INVITE_TTL_MS;
+      await mockPut('codes', { code, kind: 'linkExisting', userId: caller.userId,
+        minorId: req.minorId, expiresAt } satisfies MockCodeRow);
+      return { code, expiresAt };
+    }, async () => [req.minorId]);
+  }
+
   async createMinorLinkRequest(req: CreateMinorLinkRequest): Promise<MinorLinkRequestView> {
     await simLatency('api.createMinorLinkRequest');
     return this.withAccountMutation(async (caller) => {
@@ -908,6 +943,7 @@ export class MockApi implements ApiClient {
         noticeId: requestId,
         kind: 'minor_link_request',
         householdId: targetHousehold.householdId,
+        targetHouseholdRevision: targetHousehold.revision,
         createdById: caller.userId,
         minorId: minor.userId,
         minorIds: [minor.userId],
@@ -1107,6 +1143,7 @@ export class MockApi implements ApiClient {
         noticeId: invitationId,
         kind: 'additional_responsible_invitation',
         householdId: household.householdId,
+        targetHouseholdRevision: household.revision,
         createdById: caller.userId,
         minorId: null,
         minorIds,
@@ -1290,7 +1327,12 @@ export class MockApi implements ApiClient {
     await simLatency('api.transferPrimaryResponsibility');
     return this.withAccountMutation(
       async (caller) => {
-        const household = await this.requirePrimaryHousehold(caller, req);
+        this.assertFamilyCommand(req);
+        const household = await mockGet<MockHouseholdRow>('households', req.householdId);
+        if (!household || household.state !== 'active' || caller.accountType !== 'adult')
+          throw new ApiError('FORBIDDEN');
+        this.assertHouseholdRevision(household, req.expectedHouseholdRevision);
+        const previousPrimaryId = household.primaryResponsibleId;
         const additional = await this.additionalSeat(household.householdId);
         if (!additional || additional.accountId !== req.newPrimaryAccountId) {
           throw new ApiError('CURRENT_PRIMARY_APPROVAL_REQUIRED');
@@ -1301,6 +1343,55 @@ export class MockApi implements ApiClient {
         }
         const now = Date.now();
         const minors = await this.minorSeats(household.householdId);
+        const proposal = await mockGet<MockAccountNoticeRow>('accountNotices', req.commandId);
+        if (caller.userId === previousPrimaryId) {
+          if (proposal) {
+            if (
+              proposal.kind !== 'primary_transfer' ||
+              proposal.createdById !== caller.userId ||
+              proposal.intendedAdultId !== req.newPrimaryAccountId ||
+              proposal.householdId !== household.householdId ||
+              proposal.state !== 'pending' ||
+              proposal.expiresAt <= now
+            )
+              throw new ApiError('CONFLICT');
+            return this.householdView(household, caller.userId);
+          }
+          await mockPut('accountNotices', {
+            noticeId: req.commandId,
+            kind: 'primary_transfer',
+            householdId: household.householdId,
+            targetHouseholdRevision: household.revision,
+            createdById: caller.userId,
+            sourcePrimaryId: caller.userId,
+            intendedAdultId: req.newPrimaryAccountId,
+            minorId: null,
+            minorIds: minors.map((seat) => seat.accountId),
+            sourceHouseholdId: household.householdId,
+            sourceHouseholdRevision: household.revision,
+            acceptedById: null,
+            sourceApprovalCommandId: null,
+            sourceApprovedAt: null,
+            state: 'pending',
+            createdAt: now,
+            expiresAt: now + 15 * 60_000,
+            revision: 1,
+            code: null,
+          } satisfies MockAccountNoticeRow);
+          return this.householdView(household, caller.userId);
+        }
+        if (
+          caller.userId !== req.newPrimaryAccountId ||
+          !proposal ||
+          proposal.kind !== 'primary_transfer' ||
+          proposal.createdById !== previousPrimaryId ||
+          proposal.intendedAdultId !== caller.userId ||
+          proposal.householdId !== household.householdId ||
+          proposal.sourceHouseholdRevision !== household.revision ||
+          proposal.state !== 'pending' ||
+          proposal.expiresAt <= now
+        )
+          throw new ApiError('CURRENT_PRIMARY_APPROVAL_REQUIRED');
         for (const seat of minors) {
           await mockPut(
             'supervisionLinks',
@@ -1316,13 +1407,13 @@ export class MockApi implements ApiClient {
             'supervisionLinks',
             this.supervisionLink(
               household.householdId,
-              caller.userId,
+              previousPrimaryId,
               seat.accountId,
               'additional_responsible',
               now,
             ),
           );
-          await mockDelete('guardianLinks', `${caller.userId}~${seat.accountId}`);
+          await mockDelete('guardianLinks', `${previousPrimaryId}~${seat.accountId}`);
           await mockPut(
             'guardianLinks',
             this.newLink(nextPrimary.userId, seat.accountId, 'created', now),
@@ -1330,7 +1421,7 @@ export class MockApi implements ApiClient {
         }
         await mockPut('seatAssignments', {
           ...additional,
-          accountId: caller.userId,
+          accountId: previousPrimaryId,
           assignedAt: now,
         });
         await mockPut(
@@ -1339,12 +1430,23 @@ export class MockApi implements ApiClient {
         );
         await mockPut(
           'coverages',
-          this.testCoverage(household.householdId, caller.userId, 'additional_responsible', now),
+          this.testCoverage(
+            household.householdId,
+            previousPrimaryId,
+            'additional_responsible',
+            now,
+          ),
         );
         const updated = await this.bumpHousehold({
           ...household,
           primaryResponsibleId: nextPrimary.userId,
         });
+        await mockPut('accountNotices', {
+          ...proposal,
+          state: 'accepted',
+          acceptedById: caller.userId,
+          revision: proposal.revision + 1,
+        } satisfies MockAccountNoticeRow);
         return this.householdView(updated, caller.userId);
       },
       () => this.householdParticipantIds(req.householdId),
@@ -1697,6 +1799,20 @@ export class MockApi implements ApiClient {
       () => this.minorFriendCodeParticipantIds(req.code),
       async () => [`resource:minor-friend-code:${this.normalizeCode(req.code)}`],
     );
+  }
+
+  async getMinorFriendRequests(minorId: string): Promise<MinorFriendRequestView[]> {
+    await simLatency('api.getMinorFriendRequests');
+    const caller = await this.caller();
+    const minor = await mockGet<MockUserRow>('users', minorId);
+    if (!minor || minor.accountType !== 'minor' ||
+      (caller.userId !== minorId && !(await this.isResponsibleFor(caller.userId, minorId)))) {
+      throw new ApiError('NOT_FOUND');
+    }
+    const pending = (await mockGetAll<MockMinorFriendRequestRow>('minorFriendRequests'))
+      .filter((request) => request.state === 'pending' && request.expiresAt > Date.now() &&
+        (request.requesterId === minorId || request.recipientId === minorId));
+    return Promise.all(pending.map((request) => this.minorFriendRequestView(request)));
   }
 
   async acceptMinorFriendRequest(
@@ -2278,6 +2394,9 @@ export class MockApi implements ApiClient {
       state: household.state,
       myRole,
       primaryResponsible: this.publicOf(primary, false),
+      familyCoverage: await mockGet<MockCoverageRow>('coverages', primary.userId)
+        .then((coverage) => coverage?.householdId === household.householdId
+          ? { source: coverage.source, state: coverage.state } : null),
       additionalResponsible,
       minors,
       availableMinorSeats: Math.max(0, 2 - minors.length) as 0 | 1 | 2,
