@@ -100,6 +100,61 @@ describe('AuthService account-closure races', () => {
     vi.unstubAllGlobals();
   });
 
+  it('preserves the identity boundary when background validation returns unchanged fields', async () => {
+    persistence.read.mockResolvedValue({ key: 'auth.identity', user: USER, cachedAt: 1 });
+    const service = serviceWith(
+      providerWith({
+        currentSession: vi.fn(async () => ({ ...SESSION, user: { ...USER } })),
+      }),
+      persistence,
+    );
+    await service.hydrate();
+    const identity = service.user();
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(service.user()).toBe(identity);
+    expect(service.sessionStale()).toBe(false);
+    expect(persistence.write).toHaveBeenCalledWith(expect.objectContaining({ user: USER }));
+  });
+
+  it.each([
+    { ...USER, userId: 'owner-b' },
+    { ...USER, username: 'updated-username' },
+    { ...USER, email: 'updated@example.test' },
+    { ...USER, displayName: 'Updated' },
+    { ...USER, accountType: 'minor' as const },
+  ])('publishes changed session fields during background validation: %j', async (validatedUser) => {
+    persistence.read.mockResolvedValue({ key: 'auth.identity', user: USER, cachedAt: 1 });
+    const service = serviceWith(
+      providerWith({
+        currentSession: vi.fn(async () => ({ ...SESSION, user: validatedUser })),
+      }),
+      persistence,
+    );
+    await service.hydrate();
+    const identity = service.user();
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(service.user()).toEqual(validatedUser);
+    expect(service.user()).not.toBe(identity);
+  });
+
+  it('starts a new identity boundary for an explicit login with unchanged user fields', async () => {
+    persistence.read.mockResolvedValue({ key: 'auth.identity', user: USER, cachedAt: 1 });
+    const service = serviceWith(
+      providerWith({
+        signIn: vi.fn(async (): Promise<AuthNext> => ({
+          kind: 'done',
+          session: { ...SESSION, user: { ...USER } },
+        })),
+      }),
+      persistence,
+    );
+    await service.hydrate();
+    const identity = service.user();
+    await expect(service.signIn(USER.username, 'new-session-password')).resolves.toBe('done');
+    expect(service.user()).toEqual(USER);
+    expect(service.user()).not.toBe(identity);
+  });
+
   it('ignores a validation session that resolves after sign-out began', async () => {
     let resolveSession!: (session: AuthSession | null) => void;
     let resolveProviderSignOut!: () => void;
@@ -138,9 +193,7 @@ describe('AuthService account-closure races', () => {
     persistence.read
       .mockImplementationOnce(
         () =>
-          new Promise<AuthIdentitySnapshot | undefined>(
-            (resolve) => (resolveStaleRead = resolve),
-          ),
+          new Promise<AuthIdentitySnapshot | undefined>((resolve) => (resolveStaleRead = resolve)),
       )
       .mockResolvedValueOnce(undefined);
     const service = serviceWith(providerWith(), persistence);
@@ -317,9 +370,7 @@ describe('AuthService account-closure races', () => {
   it('discards a new-password session that resolves after sign-out', async () => {
     let resolveNext!: (next: AuthNext) => void;
     const provider = providerWith({
-      completeNewPassword: vi.fn(
-        () => new Promise<AuthNext>((resolve) => (resolveNext = resolve)),
-      ),
+      completeNewPassword: vi.fn(() => new Promise<AuthNext>((resolve) => (resolveNext = resolve))),
     });
     const service = serviceWith(provider, persistence);
 
