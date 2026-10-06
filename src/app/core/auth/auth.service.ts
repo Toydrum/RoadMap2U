@@ -80,7 +80,7 @@ export class AuthService {
   /**
    * Cognito session mutations are ordered by invocation. A sign-out requested
    * behind a pending login must clear that login before a newer login starts.
-  */
+   */
   private providerSessionTail: Promise<void> = Promise.resolve();
   /** Orders a started identity write before a later sign-out delete. */
   private identityPersistenceTail: Promise<void> = Promise.resolve();
@@ -297,7 +297,18 @@ export class AuthService {
       );
       if (epoch !== this.identityEpoch || this.statusSignal() !== 'signedIn') return;
       if (session) {
-        await this.commit(session, epoch);
+        const identity = this.userSignal();
+        const unchanged =
+          identity &&
+          identity.userId === session.user.userId &&
+          identity.username === session.user.username &&
+          identity.email === session.user.email &&
+          identity.displayName === session.user.displayName &&
+          identity.accountType === session.user.accountType;
+        // Validation of an unchanged session must not look like a new login:
+        // family operations and credential sheets own the identity reference.
+        // Explicit logins still publish their new identity through commit().
+        await this.commit(unchanged ? { ...session, user: identity } : session, epoch);
       } else {
         // Definitively no live session (revoked/expired refresh) — keep the
         // identity visible, demand re-auth only when a cloud feature needs it.
