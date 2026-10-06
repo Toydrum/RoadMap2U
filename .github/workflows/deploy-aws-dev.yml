@@ -146,6 +146,21 @@ jobs:
           DISTRIBUTION_ID: ${{ steps.ssm.outputs.distribution_id }}
         run: bash tools/publish-aws-site.sh
 
+      - name: Invalidate public assets without hashed filenames
+        shell: bash
+        env:
+          DISTRIBUTION_ID: ${{ steps.ssm.outputs.distribution_id }}
+        run: |
+          set -euo pipefail
+          # This belongs to the workflow revision so promotion and snapshot
+          # recovery also expire icons from older, exact application SHAs.
+          invalidation_id="$(aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths '/icons/*' '/favicon.ico' \
+            --query 'Invalidation.Id' --output text)"
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "$DISTRIBUTION_ID" --id "$invalidation_id"
+
       - name: Smoke the dev host and API boundary
         env:
           FRONTEND_URL: ${{ steps.ssm.outputs.frontend_url }}
