@@ -7,7 +7,7 @@ main {
   min-height: 100svh;
 
   &.with-tabs {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
   }
 }
 
@@ -32,6 +32,7 @@ main {
   align-items: center;
   gap: 2px;
   min-width: 0;
+  max-width: 20%;
   min-height: 56px;
   justify-content: center;
   border-radius: var(--radius-sm);
@@ -40,6 +41,13 @@ main {
   font-size: 0.78rem;
   font-weight: 700;
   transition: color 0.2s ease, background 0.2s ease;
+
+  .label {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    text-align: center;
+    line-height: 1.25;
+  }
 
   &:hover {
     color: var(--text-dim);

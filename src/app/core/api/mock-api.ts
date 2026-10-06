@@ -731,15 +731,22 @@ export class MockApi implements ApiClient {
   async listChildFriends(userId: string): Promise<FriendsResponse> {
     await simLatency('api.listChildFriends');
     const caller = await this.caller();
-    if (!(await this.linkBetween(caller.userId, userId))) throw new ApiError('NOT_FOUND');
+    if (!(await this.isResponsibleFor(caller.userId, userId))) throw new ApiError('NOT_FOUND');
     return this.friendsOf(userId);
   }
 
   async removeChildFriendship(userId: string, friendshipId: string): Promise<void> {
     await simLatency('api.removeChildFriendship');
+    const caller = await this.caller();
+    if (!(await this.isResponsibleFor(caller.userId, userId))) throw new ApiError('NOT_FOUND');
+    const friendship = await mockGet<MockFriendshipRow>('friendships', friendshipId);
+    if (friendship?.friendshipClass === 'minor_minor') {
+      if (![friendship.userA, friendship.userB].includes(userId)) throw new ApiError('NOT_FOUND');
+      return this.removeMinorFriendship(friendshipId);
+    }
     return this.withAccountMutation(
       async (caller) => {
-        if (!(await this.linkBetween(caller.userId, userId))) throw new ApiError('NOT_FOUND');
+        if (!(await this.isResponsibleFor(caller.userId, userId))) throw new ApiError('NOT_FOUND');
         await this.removeFriendshipAs(userId, friendshipId);
       },
       async () => [userId, ...(await this.friendshipParticipantIds(friendshipId))],
@@ -2192,6 +2199,17 @@ export class MockApi implements ApiClient {
   private async householdForCaller(caller: MockUserRow): Promise<MockHouseholdRow> {
     const households = await mockGetAll<MockHouseholdRow>('households');
     if (caller.accountType === 'adult') {
+      // Match the server: accepted family coverage selects the care household
+      // before a personal empty household. Ended minor coverage is age history.
+      const coverage = await mockGet<MockCoverageRow>('coverages', caller.userId);
+      const endedMinorCoverage = coverage?.seatType === 'minor' && coverage.state === 'ended';
+      const coveredHousehold =
+        coverage && !endedMinorCoverage
+          ? households.find(
+              (row) => row.householdId === coverage.householdId && row.state !== 'closed',
+            )
+          : undefined;
+      if (coveredHousehold) return coveredHousehold;
       const primary = households.find(
         (row) => row.primaryResponsibleId === caller.userId && row.state !== 'closed',
       );

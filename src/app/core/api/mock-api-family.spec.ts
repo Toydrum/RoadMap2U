@@ -579,6 +579,79 @@ describe('MockApi family authorization', () => {
     });
   });
 
+  it('shows accepted additional care instead of the adult personal empty household', async () => {
+    const rocio = user('rocio', 'adult');
+    const sam = user('sam', 'adult');
+    const nico = user('nico', 'minor');
+    for (const account of [rocio, sam, nico]) {
+      memoryIndexedDb.seed('users', account.userId, account);
+    }
+    const householdId = seedHousehold(rocio, [nico]);
+    const additionalApi = apiFor(sam);
+    const personalHousehold = await additionalApi.getHousehold();
+    expect(personalHousehold).toMatchObject({ myRole: 'primary_responsible', minors: [] });
+    const invitation = await apiFor(rocio).createAdditionalResponsibleInvitation({
+      ...familyCommand(householdId, 1, 'invite-after-personal-household-read'),
+      intendedAdultId: sam.userId,
+      minorIds: [nico.userId],
+    });
+    const accepted = await additionalApi.acceptAdditionalResponsibleInvitation(
+      invitation.invitationId,
+      familyCommand(householdId, 1, 'accept-with-personal-household'),
+    );
+    expect(await additionalApi.getHousehold()).toEqual(accepted);
+    expect(memoryIndexedDb.rows('households')).toContainEqual(
+      expect.objectContaining({ householdId: personalHousehold.householdId }),
+    );
+  });
+
+  it('allows canonical child friendship oversight and rejects a revoked legacy fallback', async () => {
+    const rocio = user('rocio', 'adult');
+    const nico = user('nico', 'minor');
+    const val = user('val', 'minor');
+    for (const account of [rocio, nico, val]) {
+      memoryIndexedDb.seed('users', account.userId, account);
+    }
+    const householdId = seedHousehold(rocio, [nico]);
+    memoryIndexedDb.seed('friendships', 'nico-val', {
+      friendshipId: 'nico-val',
+      userA: nico.userId,
+      userB: val.userId,
+      friendshipClass: 'minor_minor',
+      state: 'active',
+      revision: 1,
+      createdAt: Date.now(),
+    });
+    const api = apiFor(rocio);
+    expect((await api.listChildFriends(nico.userId)).friends).toHaveLength(1);
+    await api.removeChildFriendship(nico.userId, 'nico-val');
+    expect(memoryIndexedDb.rows('friendships')).not.toContainEqual(
+      expect.objectContaining({ friendshipId: 'nico-val' }),
+    );
+    const linkId = `${householdId}:${rocio.userId}:${nico.userId}`;
+    memoryIndexedDb.seed('supervisionLinks', linkId, {
+      linkId,
+      householdId,
+      adultId: rocio.userId,
+      minorId: nico.userId,
+      role: 'primary_responsible',
+      state: 'revoked',
+      createdAt: Date.now(),
+      revokedAt: Date.now(),
+    });
+    memoryIndexedDb.seed('guardianLinks', 'old-rocio-nico', {
+      linkId: 'old-rocio-nico',
+      guardianId: rocio.userId,
+      minorId: nico.userId,
+      kind: 'created',
+      createdAt: Date.now(),
+    });
+    await expect(api.listChildFriends(nico.userId)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(api.removeChildFriendship(nico.userId, 'nico-val')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
   it('accepts an additional-responsible seat exactly once under concurrent claims', async () => {
     const rocio = user('rocio', 'adult');
     const sam = user('sam', 'adult');

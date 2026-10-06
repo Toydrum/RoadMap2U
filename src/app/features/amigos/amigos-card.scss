@@ -3,8 +3,15 @@
 }
 
 .amigos {
+  overflow-wrap: anywhere;
+
   h2 {
     margin-top: 0;
+  }
+
+  .btn {
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 }
 
@@ -12,7 +19,7 @@
   display: block;
   font-size: 0.78rem;
   font-weight: 700;
-  color: var(--text-faint);
+  color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 0.3rem;
@@ -47,7 +54,7 @@
     flex: 1;
     /* Room for a full ABCD-1234 code (and its placeholder) before wrapping —
        on narrow phones the send button drops below instead of squeezing it. */
-    min-width: 12.5rem;
+    min-width: min(12.5rem, 100%);
     padding: 0.6rem 0.8rem;
     border-radius: var(--radius-sm);
     border: 1.5px solid var(--border-strong);
@@ -87,7 +94,7 @@
 }
 
 .amigos-handle {
-  color: var(--text-faint);
+  color: var(--text-dim);
   font-size: 0.82rem;
 }
 
