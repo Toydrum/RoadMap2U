@@ -168,7 +168,7 @@ jobs:
         run: node tools/restore-aws-snapshot.mjs --output dist/roadmap2u/browser
 
       - name: Validate the rebuilt PWA
-        run: node tools/validate-built-pwa.mjs --build-dir dist/roadmap2u/browser
+        run: node tools/validate-built-pwa.mjs --build-dir dist/roadmap2u/browser --recovery-mode "$RECOVERY_MODE"
 
       - name: Keep AWS adapters out of the initial bundle
         shell: bash
@@ -218,7 +218,8 @@ jobs:
           node tools/smoke-frontend.mjs \
             --frontend-url "$SMOKE_FRONTEND_URL" \
             --api-base-url "$API_BASE_URL" \
-            --cors-origin "$FRONTEND_URL"
+            --cors-origin "$FRONTEND_URL" \
+            --recovery-mode "$RECOVERY_MODE"
 
       - name: Point the stage at the restored release
         shell: bash

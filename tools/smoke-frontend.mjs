@@ -19,11 +19,16 @@ function readArguments(argv) {
   if (!frontendUrl || !apiBaseUrl || !corsOrigin) {
     throw new Error('--frontend-url, --api-base-url, and --cors-origin are required');
   }
+  const recoveryMode = values.get('--recovery-mode') ?? 'rebuild';
+  if (!['rebuild', 'snapshot'].includes(recoveryMode)) {
+    throw new Error('--recovery-mode must be rebuild or snapshot');
+  }
 
   return {
     frontendUrl: new URL(frontendUrl),
     apiBaseUrl: new URL(apiBaseUrl),
     corsOrigin: new URL(corsOrigin),
+    recoveryMode,
   };
 }
 
@@ -90,7 +95,7 @@ function commaSeparatedHeader(response, name) {
     .filter(Boolean);
 }
 
-async function smokeFrontend(frontendUrl, apiBaseUrl, corsOrigin) {
+async function smokeFrontend(frontendUrl, apiBaseUrl, corsOrigin, recoveryMode) {
   const frontendRoot = rootUrl(frontendUrl);
   const apiRoot = rootUrl(apiBaseUrl);
   const expectedCorsOrigin = rootUrl(corsOrigin).origin;
@@ -121,7 +126,10 @@ async function smokeFrontend(frontendUrl, apiBaseUrl, corsOrigin) {
       throw new Error(`manifest ${field} must be "/"`);
     }
   }
-  if (manifest.start_url !== '/ahora') {
+  if (
+    manifest.start_url !== '/ahora' &&
+    !(recoveryMode === 'snapshot' && manifest.start_url === '/')
+  ) {
     throw new Error('manifest start_url must be "/ahora"');
   }
   if (!Array.isArray(manifest.icons) || manifest.icons.length === 0) {
@@ -159,7 +167,11 @@ async function smokeFrontend(frontendUrl, apiBaseUrl, corsOrigin) {
   if (!commaSeparatedHeader(preflightResponse, 'access-control-allow-methods').includes('get')) {
     throw new Error('/v1/me CORS preflight must allow GET');
   }
-  if (!commaSeparatedHeader(preflightResponse, 'access-control-allow-headers').includes('authorization')) {
+  if (
+    !commaSeparatedHeader(preflightResponse, 'access-control-allow-headers').includes(
+      'authorization',
+    )
+  ) {
     throw new Error('/v1/me CORS preflight must allow the authorization header');
   }
 
@@ -181,8 +193,10 @@ async function smokeFrontend(frontendUrl, apiBaseUrl, corsOrigin) {
 }
 
 try {
-  const { frontendUrl, apiBaseUrl, corsOrigin } = readArguments(process.argv.slice(2));
-  await smokeFrontend(frontendUrl, apiBaseUrl, corsOrigin);
+  const { frontendUrl, apiBaseUrl, corsOrigin, recoveryMode } = readArguments(
+    process.argv.slice(2),
+  );
+  await smokeFrontend(frontendUrl, apiBaseUrl, corsOrigin, recoveryMode);
   console.log('Frontend and API smoke passed.');
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));

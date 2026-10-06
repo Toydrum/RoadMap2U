@@ -284,6 +284,20 @@ test('CI and every AWS workflow validate the built PWA before publication', () =
   }
 });
 
+test('only rollback passes its selected recovery mode to PWA validation and public smoke', () => {
+  const workflow = read('.github/workflows/rollback-aws.yml');
+  assert.match(workflow, /RECOVERY_MODE: \$\{\{ inputs\.recovery_mode \}\}/);
+  assert.match(workflow, /validate-built-pwa\.mjs[^\n]+--recovery-mode "\$RECOVERY_MODE"/);
+  assert.match(workflow, /smoke-frontend\.mjs[\s\S]+--recovery-mode "\$RECOVERY_MODE"/);
+  for (const path of [
+    '.github/workflows/ci.yml',
+    '.github/workflows/deploy-aws-dev.yml',
+    '.github/workflows/promote-aws.yml',
+  ]) {
+    assert.doesNotMatch(read(path), /--recovery-mode/);
+  }
+});
+
 test('pull requests run config tests, app tests, and a root build', () => {
   const workflow = read('.github/workflows/ci.yml');
   assert.match(workflow, /pull_request:/);
