@@ -117,6 +117,37 @@ function setup(household: HouseholdView = base) {
 describe('FamiliaCard household v2', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
+  it.each([
+    ['approveChildFriend', 'approveMinorFriendRequest', 'dismiss'],
+    ['rejectChildFriend', 'rejectMinorFriendRequest', 'dismiss'],
+    ['approveChildFriend', 'approveMinorFriendRequest', 'identity'],
+    ['rejectChildFriend', 'rejectMinorFriendRequest', 'identity'],
+  ] as const)('does not reopen after late %s following %s / %s', async (method, serviceMethod, action) => {
+    const { fixture, root, fam, user, click } = setup();
+    let finish!: (result: boolean) => void;
+    const response = new Promise<boolean>((resolve) => { finish = resolve; });
+    Object.assign(fam, {
+      [serviceMethod]: vi.fn(() => response),
+      listChildFriends: vi.fn(async () => null),
+      listMinorFriendRequests: vi.fn(async () => []),
+    });
+    const card = fixture.componentInstance as unknown as {
+      approveChildFriend: (child: HouseholdView['minors'][number], requestId: string) => Promise<void>;
+      rejectChildFriend: (child: HouseholdView['minors'][number], requestId: string) => Promise<void>;
+      close: () => void;
+    };
+    click('.fam-open');
+    const pending = card[method](base.minors[0], 'pending-friendship');
+    if (action === 'dismiss') card.close();
+    else user.set({ userId: 'another-adult', accountType: 'adult' });
+    fixture.detectChanges();
+    expect(root.querySelector('.familia-sheet')).toBeNull();
+    finish(true);
+    await pending;
+    fixture.detectChanges();
+    expect(root.querySelector('.familia-sheet')).toBeNull();
+  });
+
   it('names the payer, additional responsible, seats and exact supervision scope', () => {
     const { root } = setup();
     expect(root.textContent).toContain('Responsable principal de la cuenta');

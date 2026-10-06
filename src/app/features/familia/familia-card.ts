@@ -161,12 +161,14 @@ export class FamiliaCard {
     return this.sheetEpoch;
   }
 
-  private setSheetLater(epoch: number, sheet: Sheet): void {
-    if (
-      !this.destroyRef.destroyed &&
+  private isCurrentSheet(epoch: number): boolean {
+    return !this.destroyRef.destroyed &&
       this.sheetEpoch === epoch &&
-      this.auth.user() === this.sheetIdentity
-    )
+      this.auth.user() === this.sheetIdentity;
+  }
+
+  private setSheetLater(epoch: number, sheet: Sheet): void {
+    if (this.isCurrentSheet(epoch))
       this.sheetSignal.set(sheet);
   }
 
@@ -479,13 +481,15 @@ export class FamiliaCard {
 
   protected async approveChildFriend(minor: HouseholdMinorView, requestId: string): Promise<void> {
     if (!this.canManage(minor)) return;
-    if (await this.fam.approveMinorFriendRequest(minor.user.userId, requestId))
+    const epoch = this.sheetEpoch;
+    if ((await this.fam.approveMinorFriendRequest(minor.user.userId, requestId)) && this.isCurrentSheet(epoch))
       await this.openChildFriends(minor);
   }
 
   protected async rejectChildFriend(minor: HouseholdMinorView, requestId: string): Promise<void> {
     if (!this.canManage(minor)) return;
-    if (await this.fam.rejectMinorFriendRequest(minor.user.userId, requestId))
+    const epoch = this.sheetEpoch;
+    if ((await this.fam.rejectMinorFriendRequest(minor.user.userId, requestId)) && this.isCurrentSheet(epoch))
       await this.openChildFriends(minor);
   }
 
