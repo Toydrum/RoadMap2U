@@ -320,11 +320,15 @@ La sección **Cuenta** es la puerta a algo que apenas está germinando: **una ll
 
 Con sesión iniciada, en Ajustes aparece la sección **Familia**:
 
-- **Crear cuenta de peque**: eliges su nombre de usuario y cómo le llamamos — sin correo. La app te muestra **una sola vez** su contraseña temporal para que se la entregues en persona; al entrar por primera vez, le pedirá estrenar una contraseña suya. Tú eres su recuperación: si la olvida, le generas otra temporal desde su tarjetita.
-- **Cada peque a tu cuidado** tiene su hojita: renombrar, encender o apagar **amigos y visitas**, nueva contraseña temporal, descargar su respaldo, invitar a **otro adulto que le cuide** (código de 72 horas, un solo uso — para que mamá y papá cuiden el mismo bosque), soltar el vínculo o borrar su cuenta (antes se descarga su respaldo completo, siempre).
-- **Vincular una cuenta existente**: genera un código para alguien que ya tiene su propia cuenta (por ejemplo, un adolescente que se registró solo). Al aceptarlo, podrás ver y cuidar su jardín — pero su cuenta sigue siendo suya: sin cambios de contraseña ni borrado desde fuera.
-- **Quien es cuidado siempre lo sabe**: su sección Familia nombra a quienes pueden ver su bosque, con la regla completa a la vista: *tu familia puede ver tu bosque y plantar contigo — y tú puedes ver el suyo; tus sentimientos, tus check-ins y tu clima siguen siendo solo tuyos*.
-- Una cuenta de peque no puede quedarse sin nadie: **el último vínculo de cuidado no se puede soltar** — primero invita a otro adulto, o borra la cuenta con su respaldo.
+- **Responsable principal de la cuenta**: administra el hogar y será quien pague la suscripción. Cada integrante conserva su propio inicio de sesión. El hogar admite hasta dos lugares para menores y uno para un **responsable adicional autorizado**; los lugares disponibles no equivalen a cobertura de pago.
+- **Crear cuenta de peque**: el responsable principal elige su usuario — sin correo —, declara México y la fecha en que cumplirá 18 años, y confirma por separado su responsabilidad y el consentimiento de privacidad versionado. Esta declaración no es una verificación legal. La contraseña temporal se muestra al terminar; al primer inicio se pide una nueva. Recuperarla, cambiar el nombre, exportar y borrar la cuenta son acciones reservadas al responsable principal; antes del borrado se descarga un respaldo.
+- **Responsable adicional autorizado**: ve exactamente qué menores puede acompañar. Su alcance no incluye pagos, contraseñas ni bajas. Si termina su cobertura, no conserva esas facultades por seguir apareciendo en la familia.
+- **Transferir la responsabilidad** requiere una propuesta del responsable principal y la aceptación explícita del responsable adicional destinatario, con autenticación reciente. Proponerla no cambia inmediatamente los roles.
+- **Solicitudes y avisos**: la bandeja muestra solo los que corresponden a tu propia cuenta, incluidos estados pendientes, aceptados o vencidos. Un error al consultarla no significa que no haya solicitudes. En este bloque la pantalla permite aceptar transferencias; los controles para emitir y resolver invitaciones o vinculaciones de menores siguen pendientes de integración. Ya no se ofrecen los antiguos códigos de vinculación directa.
+- **Quien es cuidado siempre lo sabe**: la sección nombra a sus responsables y muestra el alcance de supervisión. La familia no crea amistades automáticas; sentimientos, check-ins y clima permanecen privados. Una amistad entre adultos no abre el bosque del responsable adicional ni el de los menores: cada amistad adulta es independiente.
+- Perder cobertura no borra cuentas, datos ni responsabilidad principal. Una fuente individual o patrocinada vigente puede conservar Premium. Las cuentas menores no pueden liberarse de supervisión con un simple botón.
+
+Esta pantalla Household v2 está en implementación local. Los pagos y el despliegue siguen desactivados; la nueva experiencia de aprobaciones de amistades infantiles se integra en el siguiente bloque.
 
 ### Mi bosque en la nube ☁️
 

@@ -14,6 +14,7 @@ import {
   ApiError,
   ApiErrorCode,
   CONTRACT_VERSION,
+  FAMILY_OFFER_DEFINITIONS,
   LIMITS,
   PlanCatalog,
   PREPAYMENT_PLAN_CATALOG,
@@ -31,11 +32,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const expectedHttpUrl = (path: string): string => `${APP_CONFIG.aws.apiBaseUrl}/v1${path}`;
 
 const EXPECTED_CATALOG = {
-  version: '2026-08-prepayment-v1',
-  pricingVersion: 'launch-2026',
+  version: '2026-09-family-v1',
+  pricingVersion: 'family-launch-2026',
   currency: 'MXN',
   taxInclusive: true,
   paymentsEnabled: false,
+  offers: FAMILY_OFFER_DEFINITIONS,
   plans: {
     free: {
       limits: { maxActiveTrees: 2, maxVisibleBranchesPerTree: 10 },
@@ -54,7 +56,7 @@ const EXPECTED_CATALOG = {
 
 const EXPECTED_FREE_ACCESS: AccessSummary = {
   effectivePlanKey: 'free',
-  catalogVersion: '2026-08-prepayment-v1',
+  catalogVersion: '2026-09-family-v1',
   status: 'active',
   activeSources: [{ kind: 'default', sourceId: 'default', planKey: 'free', validUntil: null }],
   limits: { maxActiveTrees: 2, maxVisibleBranchesPerTree: 10 },
@@ -106,6 +108,15 @@ const MOCK_KEY_PATH: Record<MockStore, string> = {
   codes: 'code',
   records: 'key',
   kv: 'key',
+  households: 'householdId',
+  supervisionLinks: 'linkId',
+  seatAssignments: 'assignmentId',
+  coverages: 'coverageId',
+  minorFriendRequests: 'requestId',
+  consents: 'consentId',
+  subscriptionProjections: 'projectionId',
+  checkoutReservations: 'reservationId',
+  accountNotices: 'noticeId',
 };
 
 class MemoryRequest<T> {
@@ -523,6 +534,97 @@ describe('commercial access contract fixtures', () => {
     expect(access).toEqual(EXPECTED_FREE_ACCESS);
   });
 
+  it('resolves explicitly seeded family coverage without pretending a payment occurred', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    mockCloud.seed('households', 'household:rocio', {
+      householdId: 'household:rocio',
+      primaryResponsibleId: 'rocio',
+      country: 'MX',
+      state: 'active',
+      revision: 1,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    mockCloud.seed('coverages', 'rocio', {
+      coverageId: 'rocio',
+      householdId: 'household:rocio',
+      accountId: 'rocio',
+      seatType: null,
+      state: 'active',
+      source: 'test_seed',
+      validUntil: null,
+      createdAt: NOW,
+    });
+
+    const access = await new MockApi(authFor('rocio')).getAccess();
+
+    expect(access).toMatchObject({
+      effectivePlanKey: 'premium',
+      status: 'active',
+      activeSources: [
+        {
+          kind: 'subscription',
+          sourceId: 'test_seed',
+          planKey: 'premium',
+          validUntil: null,
+          scope: 'family_member',
+          householdId: 'household:rocio',
+        },
+      ],
+      capabilities: { cloudSync: true, social: true, family: true },
+    });
+    expect(mockCloud.rows('subscriptionProjections')).toHaveLength(0);
+  });
+
+  it('reports billing disabled and fails every payment command closed without reservations', async () => {
+    mockCloud.seed('households', 'household:rocio', {
+      householdId: 'household:rocio',
+      primaryResponsibleId: 'rocio',
+      country: 'MX',
+      state: 'active',
+      revision: 3,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    const api = new MockApi(authFor('rocio'));
+    const command = {
+      householdId: 'household:rocio',
+      expectedHouseholdRevision: 3,
+      commandId: 'billing-command-1',
+    };
+
+    await expect(api.getBillingSummary()).resolves.toMatchObject({
+      availability: 'disabled',
+      householdId: 'household:rocio',
+      payerAccountId: 'rocio',
+      state: 'none',
+      currentOfferKey: null,
+      revision: 0,
+    });
+    await expect(
+      api.createCheckout({ ...command, offerKey: 'family_1_minor', interval: 'month' }),
+    ).rejects.toMatchObject({ code: 'PAYMENT_REQUIRED' });
+    await expect(
+      api.previewSubscriptionChange({
+        ...command,
+        offerKey: 'family_2_minors',
+        interval: 'year',
+      }),
+    ).rejects.toMatchObject({ code: 'PAYMENT_REQUIRED' });
+    await expect(
+      api.applySubscriptionChange({
+        ...command,
+        offerKey: 'family_2_minors',
+        interval: 'year',
+      }),
+    ).rejects.toMatchObject({ code: 'PAYMENT_REQUIRED' });
+    await expect(api.createPortalSession(command)).rejects.toMatchObject({
+      code: 'PAYMENT_REQUIRED',
+    });
+    expect(mockCloud.rows('checkoutReservations')).toHaveLength(0);
+    expect(mockCloud.rows('subscriptionProjections')).toHaveLength(0);
+  });
+
   it('never turns an arbitrary key into Premium in the on-device mock', async () => {
     await expect(
       new MockApi(authFor('rocio')).redeemAccessCode('RM2U1.fake.secret'),
@@ -543,6 +645,128 @@ describe('commercial access contract fixtures', () => {
     expect(receipt.closureId).not.toContain('rocio');
     expect(mockCloud.rows('users')).toEqual([]);
     expect(mockCloud.rows('credentials')).toEqual([]);
+  });
+
+  it('removes delegated family authority before the same user id can be recreated', async () => {
+    seedCaller('parent');
+    mockCloud.seed('users', 'minor', {
+      userId: 'minor',
+      username: 'minor',
+      displayName: 'Minor',
+      accountType: 'minor',
+      socialEnabled: true,
+      createdAt: NOW,
+      email: null,
+      accountInstanceId: 'instance:minor:1',
+    });
+    mockCloud.seed('households', 'household:parent', {
+      householdId: 'household:parent',
+      primaryResponsibleId: 'parent',
+      country: 'MX',
+      state: 'active',
+      revision: 1,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    mockCloud.seed('seatAssignments', 'household:parent:minor:1', {
+      assignmentId: 'household:parent:minor:1',
+      householdId: 'household:parent',
+      seatType: 'minor',
+      position: 1,
+      accountId: 'minor',
+      majorityAt: '2035-01-01',
+      assignedAt: NOW,
+    });
+    mockCloud.seed('seatAssignments', 'household:parent:additional', {
+      assignmentId: 'household:parent:additional',
+      householdId: 'household:parent',
+      seatType: 'additional_responsible',
+      position: null,
+      accountId: 'rocio',
+      majorityAt: null,
+      assignedAt: NOW,
+    });
+    mockCloud.seed('supervisionLinks', 'household:parent:rocio:minor', {
+      linkId: 'household:parent:rocio:minor',
+      householdId: 'household:parent',
+      adultId: 'rocio',
+      minorId: 'minor',
+      role: 'additional_responsible',
+      state: 'active',
+      createdAt: NOW,
+      revokedAt: null,
+    });
+    mockCloud.seed('coverages', 'rocio', {
+      coverageId: 'rocio',
+      householdId: 'household:parent',
+      accountId: 'rocio',
+      seatType: 'additional_responsible',
+      state: 'active',
+      source: 'test_seed',
+      validUntil: null,
+      createdAt: NOW,
+    });
+
+    await new MockApi(authFor('rocio')).deleteMe();
+    seedCaller('rocio', 'instance:rocio:2');
+
+    await expect(
+      new MockApi(authFor('rocio', 'instance:rocio:2')).getForest('minor'),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(mockCloud.rows<{ accountId: string }>('seatAssignments')).not.toContainEqual(
+      expect.objectContaining({ accountId: 'rocio' }),
+    );
+    expect(mockCloud.rows<{ adultId: string }>('supervisionLinks')).not.toContainEqual(
+      expect.objectContaining({ adultId: 'rocio' }),
+    );
+    expect(mockCloud.rows<{ accountId: string }>('coverages')).not.toContainEqual(
+      expect.objectContaining({ accountId: 'rocio' }),
+    );
+  });
+
+  it('keeps a primary account intact until its supervised minors are transferred', async () => {
+    mockCloud.seed('users', 'minor', {
+      userId: 'minor',
+      username: 'minor',
+      displayName: 'Minor',
+      accountType: 'minor',
+      socialEnabled: true,
+      createdAt: NOW,
+      email: null,
+      accountInstanceId: 'instance:minor:1',
+    });
+    mockCloud.seed('households', 'household:rocio', {
+      householdId: 'household:rocio',
+      primaryResponsibleId: 'rocio',
+      country: 'MX',
+      state: 'active',
+      revision: 1,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    mockCloud.seed('seatAssignments', 'household:rocio:minor:1', {
+      assignmentId: 'household:rocio:minor:1',
+      householdId: 'household:rocio',
+      seatType: 'minor',
+      position: 1,
+      accountId: 'minor',
+      majorityAt: '2035-01-01',
+      assignedAt: NOW,
+    });
+
+    await expect(new MockApi(authFor('rocio')).deleteMe()).rejects.toMatchObject({
+      code: 'CONFLICT',
+    });
+    expect(mockCloud.rows('users')).toContainEqual(expect.objectContaining({ userId: 'rocio' }));
+    expect(mockCloud.rows('credentials')).toContainEqual(
+      expect.objectContaining({ userId: 'rocio' }),
+    );
+    expect(mockCloud.rows('households')).toContainEqual(
+      expect.objectContaining({ householdId: 'household:rocio' }),
+    );
+    expect(mockCloud.rows<{ key: string }>('kv')).not.toContainEqual(
+      expect.objectContaining({ key: mockAccountClosureKey('rocio', 'instance:rocio:1') }),
+    );
   });
 
   it('returns the same completed closure receipt when another tab retries', async () => {

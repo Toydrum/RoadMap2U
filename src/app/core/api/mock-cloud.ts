@@ -1,5 +1,23 @@
 import { CheckIn, Harvest, Preserve, Tree, TreeNode, TimerSession } from '../db/schema';
-import { GuardianLinkKind, SyncRecord, SyncStore, UserProfile, lwwBeats } from './contracts';
+import {
+  AdditionalResponsibleInvitationState,
+  BillingInterval,
+  BillingState,
+  ConsentKind,
+  CoverageState,
+  FriendshipClass,
+  GuardianLinkKind,
+  HouseholdState,
+  MinorFriendRequestState,
+  MinorLinkRequestState,
+  OfferKey,
+  SeatType,
+  SupervisionRole,
+  SyncRecord,
+  SyncStore,
+  UserProfile,
+  lwwBeats,
+} from './contracts';
 
 /**
  * The simulated cloud — a SEPARATE IndexedDB database standing in for
@@ -14,7 +32,7 @@ import { GuardianLinkKind, SyncRecord, SyncStore, UserProfile, lwwBeats } from '
 // practice cloud — it reseeds the demo family on first open, and Settings has
 // a reset button for exactly this kind of fresh start.
 export const MOCK_DB_NAME = 'roadmap2u-mockcloud';
-const MOCK_DB_VERSION = 1;
+const MOCK_DB_VERSION = 2;
 
 export type MockStore =
   | 'users'
@@ -24,7 +42,16 @@ export type MockStore =
   | 'friendRequests'
   | 'codes'
   | 'records'
-  | 'kv';
+  | 'kv'
+  | 'households'
+  | 'supervisionLinks'
+  | 'seatAssignments'
+  | 'coverages'
+  | 'minorFriendRequests'
+  | 'consents'
+  | 'subscriptionProjections'
+  | 'checkoutReservations'
+  | 'accountNotices';
 
 /** Cloud-side user row — profile plus the private email attribute. */
 export interface MockUserRow extends UserProfile {
@@ -51,11 +78,59 @@ export interface MockGuardianLinkRow {
   createdAt: number;
 }
 
+export interface MockHouseholdRow {
+  householdId: string;
+  primaryResponsibleId: string;
+  country: 'MX';
+  state: HouseholdState;
+  revision: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface MockSupervisionLinkRow {
+  linkId: string;
+  householdId: string;
+  adultId: string;
+  minorId: string;
+  role: SupervisionRole;
+  state: 'active' | 'revoked';
+  createdAt: number;
+  revokedAt: number | null;
+}
+
+export interface MockSeatAssignmentRow {
+  assignmentId: string;
+  householdId: string;
+  seatType: SeatType;
+  position: 1 | 2 | null;
+  accountId: string;
+  majorityAt: string | null;
+  assignedAt: number;
+}
+
+/** The local mock may grant family coverage only through this explicit
+ * test fixture source. It never means that a provider collected money. */
+export interface MockCoverageRow {
+  /** Fixed to accountId for one active family coverage per account. */
+  coverageId: string;
+  householdId: string;
+  accountId: string;
+  seatType: SeatType | null;
+  state: CoverageState;
+  source: 'test_seed';
+  validUntil: number | null;
+  createdAt: number;
+}
+
 export interface MockFriendshipRow {
   friendshipId: string;
   userA: string;
   userB: string;
   createdAt: number;
+  friendshipClass?: FriendshipClass;
+  state?: 'active' | 'revoked';
+  revision?: number;
 }
 
 export interface MockFriendRequestRow {
@@ -64,14 +139,78 @@ export interface MockFriendRequestRow {
   toId: string;
   createdAt: number;
   expiresAt: number;
+  friendshipClass?: 'adult_adult';
+}
+
+export interface MockMinorFriendRequestRow {
+  requestId: string;
+  requesterId: string;
+  recipientId: string;
+  state: MinorFriendRequestState;
+  createdAt: number;
+  expiresAt: number;
+  revision: number;
+  friendshipId: string | null;
+}
+
+export interface MockConsentRow {
+  consentId: string;
+  requestId: string;
+  kind: ConsentKind;
+  actorId: string;
+  subjectMinorId: string;
+  policyVersion: string;
+  recordedAt: number;
 }
 
 export interface MockCodeRow {
   code: string;
-  kind: 'friend' | 'coGuardian' | 'linkExisting';
+  kind: 'friend' | 'minorFriend' | 'coGuardian' | 'linkExisting';
   userId: string;
   minorId: string | null;
   expiresAt: number;
+}
+
+export interface MockAccountNoticeRow {
+  noticeId: string;
+  kind: 'minor_link_request' | 'additional_responsible_invitation' | 'primary_transfer';
+  householdId: string;
+  targetHouseholdRevision: number;
+  createdById: string;
+  minorId: string | null;
+  minorIds: string[];
+  sourceHouseholdId: string | null;
+  sourceHouseholdRevision: number | null;
+  sourcePrimaryId: string | null;
+  intendedAdultId: string | null;
+  acceptedById: string | null;
+  sourceApprovalCommandId: string | null;
+  sourceApprovedAt: number | null;
+  state: MinorLinkRequestState | AdditionalResponsibleInvitationState;
+  createdAt: number;
+  expiresAt: number;
+  revision: number;
+  code: string | null;
+}
+
+export interface MockSubscriptionProjectionRow {
+  projectionId: string;
+  householdId: string;
+  payerAccountId: string;
+  offerKey: OfferKey;
+  interval: BillingInterval;
+  state: BillingState;
+  paidThrough: number | null;
+  revision: number;
+}
+
+export interface MockCheckoutReservationRow {
+  reservationId: string;
+  householdId: string;
+  offerKey: OfferKey;
+  interval: BillingInterval;
+  expiresAt: number;
+  commandId: string;
 }
 
 /** A user's cloud copy of one record — the DynamoDB REC# item, simulated. */
@@ -103,6 +242,15 @@ const KEY_PATH: Record<MockStore, string> = {
   codes: 'code',
   records: 'key',
   kv: 'key',
+  households: 'householdId',
+  supervisionLinks: 'linkId',
+  seatAssignments: 'assignmentId',
+  coverages: 'coverageId',
+  minorFriendRequests: 'requestId',
+  consents: 'consentId',
+  subscriptionProjections: 'projectionId',
+  checkoutReservations: 'reservationId',
+  accountNotices: 'noticeId',
 };
 
 let mockDbPromise: Promise<IDBDatabase> | null = null;

@@ -22,7 +22,7 @@ const BATTERY_USER = Object.freeze({
 export function commercialAccessFixture(now = Date.now(), user = BATTERY_USER) {
   const summary = {
     effectivePlanKey: 'premium',
-    catalogVersion: '2026-08-prepayment-v1',
+    catalogVersion: '2026-09-family-v1',
     status: 'active',
     activeSources: [
       {

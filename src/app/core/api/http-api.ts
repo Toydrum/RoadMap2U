@@ -2,24 +2,52 @@ import { ApiClient } from './api-client';
 import {
   API_PATHS,
   AccessSummary,
+  AcceptAdditionalResponsibleInvitationRequest,
+  AcceptMinorLinkRequest,
   AccountClosureReceipt,
+  AdditionalResponsibleInvitationView,
   ApiError,
   ApiErrorCode,
+  ApplySubscriptionChangeRequest,
+  ApproveMinorLinkRequest,
+  BillingActionView,
+  BillingRedirectView,
+  BillingSummary,
   CodeGrant,
+  CreateAdditionalResponsibleInvitationRequest,
+  CreateAdultFriendRequestRequest,
   CreateChildRequest,
   CreateChildResponse,
+  CreateCheckoutRequest,
+  CreateMinorFriendRequestRequest,
+  CreateMinorInviteCodeRequest,
+  CreateMinorLinkCodeRequest,
+  CreateMinorLinkRequest,
+  CreateMinorRequest,
+  CreateMinorResponse,
+  CreatePortalRequest,
   FamilyInviteRequest,
   FamilyLinkView,
   FriendRequestView,
   FriendView,
   FriendsResponse,
   ForestSnapshot,
+  HouseholdView,
+  FamilyInboxView,
   MeResponse,
+  MinorFriendActionRequest,
+  MinorFriendRequestView,
+  MinorLinkRequestView,
   PlanCatalog,
+  PreviewSubscriptionChangeRequest,
+  ReplaceAdditionalResponsibleScopeRequest,
+  RevokeAdditionalResponsibleRequest,
   SERVER_API_ERROR_CODES,
+  SubscriptionChangePreviewView,
   SyncChangesResponse,
   SyncPushPayload,
   SyncPushResponse,
+  TransferPrimaryResponsibilityRequest,
   UserProfile,
 } from './contracts';
 import { ExportEnvelope } from '../db/schema';
@@ -111,6 +139,74 @@ export class HttpApi implements ApiClient {
     return this.request('DELETE', API_PATHS.familyChildRequest(userId, requestId));
   }
 
+  // ── family v2 ─────────────────────────────────────────────────────────────
+  getHousehold(): Promise<HouseholdView> {
+    return this.request('GET', API_PATHS.familyHousehold);
+  }
+  getFamilyInbox(cursor?: string): Promise<FamilyInboxView> {
+    return this.request('GET', API_PATHS.familyInbox + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''));
+  }
+  createMinor(req: CreateMinorRequest): Promise<CreateMinorResponse> {
+    return this.request('POST', API_PATHS.familyMinors, req, { idempotent: true });
+  }
+  createMinorLinkCode(req: CreateMinorLinkCodeRequest): Promise<CodeGrant> {
+    return this.request('POST', API_PATHS.familyMinorLinkCodes, req);
+  }
+  createMinorLinkRequest(req: CreateMinorLinkRequest): Promise<MinorLinkRequestView> {
+    return this.request('POST', API_PATHS.familyMinorLinkRequests, req, { idempotent: true });
+  }
+  approveMinorLinkRequest(
+    requestId: string,
+    req: ApproveMinorLinkRequest,
+  ): Promise<MinorLinkRequestView> {
+    return this.request('POST', API_PATHS.familyMinorLinkRequestApprove(requestId), req, {
+      idempotent: true,
+    });
+  }
+  acceptMinorLinkRequest(
+    requestId: string,
+    req: AcceptMinorLinkRequest,
+  ): Promise<HouseholdView> {
+    return this.request('POST', API_PATHS.familyMinorLinkRequestAccept(requestId), req, {
+      idempotent: true,
+    });
+  }
+  createAdditionalResponsibleInvitation(
+    req: CreateAdditionalResponsibleInvitationRequest,
+  ): Promise<AdditionalResponsibleInvitationView> {
+    return this.request('POST', API_PATHS.familyAdditionalResponsibleInvitations, req, {
+      idempotent: true,
+    });
+  }
+  acceptAdditionalResponsibleInvitation(
+    invitationId: string,
+    req: AcceptAdditionalResponsibleInvitationRequest,
+  ): Promise<HouseholdView> {
+    return this.request(
+      'POST',
+      API_PATHS.familyAdditionalResponsibleInvitationAccept(invitationId),
+      req,
+      { idempotent: true },
+    );
+  }
+  replaceAdditionalResponsibleScope(
+    req: ReplaceAdditionalResponsibleScopeRequest,
+  ): Promise<HouseholdView> {
+    return this.request('PUT', API_PATHS.familyAdditionalResponsibleScope, req, {
+      idempotent: true,
+    });
+  }
+  revokeAdditionalResponsible(req: RevokeAdditionalResponsibleRequest): Promise<HouseholdView> {
+    return this.request('DELETE', API_PATHS.familyAdditionalResponsible, req, {
+      idempotent: true,
+    });
+  }
+  transferPrimaryResponsibility(req: TransferPrimaryResponsibilityRequest): Promise<HouseholdView> {
+    return this.request('POST', API_PATHS.familyTransferPrimaryResponsibility, req, {
+      idempotent: true,
+    });
+  }
+
   // ── friends ───────────────────────────────────────────────────────────────
   getFriends(): Promise<FriendsResponse> {
     return this.request('GET', API_PATHS.friends);
@@ -135,6 +231,76 @@ export class HttpApi implements ApiClient {
   }
   removeFriend(friendshipId: string): Promise<void> {
     return this.request('DELETE', API_PATHS.friend(friendshipId));
+  }
+
+  // ── social v2 ─────────────────────────────────────────────────────────────
+  createAdultFriendRequest(req: CreateAdultFriendRequestRequest): Promise<FriendRequestView> {
+    return this.request('POST', API_PATHS.socialAdultFriendRequests, req);
+  }
+  acceptAdultFriendRequest(requestId: string): Promise<FriendView> {
+    return this.request('POST', API_PATHS.socialAdultFriendRequestAccept(requestId));
+  }
+  removeSocialFriendship(friendshipId: string): Promise<void> {
+    return this.request('DELETE', API_PATHS.socialFriendship(friendshipId), undefined, {
+      idempotent: true,
+    });
+  }
+  createMinorInviteCode(req: CreateMinorInviteCodeRequest): Promise<CodeGrant> {
+    return this.request('POST', API_PATHS.socialMinorInviteCodes, req);
+  }
+  createMinorFriendRequest(req: CreateMinorFriendRequestRequest): Promise<MinorFriendRequestView> {
+    return this.request('POST', API_PATHS.socialMinorFriendRequests, req);
+  }
+  getMinorFriendRequests(minorId: string): Promise<MinorFriendRequestView[]> {
+    return this.request('GET', API_PATHS.socialMinorFriendRequestsFor(minorId));
+  }
+  acceptMinorFriendRequest(
+    requestId: string,
+    req: MinorFriendActionRequest,
+  ): Promise<MinorFriendRequestView> {
+    return this.request('POST', API_PATHS.socialMinorFriendRequestAccept(requestId), req, {
+      idempotent: true,
+    });
+  }
+  approveMinorFriendRequest(
+    requestId: string,
+    req: MinorFriendActionRequest,
+  ): Promise<MinorFriendRequestView> {
+    return this.request(
+      'POST',
+      API_PATHS.socialMinorFriendRequestResponsibleApprove(requestId),
+      req,
+      { idempotent: true },
+    );
+  }
+  rejectMinorFriendRequest(requestId: string, req: MinorFriendActionRequest): Promise<void> {
+    return this.request('POST', API_PATHS.socialMinorFriendRequestReject(requestId), req, {
+      idempotent: true,
+    });
+  }
+  removeMinorFriendship(friendshipId: string): Promise<void> {
+    return this.request('DELETE', API_PATHS.socialMinorFriendship(friendshipId), undefined, {
+      idempotent: true,
+    });
+  }
+
+  // ── billing v1 ────────────────────────────────────────────────────────────
+  getBillingSummary(): Promise<BillingSummary> {
+    return this.request('GET', API_PATHS.billingSummary);
+  }
+  createCheckout(req: CreateCheckoutRequest): Promise<BillingRedirectView> {
+    return this.request('POST', API_PATHS.billingCheckout, req, { idempotent: true });
+  }
+  previewSubscriptionChange(
+    req: PreviewSubscriptionChangeRequest,
+  ): Promise<SubscriptionChangePreviewView> {
+    return this.request('POST', API_PATHS.billingChangePreview, req, { idempotent: true });
+  }
+  applySubscriptionChange(req: ApplySubscriptionChangeRequest): Promise<BillingActionView> {
+    return this.request('POST', API_PATHS.billingChange, req, { idempotent: true });
+  }
+  createPortalSession(req: CreatePortalRequest): Promise<BillingRedirectView> {
+    return this.request('POST', API_PATHS.billingPortal, req, { idempotent: true });
   }
 
   // ── forests & sync ────────────────────────────────────────────────────────

@@ -13,7 +13,12 @@
           ♻️ {{ i18n.t().amigos.rotateCta }}
         </button>
       </div>
-      <p class="hint">{{ i18n.t().amigos.codeHint }}</p>
+      <p class="hint">{{ isMinor() ? i18n.t().amigos.minorCodeHint : i18n.t().amigos.codeHint }}</p>
+    }
+    @if (isMinor() && !myCode()) {
+      <button type="button" class="btn btn-soft" (click)="doRotate()" [disabled]="loading()">
+        {{ i18n.t().amigos.minorCreateCode }}
+      </button>
     }
 
     <!-- Redeem someone else's code -->
@@ -38,7 +43,34 @@
     }
 
     @if (friends(); as f) {
-      @if (f.incoming.length) {
+      @if (isMinor() && minorRequests().length) {
+        <div class="amigos-group">
+          <span class="amigos-kicker">{{ i18n.t().amigos.minorPendingTitle }}</span>
+          @for (request of minorRequests(); track request.requestId) {
+            <div class="amigos-row">
+              <span class="amigos-who">
+                <span class="amigos-name">{{ request.requester.userId === auth.user()?.userId
+                  ? request.recipient.displayName : request.requester.displayName }}</span>
+                <span class="hint">{{ i18n.fill(i18n.t().amigos.minorConsentProgress,
+                  { count: request.consents.length }) }}</span>
+              </span>
+              <span class="amigos-actions">
+                @if (request.recipient.userId === auth.user()?.userId &&
+                  !hasMinorConsent(request, 'recipient_acceptance')) {
+                  <button type="button" class="chip opt" (click)="doAccept(request.requestId)" [disabled]="loading()">
+                    {{ i18n.t().amigos.acceptCta }}
+                  </button>
+                }
+                <button type="button" class="chip opt" (click)="doDecline(request.requestId)" [disabled]="loading()">
+                  {{ i18n.t().amigos.declineCta }}
+                </button>
+              </span>
+            </div>
+          }
+          <p class="hint">{{ i18n.t().amigos.minorConsentHint }}</p>
+        </div>
+      }
+      @if (!isMinor() && f.incoming.length) {
         <div class="amigos-group">
           <span class="amigos-kicker">{{ i18n.t().amigos.incomingTitle }}</span>
           @for (request of f.incoming; track request.requestId) {
@@ -60,7 +92,7 @@
         </div>
       }
 
-      @if (f.outgoing.length) {
+      @if (!isMinor() && f.outgoing.length) {
         <div class="amigos-group">
           <span class="amigos-kicker">{{ i18n.t().amigos.outgoingTitle }}</span>
           @for (request of f.outgoing; track request.requestId) {

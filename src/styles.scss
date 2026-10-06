@@ -198,7 +198,8 @@ select {
 
 .skip-link {
   position: fixed;
-  top: -80px;
+  top: 0;
+  transform: translateY(calc(-100% - 1rem));
   left: 1rem;
   z-index: 3000;
   padding: 0.6rem 1.1rem;
@@ -211,6 +212,7 @@ select {
 
   &:focus-visible {
     top: 1rem;
+    transform: none;
   }
 }
 

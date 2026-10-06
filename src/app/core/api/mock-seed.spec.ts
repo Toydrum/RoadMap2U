@@ -60,9 +60,29 @@ describe('mock cloud seed boundary', () => {
       'friendships',
       'friendRequests',
       'codes',
+      'households',
+      'supervisionLinks',
+      'seatAssignments',
+      'coverages',
+      'minorFriendRequests',
+      'consents',
+      'subscriptionProjections',
+      'checkoutReservations',
+      'accountNotices',
       'records',
       'kv',
     ]);
+    expect(entries.find((entry) => entry.store === 'coverages')?.rows).toHaveLength(3);
+    expect(entries.find((entry) => entry.store === 'coverages')?.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          accountId: 'mock-parent',
+          householdId: 'household:mock-parent',
+          source: 'test_seed',
+          state: 'active',
+        }),
+      ]),
+    );
     expect(entries.find((entry) => entry.store === 'kv')?.rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: 'seeded', value: true }),

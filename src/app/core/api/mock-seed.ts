@@ -10,10 +10,14 @@ import {
 } from './contracts';
 import {
   MockCodeRow,
+  MockCoverageRow,
   MockCredentialRow,
   MockFriendshipRow,
   MockGuardianLinkRow,
+  MockHouseholdRow,
   MockRecordRow,
+  MockSeatAssignmentRow,
+  MockSupervisionLinkRow,
   MockUserRow,
   mockReplaceAllRaw,
   recordKey,
@@ -147,6 +151,85 @@ export const MOCK_GUARDIAN_LINKS: MockGuardianLinkRow[] = [
     kind: 'created',
     createdAt: now - 60 * day,
   },
+];
+
+export const MOCK_HOUSEHOLDS: MockHouseholdRow[] = [
+  {
+    householdId: 'household:mock-parent',
+    primaryResponsibleId: 'mock-parent',
+    country: 'MX',
+    state: 'active',
+    revision: 1,
+    createdAt: now - 90 * day,
+    updatedAt: now - 30 * day,
+  },
+];
+
+export const MOCK_SEAT_ASSIGNMENTS: MockSeatAssignmentRow[] = [
+  {
+    assignmentId: 'household:mock-parent:minor:1',
+    householdId: 'household:mock-parent',
+    seatType: 'minor',
+    position: 1,
+    accountId: 'mock-child',
+    majorityAt: '2035-01-01',
+    assignedAt: now - 30 * day,
+  },
+  {
+    assignmentId: 'household:mock-parent:minor:2',
+    householdId: 'household:mock-parent',
+    seatType: 'minor',
+    position: 2,
+    accountId: 'mock-teen',
+    majorityAt: '2032-01-01',
+    assignedAt: now - 60 * day,
+  },
+];
+
+export const MOCK_SUPERVISION_LINKS: MockSupervisionLinkRow[] = [
+  {
+    linkId: 'household:mock-parent:mock-parent:mock-child',
+    householdId: 'household:mock-parent',
+    adultId: 'mock-parent',
+    minorId: 'mock-child',
+    role: 'primary_responsible',
+    state: 'active',
+    createdAt: now - 30 * day,
+    revokedAt: null,
+  },
+  {
+    linkId: 'household:mock-parent:mock-parent:mock-teen',
+    householdId: 'household:mock-parent',
+    adultId: 'mock-parent',
+    minorId: 'mock-teen',
+    role: 'primary_responsible',
+    state: 'active',
+    createdAt: now - 60 * day,
+    revokedAt: null,
+  },
+];
+
+export const MOCK_COVERAGES: MockCoverageRow[] = [
+  {
+    coverageId: 'mock-parent',
+    householdId: 'household:mock-parent',
+    accountId: 'mock-parent',
+    seatType: null,
+    state: 'active',
+    source: 'test_seed',
+    validUntil: null,
+    createdAt: now - 30 * day,
+  },
+  ...MOCK_SEAT_ASSIGNMENTS.map((seat): MockCoverageRow => ({
+    coverageId: seat.accountId,
+    householdId: seat.householdId,
+    accountId: seat.accountId,
+    seatType: seat.seatType,
+    state: 'active',
+    source: 'test_seed',
+    validUntil: null,
+    createdAt: seat.assignedAt,
+  })),
 ];
 
 export const MOCK_FRIENDSHIPS: MockFriendshipRow[] = [
@@ -426,6 +509,15 @@ export function prepareMockSeed(): PreparedMockSeed {
       { store: 'friendships', rows: MOCK_FRIENDSHIPS },
       { store: 'friendRequests', rows: [] },
       { store: 'codes', rows: MOCK_CODES },
+      { store: 'households', rows: MOCK_HOUSEHOLDS },
+      { store: 'supervisionLinks', rows: MOCK_SUPERVISION_LINKS },
+      { store: 'seatAssignments', rows: MOCK_SEAT_ASSIGNMENTS },
+      { store: 'coverages', rows: MOCK_COVERAGES },
+      { store: 'minorFriendRequests', rows: [] },
+      { store: 'consents', rows: [] },
+      { store: 'subscriptionProjections', rows: [] },
+      { store: 'checkoutReservations', rows: [] },
+      { store: 'accountNotices', rows: [] },
       { store: 'records', rows: records },
       {
         store: 'kv',

@@ -1,60 +1,188 @@
-<section class="card block familia">
+<section class="card block familia" [attr.aria-busy]="fam.loading()">
   <h2>{{ i18n.t().familia.title }}</h2>
-
-  @if (fam.guardians().length) {
+  @if (fam.household(); as household) {
     <div class="fam-group">
-      <span class="fam-kicker">{{ i18n.t().familia.guardiansTitle }}</span>
-      @for (link of fam.guardians(); track link.linkId) {
+      <span class="fam-kicker">{{ i18n.t().familia.primaryTitle }}</span>
+      <div class="fam-row">
+        <span class="fam-who"
+          ><span class="fam-name">{{ household.primaryResponsible.displayName }}</span
+          ><span class="fam-handle">&#64;{{ household.primaryResponsible.username }}</span></span
+        >
+      </div>
+      <p class="hint">{{ i18n.t().familia.primaryHint }}</p>
+      @if (household.familyCoverage?.source === 'sponsored_pilot') {
+        <p class="hint fam-coverage" role="status">
+          {{ household.familyCoverage?.state === 'active'
+            ? i18n.t().familia.sponsoredActive : i18n.t().familia.sponsoredEnded }}
+        </p>
+      }
+      @if (auth.user()?.accountType === 'adult') {
+        <p class="hint">{{ i18n.t().familia.accountIdLabel }}: {{ auth.user()?.userId }}</p>
+      }
+    </div>
+    @if (fam.additionalResponsible(); as additional) {
+      <div class="fam-group">
+        <span class="fam-kicker">{{ i18n.t().familia.additionalTitle }}</span>
         <div class="fam-row">
-          <span class="fam-who">
-            <span class="fam-name">{{ link.user.displayName }}</span>
-            <span class="fam-handle">&#64;{{ link.user.username }}</span>
-          </span>
-          @if (link.kind === 'invited' && auth.user()?.userId !== link.user.userId) {
-            <button type="button" class="chip opt" (click)="confirmUnlink(link, true)">
-              {{ i18n.t().familia.unlinkMineCta }}
-            </button>
-          }
+          <span class="fam-who"
+            ><span class="fam-name">{{ additional.user.displayName }}</span
+            ><span class="fam-handle">&#64;{{ additional.user.username }}</span></span
+          >
         </div>
+        <p class="hint fam-scope">
+          {{
+            i18n.fill(i18n.t().familia.scopeHint, {
+              names: scopeNames() || i18n.t().familia.scopeEmpty,
+            })
+          }}
+        </p>
+        @if (additional.coverageState === 'ended' || additional.coverageState === null) {
+          <p class="hint">{{ i18n.t().familia.additionalPaused }}</p>
+        }
+        @if (isPrimary()) {
+          <div class="fam-actions">
+            <button type="button" class="btn btn-soft fam-scope-edit" (click)="openScope()" [disabled]="fam.loading()">
+              {{ i18n.t().familia.scopeEditCta }}
+            </button>
+            <button type="button" class="btn btn-ghost danger fam-additional-revoke" (click)="openRevokeAdditional()" [disabled]="fam.loading()">
+              {{ i18n.t().familia.additionalRevokeCta }}
+            </button>
+          </div>
+        }
+      </div>
+    } @else {
+      <p class="hint fam-additional-seat">
+        {{
+          household.additionalResponsibleSeatAvailable
+            ? i18n.t().familia.additionalSeatEmpty
+            : i18n.t().familia.additionalSeatUnavailable
+        }}
+      </p>
+    }
+    <p class="hint fam-seats">
+      {{ i18n.fill(i18n.t().familia.seatsHint, { count: household.availableMinorSeats }) }}
+    </p>
+    <div class="fam-group">
+      <span class="fam-kicker">{{ i18n.t().familia.minorsTitle }}</span>
+      @for (minor of fam.minors(); track minor.user.userId) {
+        @if (canManage(minor)) {
+          <button type="button" class="fam-row fam-open" (click)="openChild(minor)">
+            <span class="fam-who"
+              ><span class="fam-name">{{ minor.user.displayName }}</span
+              ><span class="fam-handle">&#64;{{ minor.user.username }}</span></span
+            ><span class="fam-kind"
+              >{{ i18n.fill(i18n.t().familia.seatLabel, { seat: minor.seat }) }} →</span
+            >
+          </button>
+        } @else {
+          <div class="fam-row">
+            <span class="fam-who"
+              ><span class="fam-name">{{ minor.user.displayName }}</span
+              ><span class="fam-handle">&#64;{{ minor.user.username }}</span></span
+            ><span class="fam-kind">{{
+              i18n.fill(i18n.t().familia.seatLabel, { seat: minor.seat })
+            }}</span>
+          </div>
+        }
+      } @empty {
+        <p class="hint">{{ i18n.t().familia.emptyAdult }}</p>
       }
       <p class="hint">{{ i18n.t().familia.disclosure }}</p>
     </div>
-  }
-
-  @if (fam.minors().length) {
-    <div class="fam-group">
-      <span class="fam-kicker">{{ i18n.t().familia.minorsTitle }}</span>
-      @for (link of fam.minors(); track link.linkId) {
-        <button type="button" class="fam-row fam-open" (click)="openChild(link)">
-          <span class="fam-who">
-            <span class="fam-name">{{ link.user.displayName }}</span>
-            <span class="fam-handle">&#64;{{ link.user.username }}</span>
-          </span>
-          <span class="fam-kind">
-            {{ link.kind === 'created' ? i18n.t().familia.kindCreated : i18n.t().familia.kindInvited }}
-            <span aria-hidden="true"> →</span>
-          </span>
+    @for (notice of fam.statusNotices(); track notice) {
+      <p class="hint fam-notice" role="status">{{ i18n.t().familia.notices[notice] }}</p>
+    }
+    @if (isPrimary()) {
+      <div class="fam-actions">
+        <button
+          type="button"
+          class="btn btn-soft fam-create"
+          (click)="openCreate()"
+          [disabled]="!canCreate() || fam.loading()"
+        >
+          🌱 {{ i18n.t().familia.createCta }}
+        </button>
+      </div>
+      @if (canTransfer()) {
+        <button
+          type="button"
+          class="btn btn-ghost fam-transfer"
+          (click)="openTransfer()"
+          [disabled]="fam.loading()"
+        >
+          {{ i18n.t().familia.transferCta }}
         </button>
       }
-    </div>
-  } @else if (isAdult() && !fam.loading()) {
-    <p class="hint">{{ i18n.t().familia.emptyAdult }}</p>
+      @if (canLink()) {
+        <button type="button" class="btn btn-soft fam-link-request" (click)="openLinkRequest()" [disabled]="fam.loading()">
+          {{ i18n.t().familia.linkExistingCta }}
+        </button>
+      }
+      @if (canInviteAdditional()) {
+        <button type="button" class="btn btn-soft fam-additional-invite" (click)="openInviteAdditional()" [disabled]="fam.loading()">
+          {{ i18n.t().familia.additionalInviteCta }}
+        </button>
+      }
+    }
+  } @else {
+    <p class="hint">
+      {{ fam.loading() ? i18n.t().common.loading : i18n.t().familia.householdUnavailable }}
+    </p>
   }
-
-  <div class="fam-actions">
-    @if (isAdult()) {
-      <button type="button" class="btn btn-soft" (click)="openCreate()">
-        🌱 {{ i18n.t().familia.createCta }}
-      </button>
-      <button type="button" class="btn btn-soft" (click)="doInviteExisting()" [disabled]="fam.loading()">
-        🧷 {{ i18n.t().familia.linkExistingCta }}
+  <div class="fam-inbox">
+    <h3>{{ i18n.t().familia.inboxTitle }}</h3>
+    @if (fam.inbox(); as inbox) {
+      @for (entry of inbox.entries; track entry.noticeId) {
+        <p class="fam-row">
+          <span>{{ i18n.t().familia.inboxKinds[entry.kind] }}</span
+          ><span class="fam-kind">{{ i18n.t().familia.inboxStates[entry.state] }}</span>
+        </p>
+        @if (canAcceptTransfer(entry)) {
+          <button
+            type="button"
+            class="btn btn-soft fam-transfer-accept"
+            (click)="openTransfer(entry)"
+            [disabled]="fam.loading()"
+          >
+            {{ i18n.t().familia.transferAcceptCta }}
+          </button>
+        }
+        @if (noticeAction(entry); as action) {
+          <button type="button" class="btn btn-soft fam-notice-action" (click)="openNotice(entry)" [disabled]="fam.loading()">
+            {{ action === 'linkApprove' ? i18n.t().familia.linkApproveCta
+              : action === 'linkAccept' ? i18n.t().familia.linkAcceptCta
+              : i18n.t().familia.additionalAcceptCta }}
+          </button>
+        }
+      } @empty {
+        <p class="hint">{{ i18n.t().familia.inboxEmpty }}</p>
+      }
+      @if (inbox.nextCursor) {
+        <button
+          type="button"
+          class="btn btn-ghost fam-inbox-more"
+          (click)="fam.refreshInbox(true)"
+          [disabled]="fam.inboxLoading()"
+        >
+          {{ i18n.t().familia.inboxMore }}
+        </button>
+      }
+    }
+    @if (fam.inboxLoading()) {
+      <p class="hint" role="status">{{ i18n.t().common.loading }}</p>
+    }
+    @if (fam.inboxError()) {
+      <p class="hint" role="status">{{ i18n.t().familia.inboxUnavailable }}</p>
+      <button
+        type="button"
+        class="btn btn-ghost fam-inbox-retry"
+        (click)="fam.refreshInbox()"
+        [disabled]="fam.inboxLoading()"
+      >
+        {{ i18n.t().familia.inboxRetry }}
       </button>
     }
-    <button type="button" class="btn btn-ghost" (click)="openAccept()">
-      🗝 {{ i18n.t().familia.acceptCta }}
-    </button>
   </div>
-
   @if (!sheet() && errorText()) {
     <p class="error-line" role="alert">{{ errorText() }}</p>
   }
@@ -69,254 +197,349 @@
       (click)="$event.stopPropagation()"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="familia-sheet-title"
     >
       @switch (s.kind) {
+        @case ('linkCode') {
+          <h2 id="familia-sheet-title">{{ i18n.t().familia.linkCodeTitle }}</h2>
+          <p class="confirm-body">{{ i18n.t().familia.linkCodeBody }}</p>
+          @if (s.grant; as grant) {
+            <p class="temp-password">{{ grant.code }}</p>
+            <p class="hint">{{ i18n.fill(i18n.t().familia.inviteExpiry, { date: (grant.expiresAt | date) ?? '' }) }}</p>
+          } @else if (!errorText()) {
+            <p class="hint">{{ i18n.t().common.loading }}</p>
+          }
+          <button type="button" class="btn btn-primary" (click)="close()">{{ i18n.t().common.done }}</button>
+        }
+        @case ('linkRequest') {
+          <h2 id="familia-sheet-title">{{ i18n.t().familia.linkRequestTitle }}</h2>
+          <p class="confirm-body">{{ i18n.t().familia.linkRequestBody }}</p>
+          <form class="fam-form" (submit)="$event.preventDefault(); submitLinkRequest(s.commandId)">
+            <label class="field"><span>{{ i18n.t().familia.acceptLabel }}</span>
+              <input class="fam-link-code-input" type="text" autocomplete="off" [value]="linkCodeValue()" (input)="linkCodeValue.set(inputValue($event))" /></label>
+            <div class="row"><button type="button" class="btn btn-ghost" (click)="close()">{{ i18n.t().common.cancel }}</button>
+              <button type="submit" class="btn btn-primary fam-link-submit" [disabled]="fam.loading() || !linkCodeValue().trim()">{{ i18n.t().familia.linkRequestSubmit }}</button></div>
+          </form>
+        }
+        @case ('inviteAdditional') {
+          <h2 id="familia-sheet-title">{{ i18n.t().familia.additionalInviteTitle }}</h2>
+          <p class="confirm-body">{{ i18n.t().familia.additionalInviteBody }}</p>
+          <form class="fam-form" (submit)="$event.preventDefault(); submitInviteAdditional(s.commandId)">
+            <label class="field"><span>{{ i18n.t().familia.adultIdLabel }}</span>
+              <input class="fam-adult-id-input" type="text" autocomplete="off" [value]="adultIdValue()" (input)="adultIdValue.set(inputValue($event))" /></label>
+            <p class="hint">{{ i18n.t().familia.selectMinors }}</p>
+            @for (minor of fam.minors(); track minor.user.userId) {
+              <label class="fam-consent-row"><input type="checkbox" [checked]="selectedMinorIds().includes(minor.user.userId)"
+                (change)="toggleScopeMinor(minor.user.userId)" /><span>{{ minor.user.displayName }}</span></label>
+            }
+            <div class="row"><button type="button" class="btn btn-ghost" (click)="close()">{{ i18n.t().common.cancel }}</button>
+              <button type="submit" class="btn btn-primary fam-additional-submit" [disabled]="fam.loading() || !adultIdValue().trim() || !selectedMinorIds().length">{{ i18n.t().familia.additionalInviteSubmit }}</button></div>
+          </form>
+        }
+        @case ('scope') {
+          <h2 id="familia-sheet-title">{{ i18n.t().familia.scopeEditCta }}</h2>
+          <p class="confirm-body">{{ i18n.t().familia.selectMinors }}</p>
+          @for (minor of fam.minors(); track minor.user.userId) {
+            <label class="fam-consent-row"><input type="checkbox" [checked]="selectedMinorIds().includes(minor.user.userId)"
+              (change)="toggleScopeMinor(minor.user.userId)" /><span>{{ minor.user.displayName }}</span></label>
+          }
+          <div class="row"><button type="button" class="btn btn-ghost" (click)="close()">{{ i18n.t().common.cancel }}</button>
+            <button type="button" class="btn btn-primary" (click)="submitScope(s.commandId)" [disabled]="fam.loading() || !selectedMinorIds().length">{{ i18n.t().common.save }}</button></div>
+        }
+        @case ('revokeAdditional') {
+          <h2 id="familia-sheet-title">{{ i18n.t().familia.additionalRevokeCta }}</h2>
+          <p class="confirm-body">{{ i18n.t().familia.additionalRevokeBody }}</p>
+          <div class="row"><button type="button" class="btn btn-ghost" (click)="close()">{{ i18n.t().common.cancel }}</button>
+            <button type="button" class="btn btn-ghost danger" (click)="submitRevokeAdditional(s.commandId)" [disabled]="fam.loading()">{{ i18n.t().familia.additionalRevokeCta }}</button></div>
+        }
+        @case ('notice') {
+          <h2 id="familia-sheet-title">{{ i18n.t().familia.noticeConfirmTitle }}</h2>
+          <p class="confirm-body">{{ noticeAction(s.entry) === 'linkApprove' ? i18n.t().familia.linkApproveBody
+            : noticeAction(s.entry) === 'linkAccept' ? i18n.t().familia.linkAcceptBody
+            : i18n.t().familia.additionalAcceptBody }}</p>
+          <div class="row"><button type="button" class="btn btn-ghost" (click)="close()">{{ i18n.t().common.cancel }}</button>
+            <button type="button" class="btn btn-primary fam-notice-confirm" (click)="submitNotice(s.entry, s.commandId)" [disabled]="fam.loading()">{{ i18n.t().familia.noticeConfirmCta }}</button></div>
+        }
+        @case ('transfer') {
+          <h2 id="familia-sheet-title">
+            {{ s.accepting ? i18n.t().familia.transferAcceptCta : i18n.t().familia.transferCta }}
+          </h2>
+          <p class="confirm-body">
+            {{ s.accepting ? i18n.t().familia.transferAcceptBody : i18n.t().familia.transferBody }}
+          </p>
+          <div class="row">
+            <button type="button" class="btn btn-ghost fam-transfer-cancel" (click)="close()">
+              {{ i18n.t().common.cancel }}</button
+            ><button
+              type="button"
+              class="btn btn-primary fam-transfer-confirm"
+              (click)="submitTransfer(s.request, s.accepting)"
+              [disabled]="fam.loading()"
+            >
+              {{
+                s.accepting
+                  ? i18n.t().familia.transferAcceptCta
+                  : i18n.t().familia.transferProposeCta
+              }}
+            </button>
+          </div>
+        }
         @case ('create') {
-          <h2>{{ i18n.t().familia.createTitle }}</h2>
+          <h2 id="familia-sheet-title">{{ i18n.t().familia.createTitle }}</h2>
           <p class="confirm-body">{{ i18n.t().familia.createBody }}</p>
           <form class="fam-form" (submit)="$event.preventDefault(); submitCreate()">
-            <label class="field">
-              <span>{{ i18n.t().account.username }}</span>
-              <input
+            <label class="field"
+              ><span>{{ i18n.t().familia.minorUsername }}</span
+              ><input
+                class="fam-username"
                 type="text"
                 autocapitalize="none"
                 spellcheck="false"
+                maxlength="20"
                 [value]="newUsername()"
                 (input)="newUsername.set(inputValue($event))"
-              />
-            </label>
-<!-- ONE name since 0.0.108: the username doubles as the display name at
-     birth; «Cambiarle el nombre» in the child sheet covers the rest. -->
-            @if (errorText()) {
-              <p class="error-line" role="alert">{{ errorText() }}</p>
-            }
+            /></label>
+            <p class="hint fam-country">{{ i18n.t().familia.countryMx }}</p>
+            <label class="field"
+              ><span>{{ i18n.t().familia.majorityLabel }}</span
+              ><input
+                class="fam-majority-date"
+                type="date"
+                [value]="majorityDate()"
+                (input)="majorityDate.set(inputValue($event))"
+                aria-describedby="fam-majority-hint"
+            /></label>
+            <p id="fam-majority-hint" class="hint">{{ i18n.t().familia.majorityHint }}</p>
+            <label class="fam-consent-row"
+              ><input
+                class="fam-declaration"
+                type="checkbox"
+                [checked]="declarationAccepted()"
+                (change)="declarationAccepted.set(!declarationAccepted())"
+              /><span>{{ i18n.t().familia.declarationText }}</span></label
+            >
+            <label class="fam-consent-row"
+              ><input
+                class="fam-consent"
+                type="checkbox"
+                [checked]="privacyAccepted()"
+                (change)="privacyAccepted.set(!privacyAccepted())"
+              /><span>{{ i18n.t().familia.consentText }}</span></label
+            >
+            <p class="hint">{{ i18n.t().familia.consentVersions }}</p>
             <div class="row">
-              <button type="button" class="btn btn-ghost" (click)="close()">
-                {{ i18n.t().common.cancel }}
-              </button>
-              <button type="submit" class="btn btn-primary" [disabled]="fam.loading()">
+              <button type="button" class="btn btn-ghost fam-create-cancel" (click)="close()">
+                {{ i18n.t().common.cancel }}</button
+              ><button
+                type="submit"
+                class="btn btn-primary fam-create-submit"
+                [disabled]="!validCreate() || fam.loading()"
+              >
                 {{ fam.loading() ? i18n.t().common.loading : i18n.t().familia.createSubmit }}
               </button>
             </div>
           </form>
         }
-
         @case ('created') {
-          <span class="confirm-icon" aria-hidden="true">🌱</span>
-          <h2>{{ i18n.fill(i18n.t().familia.createdTitle, { name: s.child.displayName }) }}</h2>
+          <h2 id="familia-sheet-title">
+            {{ i18n.fill(i18n.t().familia.createdTitle, { name: s.child.displayName }) }}
+          </h2>
           <p class="confirm-body">{{ i18n.t().familia.tempIntro }}</p>
           <p class="temp-password">{{ s.tempPassword }}</p>
           <p class="hint">{{ i18n.t().familia.tempHint }}</p>
-          <button type="button" class="btn btn-primary" (click)="close()">
+          <button type="button" class="btn btn-primary fam-created-done" (click)="close()">
             {{ i18n.t().common.done }}
           </button>
         }
-
         @case ('child') {
-          <h2>{{ s.link.user.displayName }}</h2>
-          <p class="fam-handle">&#64;{{ s.link.user.username }}</p>
-
-          <button type="button" class="btn btn-primary enter-forest" (click)="enterForest(s.link)">
-            🌳 {{ i18n.t().familia.enterForest }}
-          </button>
-
-          @if (s.link.kind === 'created') {
-            <form class="fam-form" (submit)="$event.preventDefault(); doRename(s.link)">
-              <label class="field">
-                <span>{{ i18n.t().familia.displayNameLabel }}</span>
-                <input
-                  type="text"
-                  [value]="renameValue()"
-                  (input)="renameValue.set(inputValue($event))"
+          <h2 id="familia-sheet-title">{{ s.minor.user.displayName }}</h2>
+          <p class="fam-handle">&#64;{{ s.minor.user.username }}</p>
+          <p class="hint">
+            {{ i18n.fill(i18n.t().familia.majorityDeclared, { date: s.minor.majorityAt }) }}
+          </p>
+          @if (canManage(s.minor)) {
+            <button
+              type="button"
+              class="btn btn-primary enter-forest"
+              (click)="enterForest(s.minor)"
+            >
+              🌳 {{ i18n.t().familia.enterForest }}
+            </button>
+            @if (isPrimary()) {
+              <button type="button" class="btn btn-soft" (click)="openLinkCode(s.minor)" [disabled]="fam.loading()">
+                {{ i18n.t().familia.linkCodeCta }}
+              </button>
+              <form
+                class="fam-form fam-rename"
+                (submit)="$event.preventDefault(); doRename(s.minor)"
+              >
+                <label class="field"
+                  ><span>{{ i18n.t().familia.displayNameLabel }}</span
+                  ><input
+                    type="text"
+                    class="fam-rename-input"
+                    [value]="renameValue()"
+                    (input)="renameValue.set(inputValue($event))" /></label
+                ><button
+                  type="submit"
+                  class="btn btn-soft fam-rename-save"
+                  [disabled]="fam.loading()"
+                >
+                  {{ i18n.t().common.save }}
+                </button>
+              </form>
+              <div class="fam-switch-row fam-social">
+                <span
+                  ><strong>{{ i18n.t().familia.socialLabel }}</strong
+                  ><span class="hint">{{ i18n.t().familia.socialHint }}</span></span
+                ><app-switch
+                  [checked]="s.minor.user.socialEnabled ?? false"
+                  [ariaLabel]="i18n.t().familia.socialLabel"
+                  [disabled]="fam.loading()"
+                  (toggled)="toggleSocial(s.minor)"
                 />
-              </label>
-              <button type="submit" class="btn btn-soft" [disabled]="fam.loading()">
-                {{ i18n.t().common.save }}
-              </button>
-            </form>
-
-            <div class="fam-switch-row">
-              <span>
-                <strong>{{ i18n.t().familia.socialLabel }}</strong>
-                <span class="hint">{{ i18n.t().familia.socialHint }}</span>
-              </span>
-              <app-switch
-                [checked]="s.link.user.socialEnabled ?? false"
-                [ariaLabel]="i18n.t().familia.socialLabel"
-                [disabled]="fam.loading()"
-                (toggled)="toggleSocial(s.link)"
-              />
-            </div>
-
-            <div class="fam-tools">
-              <button type="button" class="btn btn-soft" (click)="doReset(s.link)" [disabled]="fam.loading()">
-                🔑 {{ i18n.t().familia.resetCta }}
-              </button>
-              <button type="button" class="btn btn-soft" (click)="doExport(s.link)" [disabled]="fam.loading()">
-                ⬇ {{ i18n.t().familia.exportCta }}
-              </button>
-              <button type="button" class="btn btn-soft" (click)="doInviteCo(s.link)" [disabled]="fam.loading()">
-                🤝 {{ i18n.t().familia.inviteCoCta }}
-              </button>
-            </div>
-          }
-
-          @if (s.link.user.socialEnabled) {
-            <button type="button" class="btn btn-soft" (click)="openChildFriends(s.link)" [disabled]="fam.loading()">
+              </div>
+              <div class="fam-tools">
+                <button
+                  type="button"
+                  class="btn btn-soft fam-reset"
+                  (click)="doReset(s.minor)"
+                  [disabled]="fam.loading()"
+                >
+                  🔑 {{ i18n.t().familia.resetCta }}</button
+                ><button
+                  type="button"
+                  class="btn btn-soft fam-export"
+                  (click)="doExport(s.minor)"
+                  [disabled]="fam.loading()"
+                >
+                  ⬇ {{ i18n.t().familia.exportCta }}
+                </button>
+              </div>
+            }
+            <button
+              type="button"
+              class="btn btn-soft fam-friends"
+              (click)="openChildFriends(s.minor)"
+              [disabled]="fam.loading()"
+            >
               👥 {{ i18n.t().familia.childFriendsCta }}
             </button>
-          }
-
-          @if (errorText()) {
-            <p class="error-line" role="alert">{{ errorText() }}</p>
-          }
-
-          <div class="fam-danger">
-            <button type="button" class="btn btn-ghost" (click)="confirmUnlink(s.link, false)">
-              {{ i18n.t().familia.unlinkCta }}
-            </button>
-            @if (s.link.kind === 'created') {
-              <button type="button" class="btn btn-ghost danger" (click)="confirmDelete(s.link)">
-                {{ i18n.t().familia.deleteCta }}
-              </button>
+            @if (isPrimary()) {
+              <div class="fam-danger">
+                <button
+                  type="button"
+                  class="btn btn-ghost danger fam-delete"
+                  (click)="confirmDelete(s.minor)"
+                >
+                  {{ i18n.t().familia.deleteCta }}
+                </button>
+              </div>
             }
-          </div>
-          <button type="button" class="btn btn-ghost" (click)="close()">
+          }
+          <button type="button" class="btn btn-ghost fam-child-close" (click)="close()">
             {{ i18n.t().common.close }}
           </button>
         }
-
         @case ('childFriends') {
-          <h2>{{ i18n.fill(i18n.t().familia.childFriendsTitle, { name: s.link.user.displayName }) }}</h2>
-          <p class="confirm-body">{{ i18n.t().familia.childFriendsHint }}</p>
+          <h2 id="familia-sheet-title">
+            {{ i18n.fill(i18n.t().familia.childFriendsTitle, { name: s.minor.user.displayName }) }}
+          </h2>
+          <p class="confirm-body">
+            {{ i18n.fill(i18n.t().familia.childFriendsHint, { name: s.minor.user.displayName }) }}
+          </p>
           @if (s.data; as data) {
-            @if (data.friends.length) {
-              @for (friend of data.friends; track friend.friendshipId) {
-                <div class="fam-row">
-                  <span class="fam-who">
-                    <span class="fam-name">{{ friend.user.displayName }}</span>
-                    <span class="fam-handle">&#64;{{ friend.user.username }}</span>
-                  </span>
-                  <button type="button" class="chip opt" (click)="removeChildFriend(s.link, friend.friendshipId)" [disabled]="fam.loading()">
-                    {{ i18n.t().familia.childFriendRemove }}
-                  </button>
-                </div>
-              }
-            } @else {
+            @for (friend of data.friends; track friend.friendshipId) {
+              <div class="fam-row">
+                <span class="fam-who"
+                  ><span class="fam-name">{{ friend.user.displayName }}</span
+                  ><span class="fam-handle">&#64;{{ friend.user.username }}</span></span
+                ><button
+                  type="button"
+                  class="chip opt fam-friend-remove"
+                  (click)="removeChildFriend(s.minor, friend.friendshipId)"
+                  [disabled]="fam.loading()"
+                >
+                  {{ i18n.t().familia.childFriendRemove }}
+                </button>
+              </div>
+            } @empty {
               <p class="hint">{{ i18n.t().familia.childFriendsEmpty }}</p>
             }
             @for (request of data.outgoing; track request.requestId) {
               <div class="fam-row">
-                <span class="fam-who">
-                  <span class="fam-name">{{ request.user.displayName }}</span>
-                  <span class="fam-handle">{{ i18n.t().familia.childRequestPending }}</span>
-                </span>
-                <button type="button" class="chip opt" (click)="cancelChildRequest(s.link, request.requestId)" [disabled]="fam.loading()">
+                <span class="fam-who"
+                  ><span class="fam-name">{{ request.user.displayName }}</span
+                  ><span class="fam-handle">{{ i18n.t().familia.childRequestPending }}</span></span
+                ><button
+                  type="button"
+                  class="chip opt fam-request-cancel"
+                  (click)="cancelChildRequest(s.minor, request.requestId)"
+                  [disabled]="fam.loading()"
+                >
                   {{ i18n.t().common.cancel }}
                 </button>
               </div>
             }
-          } @else {
+            @if (s.requests; as requests) {
+              @for (request of requests; track request.requestId) {
+                <div class="fam-row">
+                  <span class="fam-who">
+                    <span class="fam-name">{{ request.requester.userId === s.minor.user.userId
+                      ? request.recipient.displayName : request.requester.displayName }}</span>
+                    <span class="hint">{{ i18n.fill(i18n.t().amigos.minorConsentProgress,
+                      { count: request.consents.length }) }}</span>
+                  </span>
+                  <span class="fam-tools">
+                    @if (childNeedsApproval(request, s.minor.user.userId)) {
+                      <button type="button" class="chip opt" (click)="approveChildFriend(s.minor, request.requestId)"
+                        [disabled]="fam.loading()">{{ i18n.t().familia.childApproveFriend }}</button>
+                    }
+                    <button type="button" class="chip opt" (click)="rejectChildFriend(s.minor, request.requestId)"
+                      [disabled]="fam.loading()">{{ i18n.t().familia.childRejectFriend }}</button>
+                  </span>
+                </div>
+              }
+            }
+          } @else if (!errorText()) {
             <p class="hint">{{ i18n.t().common.loading }}</p>
           }
-          @if (errorText()) {
-            <p class="error-line" role="alert">{{ errorText() }}</p>
-          }
-          <button type="button" class="btn btn-ghost" (click)="openChild(s.link)">
+          <button type="button" class="btn btn-ghost fam-friends-back" (click)="openChild(s.minor)">
             ← {{ i18n.t().common.back }}
           </button>
         }
-
         @case ('reset') {
-          <span class="confirm-icon" aria-hidden="true">🔑</span>
-          <h2>{{ i18n.fill(i18n.t().familia.resetTitle, { name: s.link.user.displayName }) }}</h2>
+          <h2 id="familia-sheet-title">
+            {{ i18n.fill(i18n.t().familia.resetTitle, { name: s.minor.user.displayName }) }}
+          </h2>
           <p class="confirm-body">{{ i18n.t().familia.tempIntro }}</p>
           <p class="temp-password">{{ s.tempPassword }}</p>
           <p class="hint">{{ i18n.t().familia.tempHint }}</p>
-          <button type="button" class="btn btn-primary" (click)="close()">
+          <button type="button" class="btn btn-primary fam-reset-done" (click)="close()">
             {{ i18n.t().common.done }}
           </button>
         }
-
-        @case ('invite') {
-          <span class="confirm-icon" aria-hidden="true">🤝</span>
-          <h2>{{ i18n.t().familia.inviteTitle }}</h2>
-          <p class="confirm-body">
-            {{ s.flavor === 'coGuardian' ? i18n.t().familia.inviteCoBody : i18n.t().familia.inviteLinkBody }}
-          </p>
-          <p class="temp-password">{{ prettyCode(s.grant.code) }}</p>
-          <p class="hint">
-            {{ i18n.fill(i18n.t().familia.inviteExpiry, { date: expiryDate(s.grant) }) }}
-          </p>
-          <button type="button" class="btn btn-primary" (click)="close()">
-            {{ i18n.t().common.done }}
-          </button>
-        }
-
-        @case ('accept') {
-          <h2>{{ i18n.t().familia.acceptTitle }}</h2>
-          <p class="confirm-body">{{ i18n.t().familia.acceptBody }}</p>
-          <form class="fam-form" (submit)="$event.preventDefault(); submitAccept()">
-            <label class="field">
-              <span>{{ i18n.t().familia.acceptLabel }}</span>
-              <input
-                class="code-entry"
-                type="text"
-                autocapitalize="characters"
-                spellcheck="false"
-                [value]="acceptCode()"
-                (input)="acceptCode.set(inputValue($event))"
-              />
-            </label>
-            @if (errorText()) {
-              <p class="error-line" role="alert">{{ errorText() }}</p>
-            }
-            <div class="row">
-              <button type="button" class="btn btn-ghost" (click)="close()">
-                {{ i18n.t().common.cancel }}
-              </button>
-              <button type="submit" class="btn btn-primary" [disabled]="fam.loading()">
-                {{ fam.loading() ? i18n.t().common.loading : i18n.t().familia.acceptSubmit }}
-              </button>
-            </div>
-          </form>
-        }
-
-        @case ('unlink') {
-          <span class="confirm-icon" aria-hidden="true">🍃</span>
-          <h2>
-            {{ i18n.fill(s.mineSide ? i18n.t().familia.unlinkMineTitle : i18n.t().familia.unlinkTitle, { name: s.link.user.displayName }) }}
-          </h2>
-          <p class="confirm-body">{{ i18n.t().familia.unlinkBody }}</p>
-          @if (errorText()) {
-            <p class="error-line" role="alert">{{ errorText() }}</p>
-          }
-          <div class="row">
-            <button type="button" class="btn btn-primary" (click)="close()">
-              {{ i18n.t().common.cancel }}
-            </button>
-            <button type="button" class="btn btn-ghost danger" (click)="doUnlink(s.link)" [disabled]="fam.loading()">
-              {{ i18n.t().familia.unlinkConfirm }}
-            </button>
-          </div>
-        }
-
         @case ('delete') {
-          <span class="confirm-icon" aria-hidden="true">🍃</span>
-          <h2>{{ i18n.fill(i18n.t().familia.deleteTitle, { name: s.link.user.displayName }) }}</h2>
+          <h2 id="familia-sheet-title">
+            {{ i18n.fill(i18n.t().familia.deleteTitle, { name: s.minor.user.displayName }) }}
+          </h2>
           <p class="confirm-body">{{ i18n.t().familia.deleteBody }}</p>
-          @if (errorText()) {
-            <p class="error-line" role="alert">{{ errorText() }}</p>
-          }
           <div class="row">
-            <button type="button" class="btn btn-primary" (click)="close()">
-              {{ i18n.t().common.cancel }}
-            </button>
-            <button type="button" class="btn btn-ghost danger" (click)="doDelete(s.link)" [disabled]="fam.loading()">
+            <button type="button" class="btn btn-primary fam-delete-cancel" (click)="close()">
+              {{ i18n.t().common.cancel }}</button
+            ><button
+              type="button"
+              class="btn btn-ghost danger fam-delete-confirm"
+              (click)="doDelete(s.minor)"
+              [disabled]="fam.loading() || !isPrimary()"
+            >
               {{ i18n.t().familia.deleteConfirm }}
             </button>
           </div>
         }
+      }
+      @if (errorText()) {
+        <p class="error-line" role="alert">{{ errorText() }}</p>
       }
     </div>
   </div>

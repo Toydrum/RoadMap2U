@@ -984,11 +984,106 @@ export const ES = {
   },
   familia: {
     title: 'Familia',
+    sponsoredActive: 'Cobertura familiar patrocinada para este hogar invitado. No hay cobros ni fecha de pago.',
+    sponsoredEnded: 'La cobertura familiar patrocinada terminó. Las cuentas y los vínculos de cuidado permanecen.',
+    accountIdLabel: 'Tu ID de cuenta para invitaciones',
+    linkCodeCta: 'Crear código para vincular a este menor',
+    linkCodeTitle: 'Código de vinculación',
+    linkCodeBody: 'Comparte este código solo con la persona adulta que recibirá la responsabilidad. El vínculo se hará después de ambas aprobaciones.',
+    linkRequestTitle: 'Solicitar vinculación de un menor',
+    linkRequestBody: 'Escribe el código del responsable actual. Esa persona deberá aprobar y luego tú aceptarás la responsabilidad.',
+    linkRequestSubmit: 'Enviar solicitud',
+    linkRequested: 'Solicitud enviada. Espera la aprobación del responsable actual.',
+    linkApproveCta: 'Aprobar salida del menor',
+    linkApproveBody: 'La persona destinataria tendrá que aceptar expresamente la responsabilidad. Hasta entonces sigues siendo responsable.',
+    linkAcceptCta: 'Aceptar responsabilidad del menor',
+    linkAcceptBody: 'Al aceptar, el menor pasará a tu hogar y asumirás su responsabilidad principal. Su cuenta y datos se conservan.',
+    additionalInviteCta: 'Invitar responsable adicional',
+    additionalInviteTitle: 'Invitar a otra persona adulta',
+    additionalInviteBody: 'Pide a la persona su ID de cuenta. Solo podrá cuidar a los menores que selecciones y deberá aceptar la invitación.',
+    adultIdLabel: 'ID de cuenta de la persona adulta',
+    selectMinors: 'Selecciona los menores a quienes podrá acompañar.',
+    additionalInviteSubmit: 'Enviar invitación',
+    additionalInvited: 'Invitación enviada. Falta la aceptación de la otra persona.',
+    additionalAcceptCta: 'Aceptar invitación de cuidado',
+    additionalAcceptBody: 'Aceptarás acompañar solo a los menores autorizados por el responsable principal.',
+    scopeEditCta: 'Cambiar menores autorizados',
+    scopeSaved: 'Alcance de cuidado actualizado.',
+    additionalRevokeCta: 'Revocar acceso adicional',
+    additionalRevokeBody: 'La otra persona perderá el acceso de cuidado a este hogar. Las cuentas de los menores permanecen.',
+    additionalRevoked: 'Acceso adicional revocado.',
+    noticeConfirmTitle: 'Confirmar solicitud familiar',
+    noticeConfirmCta: 'Confirmar',
+    noticeCompleted: 'Solicitud familiar actualizada.',
+    minorUsername: 'Nombre de usuario del menor',
+    primaryTitle: 'Responsable principal de la cuenta',
+    inboxTitle: 'Solicitudes y avisos',
+    transferCta: 'Cambiar responsable principal',
+    transferProposeCta: 'Enviar propuesta',
+    transferAcceptCta: 'Aceptar responsabilidad principal',
+    transferBody:
+      'La persona responsable adicional deberá aceptar. Hasta entonces, tú sigues como responsable principal. Se requiere un inicio de sesión reciente.',
+    transferAcceptBody:
+      'Al aceptar, asumirás la responsabilidad principal; la persona anterior será responsable adicional. Se requiere un inicio de sesión reciente.',
+    transferProposed: 'Propuesta enviada. La responsabilidad todavía no ha cambiado.',
+    transferAccepted: 'Aceptación registrada. Revisa el estado actualizado del hogar.',
+    inboxEmpty: 'No hay solicitudes ni avisos para esta cuenta.',
+    inboxMore: 'Ver más',
+    inboxRetry: 'Volver a consultar',
+    inboxUnavailable:
+      'No pudimos consultar los avisos. Esto no significa que no haya solicitudes pendientes.',
+    inboxKinds: {
+      minor_link_request: 'Vinculación de un menor',
+      additional_responsible_invitation: 'Invitación de responsable adicional',
+      primary_transfer: 'Cambio de responsable principal',
+    },
+    inboxStates: {
+      pending: 'Pendiente',
+      approved: 'Aprobada; falta aceptación',
+      accepted: 'Aceptada',
+      rejected: 'Rechazada',
+      revoked: 'Revocada',
+      expired: 'Vencida',
+    },
+    primaryHint:
+      'Administra el hogar. Cada persona conserva su propio inicio de sesión.',
+    additionalTitle: 'Responsable adicional autorizado',
+    scopeHint: 'Puede acompañar únicamente a: {names}. No administra pagos, contraseñas ni bajas.',
+    scopeEmpty: 'ningún menor asignado',
+    additionalPaused: 'Su cobertura no está activa; sus permisos de acompañamiento están en pausa.',
+    additionalSeatEmpty:
+      'Lugar de responsable adicional disponible. Requiere cobertura, invitación y aceptación.',
+    additionalSeatUnavailable: 'El lugar de responsable adicional no está disponible.',
+    seatsHint:
+      'Lugares disponibles para menores: {count}. Máximo dos; la cobertura se comprueba al asignar.',
+    seatLabel: 'Lugar {seat}',
+    householdUnavailable:
+      'No hay un hogar disponible para esta cuenta. Revisa tu conexión o vuelve a entrar.',
+    countryMx: 'País de esta declaración: México (MX).',
+    majorityLabel: 'Fecha en que cumplirá 18 años',
+    majorityHint:
+      'Declara la fecha de mayoría de edad. Esto no libera anticipadamente la cuenta de supervisión.',
+    majorityDeclared: 'Mayoría de edad declarada: {date}.',
+    declarationText:
+      'Declaro que soy responsable de este menor y que la fecha indicada es correcta.',
+    consentText:
+      'Autorizo crear su cuenta supervisada y el tratamiento de sus datos para prestar el servicio. Entiendo que sus amistades requieren aprobación.',
+    consentVersions:
+      'Declaración: declaration-v1 · Consentimiento: consent-v1 · Política: family-policy-v2.',
+    notices: {
+      cached: 'Vista guardada. Necesitamos conexión para confirmar cambios y permisos.',
+      coverage_ended:
+        'Hay menores sin cobertura familiar activa. Sus cuentas y la responsabilidad principal permanecen; otra fuente válida puede conservar Premium.',
+      disputed: 'El hogar está en revisión. Los cambios están en pausa.',
+      legacy_over_capacity:
+        'Este hogar requiere revisión de sus lugares antes de realizar cambios.',
+      closed: 'Este hogar está cerrado.',
+    },
     guardiansTitle: 'Te cuidan',
     minorsTitle: 'Cuidas a',
     disclosure:
-      'Tu familia puede ver tu bosque y plantar contigo — y tú puedes ver el suyo. Tus sentimientos, tus check-ins y tu clima siguen siendo solo tuyos.',
-    emptyAdult: 'Aún no cuidas ningún bosque. Crea una cuenta de peque o comparte una invitación.',
+      'Las personas responsables autorizadas pueden acompañar tu bosque dentro de sus permisos. La familia no crea amistades automáticamente. Tus sentimientos, tus check-ins y tu clima siguen siendo solo tuyos.',
+    emptyAdult: 'Aún no hay menores en este hogar.',
     kindCreated: 'a tu cuidado',
     kindInvited: 'vinculada',
     createCta: 'Crear cuenta de peque',
@@ -996,14 +1091,15 @@ export const ES = {
     acceptCta: 'Tengo un código',
     createTitle: 'Una cuenta para tu peque',
     createBody:
-      'Elige su nombre de usuario y cómo le llamamos. No necesita correo: tú eres su recuperación.',
+      'Elige su nombre de usuario y declara su mayoría de edad. No necesita correo: la persona responsable principal administra su recuperación.',
     displayNameLabel: '¿Cómo le llamamos?',
     createSubmit: 'Crear su cuenta',
     createdTitle: 'La cuenta de {name} está lista 🌱',
     tempIntro: 'Su contraseña temporal — entrégasela en persona. Solo se muestra una vez:',
     tempHint: 'Al entrar por primera vez, la app le pedirá estrenar una contraseña suya.',
     socialLabel: 'Amigos y visitas',
-    socialHint: 'Si está activo, podrá invitar amistades y visitar sus bosques.',
+    socialHint:
+      'Solo puede relacionarse con menores. Ambos menores y sus responsables deben aprobar la amistad antes de las visitas.',
     resetCta: 'Nueva contraseña temporal',
     resetTitle: 'Contraseña nueva para {name}',
     exportCta: 'Descargar su respaldo',
@@ -1039,6 +1135,8 @@ export const ES = {
       'La misma lista que ve {name} — puedes soltar vínculos o cancelar solicitudes, nunca iniciarlas por su cuenta.',
     childFriendsEmpty: 'Aún no tiene amistades.',
     childFriendRemove: 'Soltar',
+    childApproveFriend: 'Aprobar amistad',
+    childRejectFriend: 'Rechazar solicitud',
     childRequestPending: 'solicitud enviada',
     errors: {
       UNAUTHENTICATED: 'Tu sesión necesita un respiro — vuelve a entrar.',
@@ -1072,6 +1170,26 @@ export const ES = {
         'La nube está preparando tus límites. Tu cambio sigue en este dispositivo; inténtalo en un momento.',
       COMMERCIAL_CONFIGURATION_UNAVAILABLE:
         'No pudimos confirmar tu acceso ahora. Tu copia local sigue disponible; inténtalo después.',
+      ADULT_MINOR_FRIENDSHIP_FORBIDDEN: 'Ese vínculo de amistad no está disponible.',
+      ACCOUNT_TYPE_INCOMPATIBLE: 'Esa combinación de cuentas no puede usar este camino.',
+      RESPONSIBLE_SCOPE_REQUIRED:
+        'Ese menor no está dentro del alcance autorizado de este vínculo.',
+      CONSENT_INCOMPLETE: 'La amistad aún está reuniendo todos sus vistos buenos.',
+      MINOR_ALREADY_COVERED: 'Esa cuenta ya tiene una cobertura familiar activa.',
+      HOUSEHOLD_CAPACITY_EXCEEDED: 'Ese hogar ya ocupa los lugares disponibles.',
+      CURRENT_PRIMARY_APPROVAL_REQUIRED:
+        'El responsable principal actual todavía necesita dar su visto bueno.',
+      LEGAL_REGION_UNSUPPORTED:
+        'Por ahora, este camino para menores sólo está disponible en México.',
+      OFFER_NOT_ALLOWED: 'Esa oferta no corresponde a la composición actual del hogar.',
+      CHECKOUT_IN_PROGRESS:
+        'Ya hay una compra en curso para este hogar. Puedes retomarla con calma.',
+      SUBSCRIPTION_CONFLICT:
+        'Encontramos una suscripción que necesita conciliación. No hicimos cambios.',
+      PAYMENT_REQUIRED: 'Este cambio necesita confirmar el pago antes de abrir cobertura.',
+      REAUTHENTICATION_REQUIRED: 'Para cuidar esta cuenta, vuelve a entrar antes de continuar.',
+      STALE_REVISION:
+        'El hogar cambió mientras estabas aquí. Actualiza para partir de su estado más reciente.',
       offline: 'Sin conexión ahora mismo — inténtalo cuando vuelva.',
       server: 'La nube tuvo un tropiezo. Intenta de nuevo en un momento.',
       unknown: 'Algo no salió. Intenta de nuevo en un momento.',
@@ -1088,6 +1206,12 @@ export const ES = {
   },
   amigos: {
     title: 'Amistades',
+    minorCreateCode: 'Crear código para otra persona menor',
+    minorCodeHint: 'Compártelo fuera de la app con otro menor. Vale 24 horas y se usa una vez. La amistad necesita cuatro consentimientos.',
+    minorPendingTitle: 'Amistades esperando consentimientos',
+    minorConsentProgress: '{count} de 4 consentimientos registrados',
+    minorConsentHint: 'La amistad solo se activa cuando ambos menores y sus responsables han dicho que sí.',
+    minorAcceptPending: 'Tu aceptación quedó registrada. Aún faltan los demás consentimientos.',
     myCode: 'Tu código de amistad',
     codeHint:
       'Compártelo fuera de la app con quien tú quieras. Vale 7 días; cada solicitud igual se acepta a mano. No hay búsqueda de personas — el código es la única puerta.',
@@ -1192,6 +1316,11 @@ export const ES = {
         icon: '🔒',
         title: 'Tus datos',
         body: 'Tu bosque vive en tu dispositivo y nada viaja sin ti. Estamos preparando cuentas para familias y amistades: cuando conectes la tuya, tu bosque podrá respaldarse y abrirse solo a quien tú elijas — y siempre sabrás quién puede verlo. Sin anuncios, sin rastreo, nunca. En Ajustes puedes exportar tu copia (hazlo seguido — es tu respaldo) e importarla en otro dispositivo. Ajustes te muestra la fecha de tu última copia, y si pasa mucho tiempo sin una, la app te lo recuerda con una sola línea — puedes apagar ese recordatorio ahí mismo. Nada se borra por accidente: ramas y árboles descansan en el archivo (🗃), recuperables siempre, y cada aviso de archivo te ofrece «Deshacer» durante unos segundos. Borrar para siempre solo existe dentro del archivo, y antes de hacerlo la app descarga sola un respaldo.',
+      },
+      {
+        icon: '🤝',
+        title: 'Cuentas familiares',
+        body: 'Cada persona conserva su inicio de sesión. El responsable principal de la cuenta administra el hogar y será quien pague; hay hasta dos lugares para menores y uno para un responsable adicional autorizado, con alcance explícito por menor. Crear una cuenta menor requiere declarar México, la fecha en que cumplirá 18 años y dos consentimientos versionados. Solo el responsable principal administra contraseñas, exportación y bajas; la transferencia requiere que la otra persona acepte. La bandeja familiar es privada de cada cuenta. Las amistades adultas no dan acceso a otros integrantes de su familia. Esta pantalla está en implementación: los pagos y los controles de invitación o vinculación siguen pendientes de habilitar.',
       },
     ],
   },

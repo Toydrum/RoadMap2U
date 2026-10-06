@@ -107,8 +107,12 @@ checks out code nor writes AWS state.
    requires its successful `test` marker. The marker is checked before
    checkout.
 4. `.github/workflows/rollback-aws.yml` accepts only a SHA already marked
-   successful in the same stage, then regenerates, rebuilds, validates, and
-   republishes it.
+   successful in the same stage. Its default `recovery_mode=rebuild` regenerates,
+   rebuilds, validates, and republishes compatible source. With
+   `recovery_mode=snapshot`, it downloads the retained original PWA, checks every
+   service worker asset hash and the API/Cognito destination, validates the PWA,
+   and republishes those bytes. Snapshot mode checks out the exact workflow SHA
+   for recovery tools; it does not compile the prior frontend contracts.
 5. Before configuration generation or upload, each workflow reads
    `/backend-release-sha`, validates its matching `/backend-releases/<sha>`
    proof and `/backend-release-manifests/<sha>` snapshot, and records the
@@ -153,7 +157,16 @@ is an infrastructure operation in the backend repository.
 
 For application rollback, temporarily set `AWS_DEPLOY_ENABLED=false` and
 `AWS_ROLLBACK_ENABLED=true`, then dispatch `rollback-aws.yml` with the stage and
-a same-stage successful SHA. Restore both gates to `false` afterward. For a
+a same-stage successful SHA. Choose `recovery_mode=snapshot` when the earlier
+client contracts cannot be rebuilt against the current backend manifest.
+Verify the retained artifact before the release window: downloads use
+conditional `GetObject` requests with the observed ETag, and the receipt stays
+outside the publish directory. A missing, changed, corrupt, or differently
+configured artifact stops recovery before any upload. The existing publication
+script retains the previous mutable files, publishes assets first and index
+last, then invalidates CloudFront; the stage pointer changes only after smoke.
+Snapshot reads use the role's existing `s3:GetObject` permission. Restore both
+gates to `false` afterward. For a
 broader infrastructure incident, leave the frontend release markers intact and
 follow the backend repository's rollback runbook; never replace generated
 configuration with hand-edited values.

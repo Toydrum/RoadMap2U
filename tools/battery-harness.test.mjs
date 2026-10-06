@@ -21,7 +21,7 @@ test('the harness provides one deterministic Premium lease for mutation probes',
   assert.equal(fixture.cache.key, 'commercial.access:battery-probe-adult');
   assert.equal(fixture.cache.userId, fixture.identity.user.userId);
   assert.equal(fixture.cache.summary.effectivePlanKey, 'premium');
-  assert.equal(fixture.cache.summary.catalogVersion, '2026-08-prepayment-v1');
+  assert.equal(fixture.cache.summary.catalogVersion, '2026-09-family-v1');
   assert.equal(fixture.cache.summary.status, 'active');
   assert.equal(fixture.cache.summary.activeSources[0].kind, 'sponsored');
   assert.equal(fixture.cache.summary.limits.maxActiveTrees, null);
@@ -74,7 +74,12 @@ test('a virgin-state probe can provision access only after its migration asserti
   };
 
   await provisionCommercialAccessForNextBoot(page);
-  assert.deepEqual(calls, ['guard', `goto:http://localhost:8826/account`, 'wait:app-account', 'write']);
+  assert.deepEqual(calls, [
+    'guard',
+    `goto:http://localhost:8826/account`,
+    'wait:app-account',
+    'write',
+  ]);
 
   const migration = source('tools/verify-migration.mjs');
   const afterCopy = migration.indexOf('// C — a later write');
