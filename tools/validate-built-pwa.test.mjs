@@ -37,8 +37,10 @@ function validBuild() {
   return directory;
 }
 
-function validate(directory) {
-  return spawnSync(process.execPath, [script, '--build-dir', directory], { encoding: 'utf8' });
+function validate(directory, extra = []) {
+  return spawnSync(process.execPath, [script, '--build-dir', directory, ...extra], {
+    encoding: 'utf8',
+  });
 }
 
 test('accepts a complete root-hosted PWA build', () => {
@@ -121,6 +123,55 @@ test('rejects a service-worker import that is absent from the build', () => {
     const result = validate(directory);
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /ngsw-worker\.js.*missing/i);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+for (const [startUrl, mode, expectedStatus] of [
+  ['/', 'snapshot', 0],
+  ['/ahora', 'snapshot', 0],
+  ['/', 'rebuild', 1],
+  ['https://not-roadmap2u.example/', 'snapshot', 1],
+  ['/marketing', 'snapshot', 1],
+  ['/', 'unknown', 1],
+]) {
+  test(`PWA recovery ${mode} validates start_url ${startUrl}`, () => {
+    const directory = validBuild();
+    try {
+      writeFileSync(
+        join(directory, 'manifest.webmanifest'),
+        JSON.stringify({
+          id: '/',
+          scope: '/',
+          start_url: startUrl,
+          icons: [{ src: 'icon.png' }],
+        }),
+      );
+      const result = validate(directory, ['--recovery-mode', mode]);
+      assert.equal(result.status, expectedStatus, result.stderr);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
+
+test('snapshot recovery still rejects a missing PWA asset', () => {
+  const directory = validBuild();
+  try {
+    writeFileSync(
+      join(directory, 'manifest.webmanifest'),
+      JSON.stringify({
+        id: '/',
+        scope: '/',
+        start_url: '/',
+        icons: [{ src: 'icon.png' }],
+      }),
+    );
+    rmSync(join(directory, 'main-HASH.js'));
+    const result = validate(directory, ['--recovery-mode', 'snapshot']);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /main-HASH\.js.*missing/i);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

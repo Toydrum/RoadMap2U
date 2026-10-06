@@ -5,10 +5,17 @@ import { resolve, sep } from 'node:path';
 import process from 'node:process';
 
 function buildDirectory(argv) {
-  if (argv.length !== 2 || argv[0] !== '--build-dir' || !argv[1]) {
+  if (![2, 4].includes(argv.length) || argv[0] !== '--build-dir' || !argv[1]) {
     throw new Error('--build-dir is required');
   }
-  return resolve(argv[1]);
+  const recoveryMode = argv.length === 4 ? argv[3] : 'rebuild';
+  if (
+    (argv.length === 4 && argv[2] !== '--recovery-mode') ||
+    !['rebuild', 'snapshot'].includes(recoveryMode)
+  ) {
+    throw new Error('--recovery-mode must be rebuild or snapshot');
+  }
+  return { directory: resolve(argv[1]), recoveryMode };
 }
 
 function requireFile(path, label) {
@@ -50,7 +57,7 @@ function validateAsset(root, reference, label) {
   if (path) requireFile(path, `${label} ${reference}`);
 }
 
-function validateBuild(root) {
+function validateBuild(root, recoveryMode) {
   const indexPath = resolve(root, 'index.html');
   requireFile(indexPath, 'index.html');
   const indexHtml = readFileSync(indexPath, 'utf8');
@@ -68,7 +75,10 @@ function validateBuild(root) {
   for (const field of ['id', 'scope']) {
     if (manifest[field] !== '/') throw new Error(`manifest ${field} must be "/"`);
   }
-  if (manifest.start_url !== '/ahora') {
+  if (
+    manifest.start_url !== '/ahora' &&
+    !(recoveryMode === 'snapshot' && manifest.start_url === '/')
+  ) {
     throw new Error('manifest start_url must be "/ahora"');
   }
   if (!Array.isArray(manifest.icons) || manifest.icons.length === 0) {
@@ -98,8 +108,8 @@ function validateBuild(root) {
 }
 
 try {
-  const directory = buildDirectory(process.argv.slice(2));
-  validateBuild(directory);
+  const { directory, recoveryMode } = buildDirectory(process.argv.slice(2));
+  validateBuild(directory, recoveryMode);
   console.log(`PWA build passed local validation: ${directory}`);
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));

@@ -162,8 +162,12 @@ client contracts cannot be rebuilt against the current backend manifest.
 Verify the retained artifact before the release window: downloads use
 conditional `GetObject` requests with the observed ETag, and the receipt stays
 outside the publish directory. A missing, changed, corrupt, or differently
-configured artifact stops recovery before any upload. The existing publication
-script retains the previous mutable files, publishes assets first and index
+configured artifact stops recovery before any upload. Snapshot validation and
+public smoke receive `--recovery-mode snapshot` only for this
+recovery path, accepting retained manifests whose historical `start_url` was
+`/`. They still validate root id/scope, files, icons, and the API boundary.
+New publications and `recovery_mode=rebuild` continue to require `/ahora`.
+The existing publication script retains the previous mutable files, publishes assets first and index
 last, then invalidates CloudFront; the stage pointer changes only after smoke.
 Snapshot reads use the role's existing `s3:GetObject` permission. Restore both
 gates to `false` afterward. For a

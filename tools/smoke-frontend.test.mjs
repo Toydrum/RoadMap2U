@@ -20,7 +20,7 @@ function listen(handler) {
   });
 }
 
-function run(frontendUrl, apiBaseUrl) {
+function run(frontendUrl, apiBaseUrl, extra = []) {
   return new Promise((resolve) => {
     const child = spawn(
       process.execPath,
@@ -28,6 +28,7 @@ function run(frontendUrl, apiBaseUrl) {
         script,
         '--frontend-url',
         frontendUrl,
+        ...extra,
         '--api-base-url',
         apiBaseUrl,
         '--cors-origin',
@@ -43,7 +44,7 @@ function run(frontendUrl, apiBaseUrl) {
   });
 }
 
-async function frontendServer() {
+async function frontendServer(options = {}) {
   const index = `<!doctype html><html><head><base href="/"><link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles-HASH.css"></head><body><script src="main-HASH.js"></script></body></html>`;
   return listen((request, response) => {
     const path = new URL(request.url, 'http://localhost').pathname;
@@ -53,9 +54,14 @@ async function frontendServer() {
       response
         .writeHead(200, { 'content-type': 'application/manifest+json' })
         .end(
-          JSON.stringify({ id: '/', scope: '/', start_url: '/ahora', icons: [{ src: 'icon.png' }] }),
+          JSON.stringify({
+            id: '/',
+            scope: '/',
+            start_url: options.startUrl ?? '/ahora',
+            icons: [{ src: 'icon.png' }],
+          }),
         );
-    } else if (path === '/icon.png') {
+    } else if (path === '/icon.png' && !options.missingIcon) {
       response.writeHead(200, { 'content-type': 'image/png' }).end('png');
     } else if (path === '/ngsw.json') {
       response.writeHead(200, { 'content-type': 'application/json' }).end('{}');
@@ -158,3 +164,49 @@ test('rejects a 401 response without the exact frontend CORS origin', async () =
     await api.close();
   }
 });
+
+for (const scenario of [
+  { startUrl: '/', mode: 'snapshot', status: 0 },
+  { startUrl: '/ahora', mode: 'snapshot', status: 0 },
+  { startUrl: '/', mode: 'rebuild', status: 1 },
+  { startUrl: '/', status: 1 },
+  { startUrl: 'https://not-roadmap2u.example/', mode: 'snapshot', status: 1 },
+  { startUrl: '/', mode: 'unknown', status: 1 },
+  { startUrl: '/', mode: 'snapshot', missingIcon: true, status: 1 },
+  { startUrl: '/', mode: 'snapshot', invalidJson: true, status: 1 },
+]) {
+  test(`snapshot smoke ${JSON.stringify(scenario)}`, async () => {
+    const frontend = await frontendServer(scenario);
+    const api = await listen((request, response) => {
+      if (request.method === 'OPTIONS') {
+        response
+          .writeHead(204, {
+            'access-control-allow-origin': frontend.url,
+            'access-control-allow-methods': 'GET,OPTIONS',
+            'access-control-allow-headers': 'authorization,content-type',
+          })
+          .end();
+      } else {
+        response
+          .writeHead(401, {
+            'content-type': scenario.invalidJson ? 'text/html' : 'application/json',
+            'access-control-allow-origin': frontend.url,
+          })
+          .end(scenario.invalidJson ? '<h1>Unauthorized</h1>' : '{"message":"Unauthorized"}');
+      }
+    });
+    try {
+      const result = await run(
+        frontend.url,
+        api.url,
+        scenario.mode ? ['--recovery-mode', scenario.mode] : [],
+      );
+      assert.equal(result.status, scenario.status, result.stderr);
+      if (scenario.invalidJson) assert.match(result.stderr, /401 response must be JSON/i);
+      if (scenario.missingIcon) assert.match(result.stderr, /manifest icon returned 404/i);
+    } finally {
+      await frontend.close();
+      await api.close();
+    }
+  });
+}
