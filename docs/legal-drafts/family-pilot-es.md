@@ -1,10 +1,10 @@
 # Borrador ES — piloto familiar por invitación
 
-**Estado: revisión pendiente. No publicar ni habilitar PROD con este borrador.** Completar `{{RESPONSABLE_LEGAL}}`, `{{DOMICILIO_COMPLETO}}`, `{{CONTACTO_PRIVACIDAD}}`, `{{CONTACTO_SOPORTE}}`, `{{FECHA_VIGENCIA}}`, `{{PLAZOS_CONSERVACION}}` y `{{ENCARGADOS_Y_TRANSFERENCIAS}}`; obtener revisión jurídica y aprobación del responsable.
+**Estado: revisión pendiente. No publicar ni habilitar PROD con este borrador.** El responsable confirmó su nombre, Héctor Coronado, persona física, y `overseer@roadmap2u.com` como contacto público de privacidad y soporte. Completar `{{DOMICILIO_COMPLETO}}`, `{{FECHA_VIGENCIA}}`, `{{PLAZOS_CONSERVACION}}` y `{{ENCARGADOS_Y_TRANSFERENCIAS}}`; obtener revisión jurídica y aprobación del responsable. La elección del domicilio público sigue pendiente; no se incluye aquí la dirección personal enviada por chat.
 
 ## Aviso de privacidad integral — borrador
 
-**Responsable.** `{{RESPONSABLE_LEGAL}}`, con domicilio para recibir notificaciones en `{{DOMICILIO_COMPLETO}}` y contacto de privacidad `{{CONTACTO_PRIVACIDAD}}`.
+**Responsable.** Héctor Coronado, persona física, con domicilio para recibir notificaciones en `{{DOMICILIO_COMPLETO}}` y contacto de privacidad `overseer@roadmap2u.com`.
 
 **Datos y finalidades.** RoadMap2U trata identificadores de cuenta, nombre de usuario, correo de adultos, fecha declarada de mayoría de edad de menores, vínculos de cuidado, consentimientos, solicitudes de amistad, contenido que la persona decida guardar en su bosque y datos técnicos necesarios para autenticación, seguridad y operación. Especificar antes de publicar si alguna categoría constituye dato sensible y el mecanismo de consentimiento que corresponda. Usamos los datos para operar cuentas y bosques, permitir supervisión limitada, gestionar invitaciones y cuatro consentimientos para amistades entre menores, dar soporte, prevenir abuso y cumplir obligaciones aplicables. Las finalidades opcionales, si se incorporan, deberán presentarse separadas y permitir negativa.
 
@@ -14,7 +14,7 @@
 
 **Encargados y transferencias.** Completar `{{ENCARGADOS_Y_TRANSFERENCIAS}}` con proveedores, ubicación, finalidades y base de transferencia aplicables; distinguir encargados del tratamiento de transferencias a terceros. No suponer aceptación de transferencias que requieran consentimiento.
 
-**Derechos y opciones.** Para acceso, rectificación, cancelación, oposición, revocación de consentimiento o limitación del uso/divulgación, escribir a `{{CONTACTO_PRIVACIDAD}}`. Completar procedimiento, identificación de titular o representante, plazos y recursos aplicables. La app permite desactivar amistades y solicitar respaldo o eliminación de la cuenta en los flujos disponibles. Los cambios al aviso se comunicarán por `{{MEDIO_DE_CAMBIOS}}`.
+**Derechos y opciones.** Para acceso, rectificación, cancelación, oposición, revocación de consentimiento o limitación del uso/divulgación, escribir a `overseer@roadmap2u.com`. Completar procedimiento, identificación de titular o representante, plazos y recursos aplicables. La app permite desactivar amistades y solicitar respaldo o eliminación de la cuenta en los flujos disponibles. Los cambios al aviso se comunicarán por `{{MEDIO_DE_CAMBIOS}}`.
 
 **Fecha de vigencia.** `{{FECHA_VIGENCIA}}`.
 
@@ -28,13 +28,13 @@ El operador puede revocar la cobertura del piloto. La revocación impide nuevas 
 
 ## Soporte y privacidad — borrador de procedimiento
 
-Contacto de soporte: `{{CONTACTO_SOPORTE}}`. Contacto de privacidad: `{{CONTACTO_PRIVACIDAD}}`. Para recuperar una cuenta menor, transferir cuidado, impugnar un vínculo o reportar una amistad no consentida, verificar identidad y autoridad antes de actuar. Registrar el caso sin copiar contenido íntimo innecesario. Priorizar los reportes que afecten a menores; completar horarios, objetivos de respuesta y escalamiento en `{{RUNBOOK_SOPORTE}}`. Las solicitudes de datos y borrado seguirán `{{RUNBOOK_PRIVACIDAD}}`, con comprobación de cuenta, representante y estado de cierre. No prometer restauración de datos borrados.
+Contacto de soporte: `overseer@roadmap2u.com`. Contacto de privacidad: `overseer@roadmap2u.com`. El [procedimiento ES/EN de soporte y privacidad](support-privacy-procedure.md) detalla recepción, comprobación de identidad/representación, roles, respaldos, cierre e incidentes. Sigue pendiente de aprobar horarios, objetivos de respuesta, responsables de atención/escalamiento, almacenamiento y conservación de expedientes y canal seguro. Registrar el caso sin copiar contenido íntimo innecesario. Priorizar los reportes que afecten a menores; no prometer restauración de datos borrados. El borrador del procedimiento no autoriza intervención ni publicación.
 
 ## Explicación para niñas, niños y adolescentes — borrador
 
 Tu bosque es tuyo. En las visitas al bosque, las personas que te acompañan no ven tus sentimientos, check-ins ni clima personal. La persona responsable principal sí puede pedir, por separado, un respaldo de los datos que sincronizaste; ese archivo incluye tus check-ins y sesiones. Puedes tener amistades con otros menores: tú debes pedir o aceptar, y una persona adulta autorizada de cada lado debe aprobar. Nadie se vuelve tu amistad solo por compartir hogar.
 
-Si algo te incomoda, habla con una persona adulta de confianza o usa `{{CONTACTO_SOPORTE}}`. Puedes pedir ayuda para dejar una amistad. Cuando cumplas 18 años, tu cuenta y tu bosque siguen contigo; termina la supervisión familiar y la cobertura especial del piloto.
+Si algo te incomoda, habla con una persona adulta de confianza o escribe a `overseer@roadmap2u.com`. Puedes pedir ayuda para dejar una amistad. Cuando cumplas 18 años, tu cuenta y tu bosque siguen contigo; termina la supervisión familiar y la cobertura especial del piloto.
 
 ## Fuentes para revisión jurídica
 

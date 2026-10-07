@@ -15,7 +15,7 @@ Observación: 6 de octubre de 2026, PROD. Backend de aplicación `5a4bb3ba7a25f2
 | Auditoría | Tabla de auditoría DynamoDB separada | Acciones, actor, sujeto, fecha y detalles operativos; no es el archivo de respaldo del bosque. |
 | Cierre asíncrono | Amazon SQS, Lambda y reconciliación | Mensajes de trabajo e identificadores necesarios para procesar el cierre. |
 | Entrega web | Amazon S3 y distribución global Amazon CloudFront | Artefactos estáticos de la app. CloudFront tiene logging desactivado en la configuración observada. |
-| Operación | Amazon CloudWatch y Amazon SNS | Logs/métricas de operación y alertas privadas; el destinatario de alarmas no es un contacto público de privacidad. |
+| Operación | Amazon CloudWatch y Amazon SNS | Logs/métricas de operación y alertas privadas. El contacto público de privacidad requiere designación del responsable; no se deriva de la suscripción. |
 
 La marca de proveedor técnico observada es **AWS**. La entidad contractual, condiciones de tratamiento, ubicación/reglas de transferencias y base aplicable deben confirmarse con el contrato y la revisión jurídica. La región configurada de servicios regionales no demuestra que toda operación o entrega global esté limitada a esa región.
 
@@ -52,7 +52,7 @@ Quedan fuera de esta observación los contratos del proveedor, la existencia o p
 | Audit | Separate DynamoDB audit table | Actions, actor, subject, timestamp and operational details; not the forest backup file. |
 | Asynchronous closure | Amazon SQS, Lambda and reconciliation | Work messages and identifiers needed to process closure. |
 | Web delivery | Amazon S3 and global Amazon CloudFront distribution | Static app artifacts. CloudFront logging is disabled in the observed configuration. |
-| Operations | Amazon CloudWatch and Amazon SNS | Operational logs/metrics and private alerts; the alarm recipient is not a public privacy contact. |
+| Operations | Amazon CloudWatch and Amazon SNS | Operational logs/metrics and private alerts. The controller must designate the public privacy contact separately; an alert subscription does not establish that role. |
 
 The observed technical provider brand is **AWS**. The contracting entity, processing terms, transfer locations/rules and applicable basis require contract verification and legal review. The configured region for regional services does not establish that all operations or global delivery are confined to that region.
 

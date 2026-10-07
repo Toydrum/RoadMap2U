@@ -152,7 +152,7 @@ export const EN: Dict = {
     navigation: 'Documents and help',
     review: {
       title: 'Draft for review',
-      body: 'This version is not an approved document yet. The controller, their address, public contacts, procedures and legal review must be completed before publication.',
+      body: 'This version is not an approved document yet. The notice address, procedures and legal review must be completed before publication.',
     },
     privacy: {
       title: 'Privacy',
@@ -176,13 +176,13 @@ export const EN: Dict = {
         {
           title: 'Retention and providers',
           paragraphs: [
-            'The final version must identify the controller and their address, describe providers and transfers, and set retention periods for accounts, backups and audits. This information is still awaiting review.',
+            'The controller is Héctor Coronado, an individual. The privacy contact is overseer@roadmap2u.com. The notice address must still be chosen and completed, providers and transfers described, and retention periods set for accounts, backups and audits. These items are still awaiting review.',
           ],
         },
         {
           title: 'Your options',
           paragraphs: [
-            'Available features let you export information, disable friendships and request account closure. The rights procedure, contact channels and how notice changes will be communicated must be completed before this version is published.',
+            'Available features let you export information, disable friendships and request account closure. The privacy contact is overseer@roadmap2u.com. The rights procedure and how notice changes will be communicated must be completed before this version is published.',
           ],
         },
         {
@@ -221,7 +221,7 @@ export const EN: Dict = {
         {
           title: 'Pending information',
           paragraphs: [
-            'Before publication, the controller’s identity and contacts, availability and suspension rules, the complaints procedure and applicable law and jurisdiction must be completed with legal review.',
+            'Before publication, availability and suspension rules, the complaints procedure and applicable law and jurisdiction must be completed with legal review.',
           ],
         },
       ],
@@ -229,7 +229,7 @@ export const EN: Dict = {
     support: {
       title: 'Support and care',
       intro:
-        'This draft brings together situations where pilot participants may need help. Public contacts, hours and procedures are still awaiting approval.',
+        'The public support and privacy contact is overseer@roadmap2u.com. This draft brings together situations where pilot participants may need help; hours and procedures are still awaiting approval.',
       sections: [
         {
           title: 'Account access',
@@ -1181,7 +1181,7 @@ export const EN: Dict = {
     guardiansTitle: 'They care for you',
     minorsTitle: 'You care for',
     disclosure:
-      'Authorized responsible people can accompany your forest within their permissions. Family membership does not create friendships. Your feelings, your check-ins and your weather remain yours alone.',
+      'Authorized responsible people can accompany your forest within their permissions. They do not see your feelings, check-ins or personal weather during visits. Your primary responsible adult can separately request a backup of your synced data, including check-ins and sessions. Family membership does not create friendships.',
     emptyAdult: 'There are no minors in this household yet.',
     kindCreated: 'in your care',
     kindInvited: 'linked',

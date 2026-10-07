@@ -154,7 +154,7 @@ export const ES = {
     navigation: 'Documentos y ayuda',
     review: {
       title: 'Borrador para revisión',
-      body: 'Esta versión todavía no es un documento aprobado. Antes de publicarla deben completarse el responsable, su domicilio, los contactos públicos, los procedimientos y la revisión jurídica.',
+      body: 'Esta versión todavía no es un documento aprobado. Antes de publicarla deben completarse el domicilio para notificaciones, los procedimientos y la revisión jurídica.',
     },
     privacy: {
       title: 'Privacidad',
@@ -178,13 +178,13 @@ export const ES = {
         {
           title: 'Conservación y proveedores',
           paragraphs: [
-            'La versión final debe identificar al responsable y su domicilio, describir proveedores y transferencias, y establecer los plazos de conservación de cuentas, respaldos y auditorías. Estos datos siguen pendientes de revisión.',
+            'El responsable es Héctor Coronado, persona física. El contacto de privacidad es overseer@roadmap2u.com. Falta elegir y completar el domicilio para notificaciones, describir proveedores y transferencias, y establecer los plazos de conservación de cuentas, respaldos y auditorías. Estos puntos siguen pendientes de revisión.',
           ],
         },
         {
           title: 'Tus opciones',
           paragraphs: [
-            'Las funciones disponibles permiten exportar información, desactivar amistades y solicitar el cierre de una cuenta. El procedimiento de derechos, los medios de contacto y la forma de comunicar cambios al aviso deben completarse antes de publicar esta versión.',
+            'Las funciones disponibles permiten exportar información, desactivar amistades y solicitar el cierre de una cuenta. El contacto de privacidad es overseer@roadmap2u.com. El procedimiento de derechos y la forma de comunicar cambios al aviso deben completarse antes de publicar esta versión.',
           ],
         },
         {
@@ -223,7 +223,7 @@ export const ES = {
         {
           title: 'Información pendiente',
           paragraphs: [
-            'Antes de publicar deben completarse la identidad y contactos del responsable, las reglas de disponibilidad y suspensión, el procedimiento de reclamaciones y la ley y jurisdicción aplicables, con revisión jurídica.',
+            'Antes de publicar deben completarse las reglas de disponibilidad y suspensión, el procedimiento de reclamaciones y la ley y jurisdicción aplicables, con revisión jurídica.',
           ],
         },
       ],
@@ -231,7 +231,7 @@ export const ES = {
     support: {
       title: 'Soporte y cuidado',
       intro:
-        'Este borrador reúne las situaciones de ayuda del piloto. Los contactos públicos, horarios y procedimientos siguen pendientes de aprobación.',
+        'El contacto público de soporte y privacidad es overseer@roadmap2u.com. Este borrador reúne las situaciones de ayuda del piloto; los horarios y procedimientos siguen pendientes de aprobación.',
       sections: [
         {
           title: 'Acceso a tu cuenta',
@@ -1187,7 +1187,7 @@ export const ES = {
     guardiansTitle: 'Te cuidan',
     minorsTitle: 'Cuidas a',
     disclosure:
-      'Las personas responsables autorizadas pueden acompañar tu bosque dentro de sus permisos. La familia no crea amistades automáticamente. Tus sentimientos, tus check-ins y tu clima siguen siendo solo tuyos.',
+      'Las personas responsables autorizadas pueden acompañar tu bosque dentro de sus permisos. En las visitas no ven tus sentimientos, check-ins ni clima personal. La persona responsable principal puede pedir por separado un respaldo de tus datos sincronizados, incluidos check-ins y sesiones. La familia no crea amistades automáticamente.',
     emptyAdult: 'Aún no hay menores en este hogar.',
     kindCreated: 'a tu cuidado',
     kindInvited: 'vinculada',

@@ -3,22 +3,34 @@
   "status": "draft_pending_review",
   "productionPublicationApproved": false,
   "familyActivationApproved": false,
+  "legalController": {
+    "name": "Héctor Coronado",
+    "type": "individual",
+    "providedByOwnerOn": "2026-10-06"
+  },
+  "publicContacts": {
+    "privacy": "overseer@roadmap2u.com",
+    "support": "overseer@roadmap2u.com",
+    "confirmedByOwnerOn": "2026-10-06"
+  },
+  "noticeAddressStatus": "public_address_choice_pending",
   "missingInformation": [
-    "legal_controller_identity",
     "complete_notice_address",
-    "public_privacy_contact",
-    "public_support_contact",
     "effective_date",
     "data_retention_periods",
     "processors_and_transfers",
     "sensitive_data_categories_and_minor_export_consent",
     "rights_request_procedure",
     "notice_change_channel",
+    "designated_privacy_case_handler",
+    "support_hours_response_targets",
+    "approved_case_storage_retention",
+    "verified_secure_evidence_channel",
     "approved_support_runbook",
     "approved_privacy_runbook",
     "reviewed_approved_es_and_en_documents"
   ],
   "publicRoutes": ["/privacy", "/terms", "/support"],
-  "draftSources": ["family-pilot-es.md", "family-pilot-en.md"],
-  "alarmRecipientIsPublicLegalContact": false
+  "draftSources": ["family-pilot-es.md", "family-pilot-en.md", "support-privacy-procedure.md"],
+  "alarmRecipientIsPublicLegalContact": true
 }
