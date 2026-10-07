@@ -169,7 +169,7 @@ export const EN: Dict = {
         {
           title: 'Families and friendships',
           paragraphs: [
-            'Each person has their own account. Family relationships allow authorized care features; they do not show the minor’s feelings, check-ins or personal weather.',
+            'Each person has their own account. Forest visits do not show the minor’s feelings, check-ins or personal weather. As a separate action, the authorized primary responsible adult can export a backup of that account’s synced data, including check-ins and sessions; the additional responsible adult and friends do not have this authority.',
             'A friendship between minors needs four actions: the first minor’s request, the other’s acceptance and approval by an authorized responsible adult on each side. Sharing a household does not create a friendship.',
           ],
         },
@@ -188,7 +188,7 @@ export const EN: Dict = {
         {
           title: 'For children and teenagers',
           paragraphs: [
-            'Your forest is yours. An adult who cares for you can help with your account and accompany your forest, but being part of your family does not let them see your feelings, check-ins or personal weather.',
+            'Your forest is yours. People who accompany you do not see your feelings, check-ins or personal weather during forest visits. Your primary responsible adult can separately request a backup of the data you synced; that file includes your check-ins and sessions.',
             'If something makes you uncomfortable, you can talk to an adult you trust and ask for help to leave a friendship. When you turn 18, your account and forest stay with you; supervision and pilot coverage end unless you have another valid Premium source of your own.',
           ],
         },

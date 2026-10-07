@@ -8,7 +8,7 @@
 
 **Datos y finalidades.** RoadMap2U trata identificadores de cuenta, nombre de usuario, correo de adultos, fecha declarada de mayoría de edad de menores, vínculos de cuidado, consentimientos, solicitudes de amistad, contenido que la persona decida guardar en su bosque y datos técnicos necesarios para autenticación, seguridad y operación. Especificar antes de publicar si alguna categoría constituye dato sensible y el mecanismo de consentimiento que corresponda. Usamos los datos para operar cuentas y bosques, permitir supervisión limitada, gestionar invitaciones y cuatro consentimientos para amistades entre menores, dar soporte, prevenir abuso y cumplir obligaciones aplicables. Las finalidades opcionales, si se incorporan, deberán presentarse separadas y permitir negativa.
 
-**Menores.** La cuenta infantil requiere declaración y autorización de su responsable. La amistad entre dos menores se activa solo tras la acción del menor solicitante, aceptación del destinatario y aprobación de una persona responsable autorizada por cada lado. Los responsables ven únicamente las funciones de cuidado habilitadas; los sentimientos, check-ins y clima personales no se exponen por el vínculo familiar. Al cumplir 18 años, la persona conserva su cuenta y datos; termina la supervisión y su cobertura familiar piloto, salvo otra fuente propia de Premium.
+**Menores.** La cuenta infantil requiere declaración y autorización de su responsable. La amistad entre dos menores se activa solo tras la acción del menor solicitante, aceptación del destinatario y aprobación de una persona responsable autorizada por cada lado. Las visitas al bosque no incluyen sentimientos, check-ins ni clima personal del menor. Como acción separada de la visita, el responsable principal autorizado puede exportar un respaldo de los datos sincronizados de la cuenta menor, incluidos check-ins y sesiones; el responsable adicional y las amistades no tienen esa facultad. La copia exportada no obtiene datos que solo existan en otro dispositivo. La revisión jurídica debe determinar las categorías sensibles y el consentimiento/representación aplicables a esta exportación antes de habilitar PROD. Al cumplir 18 años, la persona conserva su cuenta y datos; termina la supervisión y su cobertura familiar piloto, salvo otra fuente propia de Premium.
 
 **Acceso, conservación y seguridad.** Cada persona usa su propia cuenta. Las visitas sociales reciben una vista limitada del bosque. Completar `{{PLAZOS_CONSERVACION}}` para datos activos, borrados, respaldos, registros de auditoría y solicitudes vencidas. Describir controles técnicos y organizativos aprobados antes de publicar.
 
@@ -32,11 +32,13 @@ Contacto de soporte: `{{CONTACTO_SOPORTE}}`. Contacto de privacidad: `{{CONTACTO
 
 ## Explicación para niñas, niños y adolescentes — borrador
 
-Tu bosque es tuyo. La persona adulta que te cuida puede ayudarte con tu cuenta y acompañar tu bosque, pero no ve tus sentimientos, check-ins ni clima personal por ser parte de tu familia. Puedes tener amistades con otros menores: tú debes pedir o aceptar, y una persona adulta autorizada de cada lado debe aprobar. Nadie se vuelve tu amistad solo por compartir hogar.
+Tu bosque es tuyo. En las visitas al bosque, las personas que te acompañan no ven tus sentimientos, check-ins ni clima personal. La persona responsable principal sí puede pedir, por separado, un respaldo de los datos que sincronizaste; ese archivo incluye tus check-ins y sesiones. Puedes tener amistades con otros menores: tú debes pedir o aceptar, y una persona adulta autorizada de cada lado debe aprobar. Nadie se vuelve tu amistad solo por compartir hogar.
 
 Si algo te incomoda, habla con una persona adulta de confianza o usa `{{CONTACTO_SOPORTE}}`. Puedes pedir ayuda para dejar una amistad. Cuando cumplas 18 años, tu cuenta y tu bosque siguen contigo; termina la supervisión familiar y la cobertura especial del piloto.
 
 ## Fuentes para revisión jurídica
+
+- [Anexo técnico ES/EN: servicios, conservación y alcance de respaldos verificados](technical-privacy-annex.md). Describe la configuración observada; no constituye una política de conservación ni una aprobación jurídica.
 
 - [Ley Federal de Protección de Datos Personales en Posesión de los Particulares, texto vigente](https://www.diputados.gob.mx/LeyesBiblio/pdf/LFPDPPP.pdf), artículos 14 y 15 sobre aviso de privacidad.
 - [Lineamientos del Aviso de Privacidad, DOF](https://sidof.segob.gob.mx/notas/docFuente/5284966), incluidos identidad, domicilio y tratamiento de datos de menores. Confirmar con asesoría jurídica su aplicación junto con la ley vigente.

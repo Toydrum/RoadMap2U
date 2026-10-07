@@ -11,6 +11,7 @@
     "effective_date",
     "data_retention_periods",
     "processors_and_transfers",
+    "sensitive_data_categories_and_minor_export_consent",
     "rights_request_procedure",
     "notice_change_channel",
     "approved_support_runbook",

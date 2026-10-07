@@ -8,7 +8,7 @@
 
 **Data and purposes.** RoadMap2U processes account identifiers, usernames, adult email addresses, minors’ declared date of adulthood, care relationships, consent records, friendship requests, content a person chooses to save in their forest, and technical data needed for authentication, security, and operation. Before publication, identify any sensitive data categories and the required consent mechanism. We use this data to operate accounts and forests, support limited supervision, manage invitations and the four consents for friendships between minors, provide support, prevent abuse, and meet applicable obligations. Any optional purposes must be shown separately with a way to decline them.
 
-**Minors.** A minor account requires a responsible adult’s declaration and authorization. A friendship between minors begins only after the requesting minor acts, the recipient accepts, and an authorized responsible adult on each side approves. Responsible adults see only authorized care functions; family membership does not reveal private feelings, check-ins, or personal weather. At 18, the person keeps their account and data; supervision and family pilot coverage end unless they have another Premium source of their own.
+**Minors.** A minor account requires a responsible adult’s declaration and authorization. A friendship between minors begins only after the requesting minor acts, the recipient accepts, and an authorized responsible adult on each side approves. Forest visits do not include the minor’s feelings, check-ins or personal weather. As a separate action, the authorized primary responsible adult can export a backup of the minor account’s synced data, including check-ins and sessions; the additional responsible adult and friends do not have this authority. That export cannot obtain data that exists only on another device. Legal review must determine sensitive data categories and the applicable consent/representation for this export before PROD activation. At 18, the person keeps their account and data; supervision and family pilot coverage end unless they have another Premium source of their own.
 
 **Access, retention, and security.** Each person uses their own account. Social visits receive a limited forest view. Complete `{{RETENTION_SCHEDULE}}` for active and deleted data, backups, audit records, and expired requests. Describe approved technical and organizational safeguards before publication.
 
@@ -32,11 +32,13 @@ Support: `{{SUPPORT_CONTACT}}`. Privacy: `{{PRIVACY_CONTACT}}`. For minor accoun
 
 ## Explanation for children and teens — draft
 
-Your forest belongs to you. The adult who cares for you can help with your account and tend your forest, but family membership does not let them see your private feelings, check-ins, or personal weather. You can be friends with other minors: you must ask or accept, and an authorized adult on each side must approve. Sharing a household never makes someone your friend automatically.
+Your forest belongs to you. People who accompany you do not see your feelings, check-ins or personal weather during forest visits. Your primary responsible adult can separately request a backup of the data you synced; that file includes your check-ins and sessions. You can be friends with other minors: you must ask or accept, and an authorized adult on each side must approve. Sharing a household never makes someone your friend automatically.
 
 If something feels wrong, speak with an adult you trust or use `{{SUPPORT_CONTACT}}`. You can ask for help ending a friendship. When you turn 18, your account and forest stay with you; family supervision and special pilot coverage end.
 
 ## Sources for legal review
+
+- [ES/EN technical annex: verified services, retention and backup scope](technical-privacy-annex.md). It describes observed configuration, not an approved retention policy or legal clearance.
 
 - [Current Mexican Federal Law on Protection of Personal Data Held by Private Parties](https://www.diputados.gob.mx/LeyesBiblio/pdf/LFPDPPP.pdf), Articles 14–15 on privacy notices.
 - [Mexican Privacy Notice Guidelines, DOF](https://sidof.segob.gob.mx/notas/docFuente/5284966), including controller identity/address and children’s data. Confirm their application alongside current law with legal counsel.

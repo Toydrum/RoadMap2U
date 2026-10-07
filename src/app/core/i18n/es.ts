@@ -171,7 +171,7 @@ export const ES = {
         {
           title: 'Familias y amistades',
           paragraphs: [
-            'Cada persona tiene su propia cuenta. Los vínculos familiares permiten las funciones de cuidado autorizadas; no muestran los sentimientos, check-ins ni clima personal del menor.',
+            'Cada persona tiene su propia cuenta. Las visitas al bosque no muestran los sentimientos, check-ins ni clima personal del menor. Como acción separada, el responsable principal autorizado puede exportar un respaldo de los datos sincronizados de esa cuenta, incluidos sus check-ins y sesiones; el responsable adicional y las amistades no tienen esa facultad.',
             'Una amistad entre menores necesita cuatro acciones: solicitud del primer menor, aceptación del otro y aprobación de una persona responsable autorizada por cada lado. Compartir hogar no crea una amistad.',
           ],
         },
@@ -190,7 +190,7 @@ export const ES = {
         {
           title: 'Para niñas, niños y adolescentes',
           paragraphs: [
-            'Tu bosque es tuyo. Una persona adulta que te cuida puede ayudarte con tu cuenta y acompañar tu bosque, pero no ve tus sentimientos, check-ins ni clima personal por formar parte de tu familia.',
+            'Tu bosque es tuyo. En las visitas al bosque, las personas que te acompañan no ven tus sentimientos, check-ins ni clima personal. La persona responsable principal sí puede pedir, por separado, un respaldo de los datos que sincronizaste; ese archivo incluye tus check-ins y sesiones.',
             'Si algo te incomoda, puedes hablar con una persona adulta de confianza y pedir ayuda para dejar una amistad. Cuando cumplas 18 años, tu cuenta y tu bosque siguen contigo; termina la supervisión y la cobertura del piloto, salvo otro Premium propio válido.',
           ],
         },
