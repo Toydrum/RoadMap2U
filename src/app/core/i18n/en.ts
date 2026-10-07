@@ -91,15 +91,15 @@ export const EN: Dict = {
           'Secure sync across devices',
           'Friends and read-only visits',
         ],
-        note: 'The same capabilities monthly or yearly. Family is not included in this phase.',
+        note: 'Paid plans are not available yet. The free family pilot is offered through a separate invitation.',
         cta: 'Explore Premium',
       },
     },
     key: {
       eyebrow: 'Sponsored access',
-      title: 'Did you receive an access key?',
-      body: 'Some people receive Premium access by invitation, with or without an expiration date. The key is linked to your own account.',
-      cta: 'Sign in to redeem it',
+      title: 'Families by invitation',
+      body: 'Invited households can join a free pilot for up to two minors and one additional responsible adult. Each person uses their own account. Registration does not activate family coverage.',
+      cta: 'Sign in to my account',
     },
     faq: {
       eyebrow: 'Frequently asked questions',
@@ -126,9 +126,9 @@ export const EN: Dict = {
             'Your forest works on your device first. RoadMap2U uses no ads, analytics, or trackers, and you can export your information.',
         },
         {
-          question: 'How does a key work?',
+          question: 'How can my family participate?',
           answer:
-            'Create or open your account and redeem the key you received. Access may expire on a set date or remain active, depending on the invitation.',
+            'Pilot coverage is privately granted to invited households, with no charges or automatic expiration. It includes up to two minors and one additional responsible adult. A free adult account does not activate it on its own; paid family offers come later.',
         },
       ],
     },
@@ -145,6 +145,111 @@ export const EN: Dict = {
       support: 'Support',
       contact: 'Contact',
       rights: 'RoadMap2U · Made to grow at your pace.',
+    },
+  },
+  legal: {
+    home: 'Back to RoadMap2U',
+    navigation: 'Documents and help',
+    review: {
+      title: 'Draft for review',
+      body: 'This version is not an approved document yet. The controller, their address, public contacts, procedures and legal review must be completed before publication.',
+    },
+    privacy: {
+      title: 'Privacy',
+      intro:
+        'Your forest works on your device first. This draft describes the family pilot features and the information that still needs review before the pilot opens in production.',
+      sections: [
+        {
+          title: 'Your account and forest',
+          paragraphs: [
+            'The cloud uses account identifiers, names, adult email addresses and forest data you choose to sync. Minor accounts also store the declared date of adulthood, care relationships and the required consents.',
+            'RoadMap2U includes no ads, analytics or trackers. Signing in or out does not delete your local forest.',
+          ],
+        },
+        {
+          title: 'Families and friendships',
+          paragraphs: [
+            'Each person has their own account. Family relationships allow authorized care features; they do not show the minor’s feelings, check-ins or personal weather.',
+            'A friendship between minors needs four actions: the first minor’s request, the other’s acceptance and approval by an authorized responsible adult on each side. Sharing a household does not create a friendship.',
+          ],
+        },
+        {
+          title: 'Retention and providers',
+          paragraphs: [
+            'The final version must identify the controller and their address, describe providers and transfers, and set retention periods for accounts, backups and audits. This information is still awaiting review.',
+          ],
+        },
+        {
+          title: 'Your options',
+          paragraphs: [
+            'Available features let you export information, disable friendships and request account closure. The rights procedure, contact channels and how notice changes will be communicated must be completed before this version is published.',
+          ],
+        },
+        {
+          title: 'For children and teenagers',
+          paragraphs: [
+            'Your forest is yours. An adult who cares for you can help with your account and accompany your forest, but being part of your family does not let them see your feelings, check-ins or personal weather.',
+            'If something makes you uncomfortable, you can talk to an adult you trust and ask for help to leave a friendship. When you turn 18, your account and forest stay with you; supervision and pilot coverage end unless you have another valid Premium source of your own.',
+          ],
+        },
+      ],
+    },
+    terms: {
+      title: 'Terms of use',
+      intro:
+        'The family pilot is free and reserved for invited households. Paid plans cannot be purchased yet.',
+      sections: [
+        {
+          title: 'Coverage by invitation',
+          paragraphs: [
+            'A private grant allows up to two minors and one additional responsible adult, with no charges or automatic expiration. Free adult registration does not grant family coverage.',
+          ],
+        },
+        {
+          title: 'Shared care',
+          paragraphs: [
+            'The primary responsible adult declares their authority to create or link a minor account and provides the date of adulthood. The additional responsible adult accepts their invitation and has access only to the designated minors.',
+            'A transfer requires approval by the current responsible adult and explicit acceptance by the recipient. Until it is accepted, the current responsible adult keeps their role.',
+          ],
+        },
+        {
+          title: 'Coverage changes',
+          paragraphs: [
+            'Revoking the pilot stops new covered capabilities without itself deleting accounts, forests or supervision relationships. At age 18, supervision and family pilot coverage end; the person keeps their account, data and any valid Premium of their own.',
+          ],
+        },
+        {
+          title: 'Pending information',
+          paragraphs: [
+            'Before publication, the controller’s identity and contacts, availability and suspension rules, the complaints procedure and applicable law and jurisdiction must be completed with legal review.',
+          ],
+        },
+      ],
+    },
+    support: {
+      title: 'Support and care',
+      intro:
+        'This draft brings together situations where pilot participants may need help. Public contacts, hours and procedures are still awaiting approval.',
+      sections: [
+        {
+          title: 'Account access',
+          paragraphs: [
+            'To recover a minor account, review a relationship or transfer responsibility, support must verify the identity and authority of the person asking for help. Never share your password or anyone else’s.',
+          ],
+        },
+        {
+          title: 'Privacy and backups',
+          paragraphs: [
+            'You can request a backup or account closure through available features. Permanent deletion requires a verified backup and does not offer restoration of data already deleted. The privacy request procedure will be completed before publication.',
+          ],
+        },
+        {
+          title: 'An uncomfortable friendship',
+          paragraphs: [
+            'A minor can ask an adult they trust for help to leave a friendship. Reports involving minors will have a review and escalation procedure that still needs approval.',
+          ],
+        },
+      ],
     },
   },
   finder: {

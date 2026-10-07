@@ -93,15 +93,15 @@ export const ES = {
           'Sincronización segura entre dispositivos',
           'Amistades y visitas de sólo lectura',
         ],
-        note: 'Mismas capacidades en mensual y anual. Familia no está incluida en esta fase.',
+        note: 'Los planes de pago aún no están disponibles. El piloto familiar gratuito se ofrece por invitación independiente.',
         cta: 'Conocer Premium',
       },
     },
     key: {
       eyebrow: 'Acceso patrocinado',
-      title: '¿Recibiste una llave de acceso?',
-      body: 'Algunas personas reciben acceso Premium por invitación, con o sin fecha de caducidad. La llave se vincula a tu propia cuenta.',
-      cta: 'Entrar para canjearla',
+      title: 'Familias por invitación',
+      body: 'Los hogares invitados pueden participar en un piloto gratuito para hasta dos menores y una persona responsable adicional. Cada persona usa su propia cuenta. Registrarte no activa la cobertura familiar.',
+      cta: 'Entrar a mi cuenta',
     },
     faq: {
       eyebrow: 'Preguntas frecuentes',
@@ -128,9 +128,9 @@ export const ES = {
             'Tu bosque funciona primero en tu dispositivo. RoadMap2U no usa anuncios, analítica ni rastreadores, y puedes exportar tu información.',
         },
         {
-          question: '¿Cómo funciona una llave?',
+          question: '¿Cómo participa mi familia?',
           answer:
-            'Creas o abres tu cuenta y canjeas la llave que recibiste. El acceso puede tener una fecha de caducidad o permanecer activo, según la invitación.',
+            'La cobertura del piloto se concede de forma privada a hogares invitados, sin cobros ni vencimiento automático. Incluye hasta dos menores y una persona responsable adicional. La cuenta adulta gratuita no la activa por sí sola; las ofertas familiares de pago llegan después.',
         },
       ],
     },
@@ -147,6 +147,111 @@ export const ES = {
       support: 'Soporte',
       contact: 'Contacto',
       rights: 'RoadMap2U · Hecho para crecer a tu ritmo.',
+    },
+  },
+  legal: {
+    home: 'Volver a RoadMap2U',
+    navigation: 'Documentos y ayuda',
+    review: {
+      title: 'Borrador para revisión',
+      body: 'Esta versión todavía no es un documento aprobado. Antes de publicarla deben completarse el responsable, su domicilio, los contactos públicos, los procedimientos y la revisión jurídica.',
+    },
+    privacy: {
+      title: 'Privacidad',
+      intro:
+        'Tu bosque funciona primero en tu dispositivo. Este borrador describe las funciones del piloto familiar y la información que falta revisar antes de abrirlo en producción.',
+      sections: [
+        {
+          title: 'Tu cuenta y tu bosque',
+          paragraphs: [
+            'La nube usa identificadores de cuenta, nombres, correos de adultos y los datos del bosque que decidas sincronizar. Las cuentas menores también guardan la fecha declarada de mayoría de edad, sus vínculos de cuidado y los consentimientos necesarios.',
+            'RoadMap2U no incorpora anuncios, analítica ni rastreadores. Iniciar o cerrar sesión no borra el bosque local.',
+          ],
+        },
+        {
+          title: 'Familias y amistades',
+          paragraphs: [
+            'Cada persona tiene su propia cuenta. Los vínculos familiares permiten las funciones de cuidado autorizadas; no muestran los sentimientos, check-ins ni clima personal del menor.',
+            'Una amistad entre menores necesita cuatro acciones: solicitud del primer menor, aceptación del otro y aprobación de una persona responsable autorizada por cada lado. Compartir hogar no crea una amistad.',
+          ],
+        },
+        {
+          title: 'Conservación y proveedores',
+          paragraphs: [
+            'La versión final debe identificar al responsable y su domicilio, describir proveedores y transferencias, y establecer los plazos de conservación de cuentas, respaldos y auditorías. Estos datos siguen pendientes de revisión.',
+          ],
+        },
+        {
+          title: 'Tus opciones',
+          paragraphs: [
+            'Las funciones disponibles permiten exportar información, desactivar amistades y solicitar el cierre de una cuenta. El procedimiento de derechos, los medios de contacto y la forma de comunicar cambios al aviso deben completarse antes de publicar esta versión.',
+          ],
+        },
+        {
+          title: 'Para niñas, niños y adolescentes',
+          paragraphs: [
+            'Tu bosque es tuyo. Una persona adulta que te cuida puede ayudarte con tu cuenta y acompañar tu bosque, pero no ve tus sentimientos, check-ins ni clima personal por formar parte de tu familia.',
+            'Si algo te incomoda, puedes hablar con una persona adulta de confianza y pedir ayuda para dejar una amistad. Cuando cumplas 18 años, tu cuenta y tu bosque siguen contigo; termina la supervisión y la cobertura del piloto, salvo otro Premium propio válido.',
+          ],
+        },
+      ],
+    },
+    terms: {
+      title: 'Términos de uso',
+      intro:
+        'El piloto familiar es gratuito y está reservado a hogares invitados. Los planes de pago aún no se pueden contratar.',
+      sections: [
+        {
+          title: 'Cobertura por invitación',
+          paragraphs: [
+            'La concesión privada permite hasta dos menores y una persona responsable adicional, sin cobros ni vencimiento automático. El registro adulto gratuito no concede cobertura familiar.',
+          ],
+        },
+        {
+          title: 'Cuidado compartido',
+          paragraphs: [
+            'El responsable principal declara su autoridad para crear o vincular una cuenta menor y proporciona la fecha de mayoría de edad. La persona responsable adicional acepta su invitación y accede solo a los menores designados.',
+            'Una transferencia requiere la aprobación del responsable actual y la aceptación expresa de quien recibe la responsabilidad. Mientras no se acepte, el responsable actual conserva su función.',
+          ],
+        },
+        {
+          title: 'Cambios en la cobertura',
+          paragraphs: [
+            'Revocar el piloto corta nuevas capacidades cubiertas sin borrar por sí solo cuentas, bosques ni vínculos de supervisión. Al cumplir 18 años termina la supervisión y la cobertura familiar del piloto; la persona conserva su cuenta, datos y cualquier Premium propio válido.',
+          ],
+        },
+        {
+          title: 'Información pendiente',
+          paragraphs: [
+            'Antes de publicar deben completarse la identidad y contactos del responsable, las reglas de disponibilidad y suspensión, el procedimiento de reclamaciones y la ley y jurisdicción aplicables, con revisión jurídica.',
+          ],
+        },
+      ],
+    },
+    support: {
+      title: 'Soporte y cuidado',
+      intro:
+        'Este borrador reúne las situaciones de ayuda del piloto. Los contactos públicos, horarios y procedimientos siguen pendientes de aprobación.',
+      sections: [
+        {
+          title: 'Acceso a tu cuenta',
+          paragraphs: [
+            'Para recuperar una cuenta menor, revisar un vínculo o transferir responsabilidad, el soporte debe comprobar la identidad y la autoridad de quien solicita ayuda. Nunca compartas tu contraseña ni la de otra persona.',
+          ],
+        },
+        {
+          title: 'Privacidad y respaldos',
+          paragraphs: [
+            'Puedes solicitar un respaldo o el cierre de una cuenta mediante las funciones disponibles. La eliminación definitiva requiere verificar el respaldo y no ofrece restauración de datos ya borrados. El procedimiento de solicitudes de privacidad se completará antes de publicar.',
+          ],
+        },
+        {
+          title: 'Una amistad que incomoda',
+          paragraphs: [
+            'Una persona menor puede pedir ayuda a una persona adulta de confianza para dejar una amistad. Los reportes que afecten a menores tendrán un procedimiento de revisión y escalamiento que aún necesita aprobación.',
+          ],
+        },
+      ],
     },
   },
   finder: {

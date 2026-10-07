@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "status": "draft_pending_review",
+  "productionPublicationApproved": false,
+  "familyActivationApproved": false,
+  "missingInformation": [
+    "legal_controller_identity",
+    "complete_notice_address",
+    "public_privacy_contact",
+    "public_support_contact",
+    "effective_date",
+    "data_retention_periods",
+    "processors_and_transfers",
+    "rights_request_procedure",
+    "notice_change_channel",
+    "approved_support_runbook",
+    "approved_privacy_runbook",
+    "reviewed_approved_es_and_en_documents"
+  ],
+  "publicRoutes": ["/privacy", "/terms", "/support"],
+  "draftSources": ["family-pilot-es.md", "family-pilot-en.md"],
+  "alarmRecipientIsPublicLegalContact": false
+}
