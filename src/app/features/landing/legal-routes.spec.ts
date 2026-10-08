@@ -10,7 +10,7 @@ import { SyncService } from '../../core/sync/sync.service';
 
 describe('public legal documents', () => {
   for (const [path, spanish, english] of [
-    ['privacy', 'Privacidad', 'Privacy'],
+    ['privacy', 'Aviso de privacidad', 'Privacy notice'],
     ['terms', 'Términos de uso', 'Terms of use'],
     ['support', 'Soporte y cuidado', 'Support and care'],
   ]) {
@@ -33,7 +33,7 @@ describe('public legal documents', () => {
       const root = harness.routeNativeElement!;
       expect(root.querySelector('h1')?.textContent?.trim()).toBe(spanish);
       expect(root.querySelectorAll('main')).toHaveLength(1);
-      expect(root.querySelector('[data-review-status]')?.textContent).toContain('Borrador');
+      expect(root.querySelector('[data-review-status]')?.textContent).toContain('Tus decisiones sobre tus datos');
       expect(constructed).toEqual([]);
       (root.querySelector('[data-lang="en"]') as HTMLButtonElement).click();
       harness.detectChanges();

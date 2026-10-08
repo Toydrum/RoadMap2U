@@ -281,7 +281,9 @@
           🗝 {{ user.displayName || user.username }}
           <span class="account-role">
             {{
-              user.accountType === 'minor' ? i18n.t().account.roleMinor : i18n.t().account.roleAdult
+              privacy.status()?.scope === 'adolescent_private' || user.accountType === 'minor'
+                ? i18n.t().account.roleMinor
+                : i18n.t().account.roleAdult
             }}
           </span>
         </a>
@@ -310,20 +312,26 @@
   </section>
 
   <!-- Familia (signed-in only) -->
-  @if (auth.user()) {
+  @if (auth.user() && privacy.status()?.adultDeclared && !privacy.status()?.privateOnly) {
     <app-familia-card />
     <app-amigos-card />
   }
 
   <!-- Cloud sync (signed-in only) -->
   @if (auth.user()) {
+    <app-privacy-panel [showCloud]="true" (cloudAuthorized)="doConnect()" />
     <section class="card block nube">
       <h2>{{ i18n.t().nube.title }}</h2>
 
       @switch (sync.phase()) {
         @case ('off') {
           <p class="hint">{{ i18n.t().nube.offHint }}</p>
-          <button type="button" class="btn btn-primary" (click)="doConnect()">
+          <button
+            type="button"
+            class="btn btn-primary"
+            (click)="doConnect()"
+            [disabled]="!privacy.status()?.canUseCloud || privacy.cloudBlocked()"
+          >
             ☁️ {{ i18n.t().nube.connectCta }}
           </button>
         }

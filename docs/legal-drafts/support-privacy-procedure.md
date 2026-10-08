@@ -1,12 +1,28 @@
 # Procedimiento de soporte y privacidad / Support and privacy procedure
 
-**Borrador ES/EN pendiente de aprobación. No autoriza la publicación ni la activación familiar PROD. / ES/EN draft awaiting approval. It does not authorize publication or PROD family activation.**
+**Borrador ES/EN pendiente de aprobación. No autoriza publicación ni activación PROD. / ES/EN draft awaiting approval. It does not authorize publication or PROD activation.**
+
+## ES — modalidad adulta y adolescente privada
+
+El alta privada de 12 a 17 años utiliza la declaración autenticada aprobada: cuenta adulta admitida, correo confirmado, inicio de sesión de hasta 15 minutos, Premium vigente, nombre/calidad declarados y dos decisiones expresas. No requiere intervención de Héctor por cada invitación ni acredita documentos civiles de parentesco o tutela. El destinatario confirma su correo y acepta su explicación; decide nube por separado. No concede al adulto lectura/exportación cotidiana, familia o Premium. Los procedimientos familiares siguientes pertenecen a su modalidad.
+
+La comprobación individual de identidad y representación corresponde a disputas y trámites de derechos, mediante canal privado acordado para ese caso y evidencia mínima con vencimiento. La declaración del alta no acredita por sí sola autoridad para recibir datos de otra persona. No recibir documentos de identidad en notas, logs, CLI ni Git. Registrar referencia opaca y decisión; utilizar el operador IAM únicamente cuando el trámite lo requiera, con ambiente, destinatario, revisión y caso exactos. Disputas o sustitución se atienden sin cambiar edad ni crear supervisión silenciosa.
+
+Acceso/cancelación propios no exigen Premium ni descargar respaldo. Retirar detiene nuevas operaciones; cancelar nube conserva cuenta/local. Cierre privado completo se solicita por soporte tras revisar autoridad apropiada al caso, pasa por outbox/worker y se comunica terminado solo tras supresión verificada. Al cumplir 18 termina autoridad parental, conserva cuenta y datos y requiere decisión adulta/nube propia; continúa privado. El runbook preparado es backend `docs/runbooks/privacy-operations.md`. Sus pruebas locales no acreditan ensayo de soporte DEV/TEST.
+
+## EN — adult and private adolescent modality
+
+Private signup for ages 12–17 uses the approved authenticated declaration: admitted adult account, confirmed email, sign-in within 15 minutes, current Premium, declared name/relationship and two express decisions. Héctor does not approve each invitation, and this does not establish documentary parentage or guardianship. The named adolescent confirms their email and accepts their explanation; cloud is a separate decision. This grants no routine forest reading/export, family or personal Premium. The retained family procedures apply to their own modality.
+
+Individual identity and representation checks concern disputes and rights requests, through a private channel agreed for the case, with minimal evidence and expiry. The signup declaration alone does not authorize receiving another person's data. Never receive identity documents in notes, logs, CLI or Git. Record an opaque case and decision; use the IAM operator only where the request requires it, with exact stage, recipient, revision and case. Handle disputes/substitution without changing age or silently creating supervision.
+
+Own access/erasure require neither Premium nor a backup download. Withdrawal stops new operations; cloud erasure preserves account/local data. Support reviews appropriate authority for full private closure; outbox/worker complete it, and only verified physical deletion proves completion. At 18, parental authority ends, account/data remain, personal adult/cloud acceptance is required and the forest stays private. Prepared backend runbook: `docs/runbooks/privacy-operations.md`; local tests do not establish a DEV/TEST support rehearsal.
 
 Este documento complementa el [runbook operativo backend](https://github.com/Toydrum/roadmap2u-backend/blob/5a4bb3ba7a25f250c0485082669a1c5249b873e9/docs/runbooks/family-support-privacy.md) y el [anexo técnico](technical-privacy-annex.md). Describe una propuesta de atención manual; no afirma que exista un sistema de tickets o un canal seguro de recepción de documentos ya aprobado.
 
 ## ES — responsables y canal
 
-Responsable indicado por el titular: **Héctor Coronado, persona física**. Correo público confirmado de soporte y privacidad: **overseer@roadmap2u.com**. El domicilio para notificaciones sigue pendiente; la dirección personal enviada por chat no forma parte de este documento.
+Responsable indicado por el titular: **Héctor Coronado, persona física**. Correo público confirmado de soporte y privacidad: **overseer@roadmap2u.com**. Domicilio autorizado para el aviso el 7 de octubre de 2026: **Camelias 8, colonia Tlacoquemecatl del Valle, alcaldía Benito Juárez, C.P. 03200, Ciudad de México, México**. La ciudad y entidad federativa fueron confirmadas por el titular. El procedimiento adulto se propone en [adults-es.md](adults-es.md); este procedimiento familiar conserva sus aprobaciones pendientes.
 
 Antes de aprobar: designar a quien tramitará solicitudes de privacidad y a quien recibirá escalaciones, confirmar horarios y objetivos de respuesta, elegir almacenamiento privado de expedientes y su conservación, y verificar el medio seguro para acreditar identidad/representación y entregar información. La confirmación de SNS prueba la suscripción de alertas; no prueba que estos procedimientos se hayan ensayado.
 
@@ -44,7 +60,7 @@ Ensayar en DEV/TEST con datos sintéticos: caso incompleto, identidad no acredit
 
 ## EN — roles and channel
 
-Controller named by the owner: **Héctor Coronado, an individual**. Confirmed public support and privacy email: **overseer@roadmap2u.com**. The notice address remains undecided; the personal address supplied in chat is excluded from this document.
+Controller named by the owner: **Héctor Coronado, an individual**. Confirmed public support and privacy email: **overseer@roadmap2u.com**. Address authorized for the notice on October 7, 2026: **Camelias 8, colonia Tlacoquemecatl del Valle, alcaldía Benito Juárez, C.P. 03200, Ciudad de México, México**. The owner confirmed Mexico City as city and state. The proposed adult procedure is in [adults-en.md](adults-en.md); family procedure approvals remain pending.
 
 Before approval: designate the privacy request handler and escalation recipient, confirm hours and response targets, select private case storage and retention, and validate the secure method for proving identity/representation and delivering information. SNS confirmation verifies the alert subscription; it does not verify that these procedures have been rehearsed.
 

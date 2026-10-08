@@ -13,9 +13,17 @@
     "support": "overseer@roadmap2u.com",
     "confirmedByOwnerOn": "2026-10-06"
   },
-  "noticeAddressStatus": "public_address_choice_pending",
+  "noticeAddressStatus": "owner_confirmed_complete",
+  "noticeAddress": {
+    "formatted": "Camelias 8, colonia Tlacoquemecatl del Valle, alcaldía Benito Juárez, C.P. 03200, Ciudad de México, México",
+    "city": "Ciudad de México",
+    "state": "Ciudad de México",
+    "country": "México",
+    "postalCode": "03200",
+    "publicUseAuthorizedByOwnerOn": "2026-10-07",
+    "cityStateConfirmedByOwnerOn": "2026-10-07"
+  },
   "missingInformation": [
-    "complete_notice_address",
     "effective_date",
     "data_retention_periods",
     "processors_and_transfers",

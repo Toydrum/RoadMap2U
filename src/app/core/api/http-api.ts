@@ -49,6 +49,12 @@ import {
   SyncPushResponse,
   TransferPrimaryResponsibilityRequest,
   UserProfile,
+  PrivacyStatus,
+  PrivacyConsentCommand,
+  PrivacyExportPage,
+  PrivateAdolescentInvitationCommand,
+  PrivateAdolescentInvitation,
+  PrivateAdolescentGuardianCommand,
 } from './contracts';
 import { ExportEnvelope } from '../db/schema';
 import { AuthProvider } from '../auth/auth-provider';
@@ -75,6 +81,34 @@ export class HttpApi implements ApiClient {
   private readonly base = `${APP_CONFIG.aws.apiBaseUrl}/v1`;
 
   constructor(private readonly auth: AuthProvider) {}
+  getPrivacyStatus(language: 'es' | 'en' = 'es'): Promise<PrivacyStatus> {
+    return this.request('GET', API_PATHS.privacyStatus + '?language=' + language);
+  }
+  changePrivacyConsent(command: PrivacyConsentCommand): Promise<PrivacyStatus> {
+    return this.request('POST', API_PATHS.privacyConsents, command, { idempotent: true });
+  }
+  exportOwnPrivacy(cursor?: string): Promise<PrivacyExportPage> {
+    return this.request(
+      'GET',
+      API_PATHS.privacyExport + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''),
+    );
+  }
+  createPrivateAdolescentInvitation(
+    command: PrivateAdolescentInvitationCommand,
+  ): Promise<PrivateAdolescentInvitation> {
+    return this.request('POST', API_PATHS.privacyAdolescents, command, { idempotent: true });
+  }
+  listPrivateAdolescentInvitations(): Promise<PrivateAdolescentInvitation[]> {
+    return this.request('GET', API_PATHS.privacyAdolescents);
+  }
+  changePrivateAdolescentGuardianConsent(
+    id: string,
+    command: PrivateAdolescentGuardianCommand,
+  ): Promise<PrivacyStatus> {
+    return this.request('POST', API_PATHS.privacyAdolescentGuardian(id), command, {
+      idempotent: true,
+    });
+  }
 
   // ── commercial access ────────────────────────────────────────────────────
   getPlans(): Promise<PlanCatalog> {
@@ -144,7 +178,10 @@ export class HttpApi implements ApiClient {
     return this.request('GET', API_PATHS.familyHousehold);
   }
   getFamilyInbox(cursor?: string): Promise<FamilyInboxView> {
-    return this.request('GET', API_PATHS.familyInbox + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''));
+    return this.request(
+      'GET',
+      API_PATHS.familyInbox + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''),
+    );
   }
   createMinor(req: CreateMinorRequest): Promise<CreateMinorResponse> {
     return this.request('POST', API_PATHS.familyMinors, req, { idempotent: true });
@@ -163,10 +200,7 @@ export class HttpApi implements ApiClient {
       idempotent: true,
     });
   }
-  acceptMinorLinkRequest(
-    requestId: string,
-    req: AcceptMinorLinkRequest,
-  ): Promise<HouseholdView> {
+  acceptMinorLinkRequest(requestId: string, req: AcceptMinorLinkRequest): Promise<HouseholdView> {
     return this.request('POST', API_PATHS.familyMinorLinkRequestAccept(requestId), req, {
       idempotent: true,
     });

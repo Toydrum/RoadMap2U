@@ -23,10 +23,12 @@ import { SyncService } from '../../core/sync/sync.service';
 import { FamilyService } from '../../core/family.service';
 import { AccountClosureService } from '../../core/account-closure.service';
 import type { AccountClosureState } from '../../core/api/contracts';
+import { PrivacyService } from '../../core/privacy.service';
+import { PrivacyPanel } from '../../shared/ui/privacy-panel';
 
 @Component({
   selector: 'app-settings',
-  imports: [RouterLink, FamiliaCard, AmigosCard, ConfirmSheet, Switch],
+  imports: [RouterLink, FamiliaCard, AmigosCard, ConfirmSheet, Switch, PrivacyPanel],
   templateUrl: './settings.html',
   styleUrl: './settings.scss',
 })
@@ -76,6 +78,7 @@ export class SettingsPage {
   protected readonly auth = inject(AuthService);
   protected readonly closure = inject(AccountClosureService);
   protected readonly sync = inject(SyncService);
+  protected readonly privacy = inject(PrivacyService);
   private readonly fam = inject(FamilyService);
   protected readonly isMock = APP_CONFIG.backend === 'mock';
   private readonly backup = inject(BackupService);
@@ -99,6 +102,7 @@ export class SettingsPage {
   }
 
   protected async doConnect(): Promise<void> {
+    if (!this.privacy.status()?.canUseCloud || this.privacy.cloudBlocked()) return;
     if (await this.sync.connect()) {
       this.toast.show({ message: this.i18n.t().nube.connectOk });
     }

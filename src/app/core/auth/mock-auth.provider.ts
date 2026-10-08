@@ -36,6 +36,8 @@ interface MockTokenPayload {
   'custom:accountType': string;
   iat: number;
   exp: number;
+  auth_time?: number;
+  email_verified?: boolean;
 }
 
 interface LiveMockIdentity {
@@ -43,7 +45,12 @@ interface LiveMockIdentity {
   user: MockUserRow;
 }
 
-function mintToken(user: MockUserRow, now = Date.now()): string {
+function mintToken(
+  user: MockUserRow,
+  now = Date.now(),
+  authenticatedAt = Math.floor(now / 1000),
+  emailVerified = !!user.email,
+): string {
   if (!user.accountInstanceId) throw new AuthError('unknown', 'account instance missing');
   const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
   // ASCII-safe by construction: username is [a-z0-9_], no display text here.
@@ -55,6 +62,8 @@ function mintToken(user: MockUserRow, now = Date.now()): string {
       'custom:accountType': user.accountType,
       iat: now,
       exp: now + TOKEN_TTL_MS,
+      auth_time: authenticatedAt,
+      email_verified: emailVerified,
     } satisfies MockTokenPayload),
   );
   return `${header}.${payload}.mock`;
@@ -138,7 +147,8 @@ export class MockAuthProvider implements AuthProvider {
         userId,
         username: handle,
         displayName: input.displayName.trim() || handle,
-        accountType: 'adult', // minors never self-sign-up; guardians create them
+        // Technical initial profile. Privacy admission is a separate authenticated decision.
+        accountType: 'adult',
         socialEnabled: true,
         createdAt: Date.now(),
         email: input.email.trim(),
@@ -318,7 +328,12 @@ export class MockAuthProvider implements AuthProvider {
       if (!forceRefresh && payload.exp > Date.now()) {
         return localStorage.getItem(TOKEN_KEY) === token ? { token, user } : null;
       }
-      const fresh = mintToken(user);
+      const fresh = mintToken(
+        user,
+        Date.now(),
+        payload.auth_time ?? Math.floor(payload.iat / 1000),
+        payload.email_verified === true,
+      );
       return this.replaceTokenIfCurrent(token, fresh) ? { token: fresh, user } : null;
     });
   }
@@ -340,7 +355,12 @@ export class MockAuthProvider implements AuthProvider {
       }
       const upgraded = { ...current, accountInstanceId: crypto.randomUUID() };
       await mockPut('users', upgraded);
-      const upgradedToken = mintToken(upgraded);
+      const upgradedToken = mintToken(
+        upgraded,
+        Date.now(),
+        payload.auth_time ?? Math.floor(payload.iat / 1000),
+        payload.email_verified === true,
+      );
       return this.replaceTokenIfCurrent(token, upgradedToken)
         ? { token: upgradedToken, user: upgraded }
         : null;

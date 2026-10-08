@@ -1,10 +1,10 @@
 # EN draft — invitation-only family pilot
 
-**Status: pending review. Do not publish or enable PROD using this draft.** The controller confirmed their name, Héctor Coronado, an individual, and `overseer@roadmap2u.com` as the public privacy and support contact. Complete `{{FULL_NOTICE_ADDRESS}}`, `{{EFFECTIVE_DATE}}`, `{{RETENTION_SCHEDULE}}`, and `{{PROCESSORS_AND_TRANSFERS}}`; obtain legal review and controller approval. The public notice address has not been chosen; the personal address supplied in chat is not included here.
+**Status: pending review. Do not publish or enable PROD using this draft.** The controller confirmed their name, Héctor Coronado, an individual, and `overseer@roadmap2u.com` as the public privacy and support contact. On October 7, 2026, the owner authorized the address below and confirmed Mexico City. Complete `{{EFFECTIVE_DATE}}`, `{{RETENTION_SCHEDULE}}`, and `{{PROCESSORS_AND_TRANSFERS}}`; obtain legal review and controller approval. Adult launch documents are prepared separately in [adults-en.md](adults-en.md); family features remain disabled.
 
 ## Full privacy notice — draft
 
-**Controller.** Héctor Coronado, an individual, with notice address `{{FULL_NOTICE_ADDRESS}}` and privacy contact `overseer@roadmap2u.com`.
+**Controller.** Héctor Coronado, an individual, with notice address Camelias 8, colonia Tlacoquemecatl del Valle, alcaldía Benito Juárez, C.P. 03200, Ciudad de México, México, and privacy contact `overseer@roadmap2u.com`.
 
 **Data and purposes.** RoadMap2U processes account identifiers, usernames, adult email addresses, minors’ declared date of adulthood, care relationships, consent records, friendship requests, content a person chooses to save in their forest, and technical data needed for authentication, security, and operation. Before publication, identify any sensitive data categories and the required consent mechanism. We use this data to operate accounts and forests, support limited supervision, manage invitations and the four consents for friendships between minors, provide support, prevent abuse, and meet applicable obligations. Any optional purposes must be shown separately with a way to decline them.
 

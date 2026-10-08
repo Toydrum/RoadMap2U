@@ -1,10 +1,10 @@
 # Borrador ES — piloto familiar por invitación
 
-**Estado: revisión pendiente. No publicar ni habilitar PROD con este borrador.** El responsable confirmó su nombre, Héctor Coronado, persona física, y `overseer@roadmap2u.com` como contacto público de privacidad y soporte. Completar `{{DOMICILIO_COMPLETO}}`, `{{FECHA_VIGENCIA}}`, `{{PLAZOS_CONSERVACION}}` y `{{ENCARGADOS_Y_TRANSFERENCIAS}}`; obtener revisión jurídica y aprobación del responsable. La elección del domicilio público sigue pendiente; no se incluye aquí la dirección personal enviada por chat.
+**Estado: revisión pendiente. No publicar ni habilitar PROD con este borrador.** El responsable confirmó su nombre, Héctor Coronado, persona física, y `overseer@roadmap2u.com` como contacto público de privacidad y soporte. El 7 de octubre de 2026 autorizó usar el domicilio indicado abajo y confirmó Ciudad de México. Completar `{{FECHA_VIGENCIA}}`, `{{PLAZOS_CONSERVACION}}` y `{{ENCARGADOS_Y_TRANSFERENCIAS}}`; obtener revisión jurídica y aprobación del responsable. El lanzamiento adulto se prepara por separado en [adults-es.md](adults-es.md); las familias siguen desactivadas.
 
 ## Aviso de privacidad integral — borrador
 
-**Responsable.** Héctor Coronado, persona física, con domicilio para recibir notificaciones en `{{DOMICILIO_COMPLETO}}` y contacto de privacidad `overseer@roadmap2u.com`.
+**Responsable.** Héctor Coronado, persona física, con domicilio para recibir notificaciones en Camelias 8, colonia Tlacoquemecatl del Valle, alcaldía Benito Juárez, C.P. 03200, Ciudad de México, México, y contacto de privacidad `overseer@roadmap2u.com`.
 
 **Datos y finalidades.** RoadMap2U trata identificadores de cuenta, nombre de usuario, correo de adultos, fecha declarada de mayoría de edad de menores, vínculos de cuidado, consentimientos, solicitudes de amistad, contenido que la persona decida guardar en su bosque y datos técnicos necesarios para autenticación, seguridad y operación. Especificar antes de publicar si alguna categoría constituye dato sensible y el mecanismo de consentimiento que corresponda. Usamos los datos para operar cuentas y bosques, permitir supervisión limitada, gestionar invitaciones y cuatro consentimientos para amistades entre menores, dar soporte, prevenir abuso y cumplir obligaciones aplicables. Las finalidades opcionales, si se incorporan, deberán presentarse separadas y permitir negativa.
 

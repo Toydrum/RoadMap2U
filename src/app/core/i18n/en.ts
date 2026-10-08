@@ -2,6 +2,107 @@ import { Dict } from './es';
 
 /** English UI copy — must mirror ES exactly; the compiler enforces it. */
 export const EN: Dict = {
+  privacy: {
+    title: 'My privacy',
+    cloudTitle: 'Your forest, your cloud choice',
+    cloudBody:
+      'Your forest stays here on this device. If you connect it, RoadMap2U will store the trees, branches, notes, check-ins, sessions, harvests and preserves you sync in AWS, with regional services in the United States, so you can recover them across your devices.',
+    cloudSensitive:
+      'Notes and check-ins may contain intimate information such as health or beliefs. They serve your forest functions. You can stay on this device or later withdraw authorization from Privacy.',
+    cloudCheckbox:
+      'I expressly authorize Héctor Coronado, the controller of RoadMap2U, to store and synchronize my forest content, including notes, check-ins and sensitive information they voluntarily contain, for the functions described in the privacy notice.',
+    readNotice: 'I read the full privacy notice',
+    readTerms: 'I read the terms of use',
+    authorize: 'I authorize and connect my forest',
+    stayLocal: 'I stay on this device',
+    saveError:
+      'My decision could not be saved. My forest stays on this device; I can try again later.',
+    adultTitle: 'Your account starts here',
+    adultBody:
+      'I choose the option that matches my age. Cloud authorization is a separate choice later.',
+    adultCheckbox: 'I am 18 or older.',
+    adolescentChoice: 'I am between 12 and 17.',
+    adolescentBody:
+      'My forest is private. It has no friendships, visits or connections to other forests. My parent or guardian authorizes my account and cloud; that authorization does not open my notes to them. Cloud needs their current Premium and my own authorization; my forest keeps Free limits. If that capacity ends, my data is not erased. I can stay on this device, download my data or withdraw my cloud choice. If my notes contain something intimate, including health or beliefs, it would also be stored when syncing.',
+    adolescentCheckbox:
+      'I understand how my private forest works and accept using my account with this explanation.',
+    representationCheckbox:
+      'I declare that I hold parental responsibility or legal guardianship for the named adolescent and have authority to represent them for this authorization.',
+    guardianCheckbox:
+      'I expressly authorize Héctor Coronado to process account data and sync the named adolescent’s forest, including sensitive data voluntarily included in notes and check-ins, for the purposes in the privacy notice. This authorization does not give me everyday access to their forest.',
+    guardianTitle: 'I authorize a private adolescent account',
+    guardianName: 'My declared full name',
+    guardianRelationship: 'My relationship with the adolescent',
+    chooseRelationship: 'I choose my relationship',
+    parentRelationship: 'I am their father or mother',
+    legalGuardianRelationship: 'I am their legal guardian',
+    automaticAuthorization:
+      'My confirmed email, a recent sign-in and current Premium allow this declaration to be recorded. RoadMap2U does not verify identity, parentage or guardianship documents during this signup. The adolescent then decides whether to accept their account and cloud storage.',
+    recipientUsername: 'Exact adolescent username',
+    majorityDate: 'Date they turn 18',
+    invitationLabel: 'Private invitation',
+    ageLabel: 'My age option',
+    refresh: 'Check my decision',
+    manageInvitations: 'View my authorizations',
+    invitationStates: {
+      pending_verification: 'Awaiting verification',
+      authorized: 'Authorized: ready to accept',
+      accepted: 'Accepted',
+      revoked: 'Withdrawn',
+      expired: 'Expired',
+    },
+    majorityReview:
+      'You can now decide as an adult. Review the terms and your own cloud choice; your forest stays private.',
+    guardianEnded: 'The representative authorization has ended.',
+    guardianWithdrawn:
+      'The representative authorization is withdrawn or needs review; cloud is paused.',
+    declarationDone: 'My age choice and terms were recorded.',
+    guardianSaved: 'My decision for this account was recorded.',
+    requestInvitation: 'I record my private authorization',
+    acceptInvitation: 'I accept my private invitation',
+    pendingVerification:
+      'The representative’s authorization needs verification. I can ask about the procedure at overseer@roadmap2u.com; I do not send documents in my notes.',
+    guardianRevoke: 'I withdraw authorization for this account',
+    guardianGrant: 'I renew authorization for this account',
+    privateOnly: 'My forest stays private: there are no friendships or visits.',
+    responsiblePremiumActive:
+      'My cloud is covered by my parent or guardian’s current Premium. My forest keeps Free limits and stays private.',
+    responsiblePremiumRequired:
+      'My forest stays here. Connecting to the cloud needs my parent or guardian’s current Premium. I can download my data or withdraw my authorization.',
+    adultChoiceRequired: 'I choose my age option and accept the terms to continue.',
+    adolescentRequired:
+      'My private account needs an authorized invitation and my acceptance. My local forest stays here.',
+    termsCheckbox: 'I have read and accept the RoadMap2U terms of use.',
+    adultConfirm: 'I confirm my choice and the terms',
+    adultRequired: 'My account needs the adult declaration and terms before I continue.',
+    cloudRequired: 'My forest stays here. Cloud use needs my current authorization.',
+    granted: 'My cloud authorization is current.',
+    absent: 'I have not authorized cloud use yet.',
+    revoked: 'My cloud authorization has been withdrawn.',
+    reviewRequired: 'The notice changed; I can review my cloud decision.',
+    revoke: 'I withdraw cloud authorization',
+    revokeTitle: 'Your forest stays with you',
+    revokeBody:
+      'Withdrawal stops new cloud operations. It preserves your account, this device’s forest and existing remote copies; I can request cancellation separately.',
+    revokeConfirm: 'I withdraw authorization',
+    export: 'I download my remote data',
+    exportDone: 'My remote copy is ready.',
+    erase: 'I request cancellation of my cloud forest',
+    eraseTitle: 'Your device copy stays here',
+    eraseBody:
+      'Authorization will be withdrawn and eligible remote forest records will be erased. Your account and this device’s forest remain. I can download a copy first; downloading is not a condition for exercising my rights.',
+    eraseConfirm: 'I request remote cancellation',
+    erasurePending: 'My remote cancellation is in progress. Cloud use stays paused.',
+    erasureBlocked:
+      'My request needs review for a retention obligation. I can ask about its scope at overseer@roadmap2u.com.',
+    erasureComplete:
+      'Deletion from the active remote forest was verified. Historical recovery points expire within their window and remain excluded from restores.',
+    rights: 'I request privacy assistance',
+    rightsBody:
+      'Access, rectification, cancellation, objection or withdrawal: overseer@roadmap2u.com. I do not send passwords, MFA codes or tokens. Remote, local and downloaded copies have different scopes.',
+    loading: 'My decision is being checked…',
+    version: 'Notice version',
+  },
   app: {
     name: 'RoadMap2U',
     memoryOnly:
@@ -151,45 +252,66 @@ export const EN: Dict = {
     home: 'Back to RoadMap2U',
     navigation: 'Documents and help',
     review: {
-      title: 'Draft for review',
-      body: 'This version is not an approved document yet. The notice address, procedures and legal review must be completed before publication.',
+      title: 'Your choices about your data',
+      body: 'Your account and the cloud have separate choices. Here you can learn what is stored, how it is used and how to exercise your rights.',
     },
     privacy: {
-      title: 'Privacy',
+      title: 'Privacy notice',
       intro:
-        'Your forest works on your device first. This draft describes the family pilot features and the information that still needs review before the pilot opens in production.',
+        'RoadMap2U works on your device first. This notice explains data processing for adult accounts and private adolescent accounts for ages 12 to 17.',
       sections: [
         {
-          title: 'Your account and forest',
+          title: 'Controller and contact',
           paragraphs: [
-            'The cloud uses account identifiers, names, adult email addresses and forest data you choose to sync. Minor accounts also store the declared date of adulthood, care relationships and the required consents.',
-            'RoadMap2U includes no ads, analytics or trackers. Signing in or out does not delete your local forest.',
+            'Héctor Coronado, an individual, is the controller of RoadMap2U. Notice address: Camelias 8, colonia Tlacoquemecatl del Valle, alcaldía Benito Juárez, C.P. 03200, Ciudad de México, México. Privacy and support: overseer@roadmap2u.com.',
           ],
         },
         {
-          title: 'Families and friendships',
+          title: 'Data and purposes',
           paragraphs: [
-            'Each person has their own account. Forest visits do not show the minor’s feelings, check-ins or personal weather. As a separate action, the authorized primary responsible adult can export a backup of that account’s synced data, including check-ins and sessions; the additional responsible adult and friends do not have this authority.',
-            'A friendship between minors needs four actions: the first minor’s request, the other’s acceptance and approval by an authorized responsible adult on each side. Sharing a household does not create a friendship.',
+            'Accounts use email, identifier, username, display name and access attributes for registration, authentication, recovery, security and requests for assistance. Signing in or out never erases your device forest.',
+            'If you authorize cloud storage, the trees, branches, notes, check-ins, sessions, harvests and preserves you sync are stored to save and recover your own forest across devices. Notes and check-ins may reveal sensitive data, including health or beliefs. Storing and syncing them requires your express authorization, separate from account terms. You can use your local forest without authorizing this sync.',
+            'We retain evidence of privacy decisions —subject, text, language, version, date and revision— to apply and substantiate your choices. RoadMap2U has no advertising, analytics or trackers and does not sell your forest content.',
           ],
         },
         {
-          title: 'Retention and providers',
+          title: 'Private adolescent accounts',
           paragraphs: [
-            'The controller is Héctor Coronado, an individual. The privacy contact is overseer@roadmap2u.com. The notice address must still be chosen and completed, providers and transfers described, and retention periods set for accounts, backups and audits. These items are still awaiting review.',
+            'The ages-12-to-17 modality uses an authenticated parent or guardian declaration: confirmed email, recent sign-in, admitted adult account and current Premium. We record declared full name and relationship, responsible account and exact recipient identifiers, date of majority, text, language, versions and decision evidence. This signup does not verify identity, parentage or guardianship documents. Do not send identity documents in your notes or the app form.',
+            'The adolescent receives their own explanation and separately decides whether to use cloud. Their forest permits no friendships, visits, user discovery or connections to other forests. Representative authorization grants no everyday forest reading or export, family coverage or Premium.',
+            'Adolescent cloud capacity depends on that representative’s current Premium; the forest keeps Free limits. If that capacity ends, cloud stops without erasing the account or forest. Downloading data and exercising privacy rights do not require Premium.',
+            'At 18, account and data remain; parental authorization ends and personal adult acceptance and cloud authorization are required, along with independent capacity where applicable. Social restrictions remain. Disputes and changes of representative are handled through verified support; there is no automatic transfer.',
           ],
         },
         {
-          title: 'Your options',
+          title: 'Device, cloud and providers',
           paragraphs: [
-            'Available features let you export information, disable friendships and request account closure. The privacy contact is overseer@roadmap2u.com. The rights procedure and how notice changes will be communicated must be completed before this version is published.',
+            'The forest works locally. Authentication and account management do use remote services; declining sync does not make the account anonymous. Cloud uses Amazon Web Services (AWS): Cognito, API Gateway, Lambda and DynamoDB, with regional services in the United States. The web app is delivered through CloudFront. These providers support and protect the service, so processing takes place outside Mexico.',
+            'Adult social functions operate only when enabled and authorized. Visits have a limited view and exclude check-ins and sessions. Private adolescent accounts block all such access, including a representative with previous links. Downloaded files are under your control.',
+            'Forest content is not shared for advertising or purposes unrelated to the service. Disclosure required by a legal obligation or competent authority is limited to the relevant data and scope.',
           ],
         },
         {
-          title: 'For children and teenagers',
+          title: 'Your choices and rights',
           paragraphs: [
-            'Your forest is yours. People who accompany you do not see your feelings, check-ins or personal weather during forest visits. Your primary responsible adult can separately request a backup of the data you synced; that file includes your check-ins and sessions.',
-            'If something makes you uncomfortable, you can talk to an adult you trust and ask for help to leave a friendship. When you turn 18, your account and forest stay with you; supervision and pilot coverage end unless you have another valid Premium source of your own.',
+            'You can stay on this device, authorize cloud or later withdraw authorization in My privacy. Disconnecting a device only stops its sync. Withdrawal stops new cloud operations and preserves existing copies until the appropriate erasure procedure.',
+            'You can download your remote data and request remote forest erasure without Premium or a mandatory download. Account and device forest remain. Account closure, local copies and downloaded files have different scopes.',
+            'Access, correction, erasure, objection, withdrawal or restriction requests are received at overseer@roadmap2u.com. Provide your name, response channel, account and request; for correction, describe the change you seek. Identity and, where relevant, representation are verified through a private channel agreed for the case. Do not send passwords, MFA or tokens.',
+            'Requests concerning adolescents do not infer authority from knowing a username or receiving an email. A determination is communicated within a maximum of 20 business days after receiving the request and, if applicable, carried out within the following 15 business days. Justified extensions are communicated under applicable rules. Available electronic delivery is free.',
+          ],
+        },
+        {
+          title: 'Retention, erasure and security',
+          paragraphs: [
+            'Account and forest remain while their purpose continues and, for cloud, authorization applies. Erasure is processed in batches and verified. A specific preservation obligation records reason, category, scope, review and expiry; it does not retain everything indefinitely.',
+            'The operating schedule distinguishes ordinary records and logs of up to 30 days, recovery points of up to 35 days and minimal restore exclusions for 36 days after erasure. These are technical choices, not universal statutory periods. Consent and verification evidence is retained according to its purpose; any tax or commercial obligation has its own scope and rule.',
+            'Infrastructure uses HTTPS, DynamoDB encryption at rest, account authorization and limited administrative permissions. Restoring forest content cannot revive withdrawn authorizations or excluded data: it is checked against the independent privacy record. AWS encryption does not by itself protect downloaded files or replace security on your device.',
+          ],
+        },
+        {
+          title: 'Notice changes',
+          paragraphs: [
+            'The current notice is published at /privacy and terms at /terms. Their versions are identified in your decision evidence. Changes of purpose or consent require information and a new decision where applicable. We retain the text, language, version and date you actually accepted.',
           ],
         },
       ],
@@ -197,31 +319,36 @@ export const EN: Dict = {
     terms: {
       title: 'Terms of use',
       intro:
-        'The family pilot is free and reserved for invited households. Paid plans cannot be purchased yet.',
+        'RoadMap2U is a personal organization tool: your goals grow as trees, branches and next steps. It does not provide medical diagnosis or treatment or replace professional care.',
       sections: [
         {
-          title: 'Coverage by invitation',
+          title: 'Account and modality',
           paragraphs: [
-            'A private grant allows up to two minors and one additional responsible adult, with no charges or automatic expiration. Free adult registration does not grant family coverage.',
+            'Adults choose their modality and accept these terms. Adolescents aged 12 to 17 use a private account after an authenticated parent or guardian declaration, together with their own acceptance and confirmed email. The authorizing person truthfully declares their name, relationship and authority to represent them; the app checks their account, not civil documents. This modality does not offer registration for children under 12.',
+            'Each person protects their credentials and provides truthful account information. A private adolescent account has no visits or friendships, and representative authorization does not open their notes. Local forest content remains when signing in, out or declining cloud.',
           ],
         },
         {
-          title: 'Shared care',
+          title: 'Cloud and capacity',
           paragraphs: [
-            'The primary responsible adult declares their authority to create or link a minor account and provides the date of adulthood. The additional responsible adult accepts their invitation and has access only to the designated minors.',
-            'A transfer requires approval by the current responsible adult and explicit acceptance by the recipient. Until it is accepted, the current responsible adult keeps their role.',
+            'Sync requires current privacy authorization and the appropriate commercial capacity. Premium does not replace consent. Authorizing privacy does not grant Premium or family membership.',
+            'Adolescent cloud is linked to the current Premium of the responsible account that recorded authorization and keeps Free limits: two active trees and ten visible branches per tree. Ending Premium or withdrawing either authorization stops new cloud operations and preserves data. This link does not give the adolescent personal Premium, social functions or family access.',
+            'Family functions remain disabled for this release. Sponsored grants are free and are not sold. Payment, renewal, cancellation and refund conditions will be described before enabling purchases; this modality does not offer a purchase or activate Stripe.',
           ],
         },
         {
-          title: 'Coverage changes',
+          title: 'Privacy, closure and support',
           paragraphs: [
-            'Revoking the pilot stops new covered capabilities without itself deleting accounts, forests or supervision relationships. At age 18, supervision and family pilot coverage end; the person keeps their account, data and any valid Premium of their own.',
+            'Archiving an item, erasing a remote forest and closing an account are different operations. The privacy notice explains copies, retention, rights and exceptions. Erasure requires neither Premium nor a mandatory download.',
+            'At 18, the private account and its data remain; parental authorization ends and personal adult acceptance is requested before continuing cloud. Social functions are not opened automatically.',
+            'Help and complaints: overseer@roadmap2u.com. Adolescent requests use identity and representation verification appropriate to the case. Never share passwords, MFA or tokens.',
           ],
         },
         {
-          title: 'Pending information',
+          title: 'Availability and applicable rules',
           paragraphs: [
-            'Before publication, availability and suspension rules, the complaints procedure and applicable law and jurisdiction must be completed with legal review.',
+            'Maintenance, connectivity or incidents may interrupt the service. Your local forest and any copies you choose to download help preserve your work; continuous cloud availability is not guaranteed. Remote access may be limited for security, requested closure or breach of these conditions, while preserving applicable privacy rights.',
+            'Use the app for content you own or have the right to use, without violating third-party rights or attempting to access other accounts. These terms are interpreted under Mexican law and do not limit non-waivable privacy or consumer rights. Complaints may be submitted to the competent authority.',
           ],
         },
       ],
@@ -229,24 +356,24 @@ export const EN: Dict = {
     support: {
       title: 'Support and care',
       intro:
-        'The public support and privacy contact is overseer@roadmap2u.com. This draft brings together situations where pilot participants may need help; hours and procedures are still awaiting approval.',
+        'Support and privacy: overseer@roadmap2u.com. You can request help with your account, cloud choices and data rights.',
       sections: [
         {
-          title: 'Account access',
+          title: 'Access and representation',
           paragraphs: [
-            'To recover a minor account, review a relationship or transfer responsibility, support must verify the identity and authority of the person asking for help. Never share your password or anyone else’s.',
+            'Support verifies identity and, where relevant, representation. Knowing a username, receiving an email or checking a box does not prove that authority. We first agree a private channel to verify it. Do not share passwords, MFA codes or tokens or attach identity documents to your notes.',
           ],
         },
         {
-          title: 'Privacy and backups',
+          title: 'Privacy and erasure',
           paragraphs: [
-            'You can request a backup or account closure through available features. Permanent deletion requires a verified backup and does not offer restoration of data already deleted. The privacy request procedure will be completed before publication.',
+            'You can download your own remote data or request erasure without Premium or a mandatory download. Closing a private adolescent account goes through support with verification appropriate to the case. Authorizing an account does not allow the representative to read or export its forest day to day. Local and downloaded copies are managed separately.',
           ],
         },
         {
-          title: 'An uncomfortable friendship',
+          title: 'Private adolescent account',
           paragraphs: [
-            'A minor can ask an adult they trust for help to leave a friendship. Reports involving minors will have a review and escalation procedure that still needs approval.',
+            'Private adolescent accounts have no friendships or visits. Cloud requires the representative’s current Premium and both authorizations. Withdrawn authorization, representative changes or disputes go through support; age is not changed and the forest is not opened to resolve them. An accepted request does not prove physical deletion has completed.',
           ],
         },
       ],
@@ -919,7 +1046,7 @@ export const EN: Dict = {
     minutes: 'min',
     data: 'Your data',
     dataHint:
-      'Your forest lives on this device. When accounts arrive, it will be able to travel with you — and nothing leaves without you.',
+      'Your forest lives on this device. Accounts use remote services; syncing the forest requires your separate cloud authorization.',
     export: 'Export my copy',
     import: 'Import a copy',
     importWarning: 'This replaces what is here now. We download an automatic backup first.',
@@ -1013,7 +1140,8 @@ export const EN: Dict = {
     signInCta: 'Sign in',
     forgotLink: 'Forgot your password?',
     createTitle: 'Create my account',
-    createHint: 'For people with their own email. Kids’ accounts are created by their family.',
+    createHint:
+      'An account with your own email. At 12 to 17, I need a private invitation with verified representation.',
     displayName: 'What should we call you?',
     email: 'Your email',
     passwordNew: 'Choose a password',
@@ -1086,33 +1214,41 @@ export const EN: Dict = {
   },
   familia: {
     title: 'Family',
-    sponsoredActive: 'Sponsored family coverage for this invited household. No charges or payment date.',
+    sponsoredActive:
+      'Sponsored family coverage for this invited household. No charges or payment date.',
     sponsoredEnded: 'Sponsored family coverage has ended. Accounts and care relationships remain.',
     accountIdLabel: 'Your account ID for invitations',
     linkCodeCta: 'Create a code to link this minor',
     linkCodeTitle: 'Link code',
-    linkCodeBody: 'Share this code only with the adult who will take responsibility. The link happens after both approvals.',
+    linkCodeBody:
+      'Share this code only with the adult who will take responsibility. The link happens after both approvals.',
     linkRequestTitle: 'Request a minor account link',
-    linkRequestBody: 'Enter the current responsible adult’s code. They must approve, then you must accept responsibility.',
+    linkRequestBody:
+      'Enter the current responsible adult’s code. They must approve, then you must accept responsibility.',
     linkRequestSubmit: 'Send request',
     linkRequested: 'Request sent. Await approval from the current responsible adult.',
     linkApproveCta: 'Approve minor transfer',
-    linkApproveBody: 'The recipient must explicitly accept responsibility. You remain responsible until then.',
+    linkApproveBody:
+      'The recipient must explicitly accept responsibility. You remain responsible until then.',
     linkAcceptCta: 'Accept responsibility for minor',
-    linkAcceptBody: 'The minor will join your household and you will become their primary responsible. Their account and data remain.',
+    linkAcceptBody:
+      'The minor will join your household and you will become their primary responsible. Their account and data remain.',
     additionalInviteCta: 'Invite an additional responsible adult',
     additionalInviteTitle: 'Invite another adult',
-    additionalInviteBody: 'Ask the adult for their account ID. They can care only for the minors you select and must accept the invitation.',
+    additionalInviteBody:
+      'Ask the adult for their account ID. They can care only for the minors you select and must accept the invitation.',
     adultIdLabel: 'Adult account ID',
     selectMinors: 'Choose the minors they may accompany.',
     additionalInviteSubmit: 'Send invitation',
     additionalInvited: 'Invitation sent. The other adult still needs to accept.',
     additionalAcceptCta: 'Accept care invitation',
-    additionalAcceptBody: 'You will accompany only the minors authorized by the primary responsible adult.',
+    additionalAcceptBody:
+      'You will accompany only the minors authorized by the primary responsible adult.',
     scopeEditCta: 'Change authorized minors',
     scopeSaved: 'Care scope updated.',
     additionalRevokeCta: 'Revoke additional access',
-    additionalRevokeBody: 'The other adult will lose care access to this household. The minors’ accounts remain.',
+    additionalRevokeBody:
+      'The other adult will lose care access to this household. The minors’ accounts remain.',
     additionalRevoked: 'Additional access revoked.',
     noticeConfirmTitle: 'Confirm family request',
     noticeConfirmCta: 'Confirm',
@@ -1271,6 +1407,10 @@ export const EN: Dict = {
       COMMERCIAL_CONFIGURATION_UNAVAILABLE:
         'We could not confirm your access right now. Your local copy remains available; try again later.',
       ADULT_MINOR_FRIENDSHIP_FORBIDDEN: 'That friendship link is not available.',
+      ADULT_DECLARATION_REQUIRED: 'I need to confirm that I am 18 or older and review the terms.',
+      CLOUD_CONSENT_REQUIRED: 'My cloud is paused. I can review authorization in Settings.',
+      PRIVACY_REVISION_CONFLICT: 'My decision changed in another session. I can review it again.',
+      PRIVACY_ERASURE_PENDING: 'My remote forest is being erased. My local forest is preserved.',
       ACCOUNT_TYPE_INCOMPATIBLE: 'That account combination cannot use this path.',
       RESPONSIBLE_SCOPE_REQUIRED: 'That minor is not within the authorized scope of this link.',
       CONSENT_INCOMPLETE: 'The friendship is still gathering every required approval.',
@@ -1286,6 +1426,8 @@ export const EN: Dict = {
         'We found a subscription that needs reconciliation. We did not make changes.',
       PAYMENT_REQUIRED: 'This change needs payment confirmation before coverage can open.',
       REAUTHENTICATION_REQUIRED: 'To protect this account, sign in again before continuing.',
+      EMAIL_VERIFICATION_REQUIRED:
+        'My account needs a confirmed email before authorizing or accepting an adolescent account.',
       STALE_REVISION:
         'The household changed while you were here. Refresh to start from its latest state.',
       offline: 'No connection right now — try again when it returns.',
@@ -1305,10 +1447,12 @@ export const EN: Dict = {
   amigos: {
     title: 'Friendships',
     minorCreateCode: 'Create a code for another minor',
-    minorCodeHint: 'Share it outside the app with another minor. It lasts 24 hours and works once. Friendship needs four consents.',
+    minorCodeHint:
+      'Share it outside the app with another minor. It lasts 24 hours and works once. Friendship needs four consents.',
     minorPendingTitle: 'Friendships awaiting consent',
     minorConsentProgress: '{count} of 4 consents recorded',
-    minorConsentHint: 'A friendship starts only after both minors and their responsible adults say yes.',
+    minorConsentHint:
+      'A friendship starts only after both minors and their responsible adults say yes.',
     minorAcceptPending: 'Your acceptance was recorded. Other consents are still needed.',
     myCode: 'Your friendship code',
     codeHint:
@@ -1337,7 +1481,7 @@ export const EN: Dict = {
   nube: {
     title: 'My forest in the cloud',
     offHint:
-      'Your forest lives only on this device. Connect it and it will travel with your account — and your family can tend it with you.',
+      'Your forest stays on this device. Syncing it with your account requires separate cloud authorization and the corresponding available capability.',
     connectCta: 'Connect my forest',
     connectOk: 'Your forest now travels with you ☁️🌿',
     syncing: 'Syncing…',
@@ -1413,12 +1557,12 @@ export const EN: Dict = {
       {
         icon: '🔒',
         title: 'Your data',
-        body: 'Your forest lives on your device and nothing travels without you. We are preparing accounts for families and friends: when you connect yours, your forest will be able to back itself up and open only to the people you choose — and you will always know who can see it. No ads, no tracking, ever. In Settings you can export your copy (do it often — it is your backup) and import it on another device. Settings shows the date of your last copy, and if a long while passes without one, the app reminds you with a single line — you can turn that reminder off right there. Nothing is deleted by accident: branches and trees rest in the archive (🗃), always recoverable, and every archive notice offers "Undo" for a few seconds. Delete-forever only exists inside the archive, and the app downloads a backup by itself before doing it.',
+        body: 'Your forest works on this device first. Accounts use remote services; forest sync requires separate authorization. Settings lets you export or import your local copy. Archiving keeps items recoverable; deleting an archived item, erasing the remote forest and closing an account are different actions. Privacy lets you withdraw cloud, download your own data and request erasure without buying Premium or a mandatory backup download. Erasing remote data does not delete local or downloaded copies.',
       },
       {
         icon: '🤝',
         title: 'Family accounts',
-        body: 'Everyone keeps their own sign-in. The primary account responsible manages the household and will pay for it; there are up to two minor seats and one authorized additional responsible, with an explicit scope for each minor. Creating a minor account requires declaring Mexico, the date they will turn 18 and two versioned consents. Only the primary responsible manages passwords, exports and deletion; a transfer requires the other person to accept. Each account has its own private family inbox. Adult friendships never grant access to other family members. This screen is still being implemented: payments and invitation or linking controls have not been enabled.',
+        body: 'Adults and adolescents aged 12 to 17 have different admission flows. An adolescent needs an invitation for their exact username, parent or guardian authorization with verified representation, their own acceptance and a separate cloud choice. Their forest has no visits or friendships and does not open to the representative. At 18, account and data remain, parental authorization ends and personal adult acceptance is requested; the forest stays private. Family implementation is retained with its controls disabled for this launch. Consent grants neither Premium, a family nor a purchase; sponsored grants are free.',
       },
     ],
   },

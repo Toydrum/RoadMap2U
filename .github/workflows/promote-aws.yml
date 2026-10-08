@@ -135,6 +135,9 @@ jobs:
           ROADMAP2U_CONTRACT_HASH: ${{ steps.ssm.outputs.contract_hash }}
         run: npm run generate:config
 
+      - name: Require reviewed privacy texts and completed environment validation for PROD
+        run: node tools/validate-individual-publication.mjs --stage "$STAGE"
+
       - name: Test and build the promoted PWA
         run: |
           npm run test:config
