@@ -1,5 +1,23 @@
 // The account ritual wears the check-in's clothes: grid-centered stage on a
 // tinted sky, everything else built from the global .card/.btn/.field set.
+.consent-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin-block: 0.8rem;
+  line-height: 1.5;
+}
+.consent-choice input {
+  flex: none;
+  margin-top: 0.3rem;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.age-choice {
+  border: 1px solid var(--line, #d7dfd1);
+  border-radius: 0.65rem;
+  padding: 0.8rem;
+}
 .ritual {
   min-height: 100svh;
   display: grid;

@@ -13,13 +13,29 @@ export const routes: Routes = [
     title: 'RoadMap2U — Tu ruta crece contigo',
   },
   {
+    path: 'privacy',
+    pathMatch: 'full',
+    loadComponent: () => import('./features/landing/legal-page').then((m) => m.LegalPage),
+    data: { legalDocument: 'privacy' },
+  },
+  {
+    path: 'terms',
+    pathMatch: 'full',
+    loadComponent: () => import('./features/landing/legal-page').then((m) => m.LegalPage),
+    data: { legalDocument: 'terms' },
+  },
+  {
+    path: 'support',
+    pathMatch: 'full',
+    loadComponent: () => import('./features/landing/legal-page').then((m) => m.LegalPage),
+    data: { legalDocument: 'support' },
+  },
+  {
     path: 'account',
-    loadChildren: () =>
-      import('./features/shell/account.routes').then((m) => m.ACCOUNT_ROUTES),
+    loadChildren: () => import('./features/shell/account.routes').then((m) => m.ACCOUNT_ROUTES),
   },
   {
     path: '',
-    loadChildren: () =>
-      import('./features/shell/product.routes').then((m) => m.PRODUCT_ROUTES),
+    loadChildren: () => import('./features/shell/product.routes').then((m) => m.PRODUCT_ROUTES),
   },
 ];

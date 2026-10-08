@@ -8,6 +8,10 @@ import { PASSWORD_POLICY, USERNAME_PATTERN, passwordMeetsPolicy } from '../../co
 import { AccountClosureService } from '../../core/account-closure.service';
 import type { AccountClosureState } from '../../core/api/contracts';
 import { AccessKeyForm } from '../access/access-key-form';
+import { PrivacyPanel } from '../../shared/ui/privacy-panel';
+import { PrivacyService } from '../../core/privacy.service';
+import { ApiError } from '../../core/api/contracts';
+import { privacyDocument } from '../../core/api/privacy-document';
 
 type Step =
   | 'welcome'
@@ -18,6 +22,7 @@ type Step =
   | 'forgot'
   | 'forgotCode'
   | 'closureRecovery'
+  | 'admission'
   | 'profile';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -68,7 +73,7 @@ export function createAccountInputError(
  */
 @Component({
   selector: 'app-account',
-  imports: [RouterLink, AccessKeyForm],
+  imports: [RouterLink, AccessKeyForm, PrivacyPanel],
   templateUrl: './account.html',
   styleUrl: './account.scss',
 })
@@ -77,6 +82,7 @@ export class AccountPage {
   protected readonly i18n = inject(I18nService);
   protected readonly auth = inject(AuthService);
   protected readonly closure = inject(AccountClosureService);
+  protected readonly privacy = inject(PrivacyService);
   protected readonly bugReportUrl =
     'https://docs.google.com/forms/d/e/1FAIpQLSelXiTkj1W9hKmgw1z_fLVFKy_a2bpWDFT8FdSABTLteHxmew/viewform';
   private readonly router = inject(Router);
@@ -98,6 +104,23 @@ export class AccountPage {
   protected readonly password2 = signal('');
   protected readonly email = signal('');
   protected readonly code = signal('');
+  protected readonly ageChoice = signal<'adult' | 'adolescent' | null>(null);
+  protected readonly acceptsTerms = signal(false);
+  protected readonly understandsPrivacy = signal(false);
+  protected readonly privateInvitation = signal('');
+  protected readonly signupDocument = signal<Awaited<ReturnType<typeof privacyDocument>> | null>(
+    null,
+  );
+  protected readonly canCloseOwnAccount = computed(
+    () => this.auth.user()?.accountType === 'adult' && this.privacy.status()?.scope === 'adult',
+  );
+  private pendingSignup: {
+    username: string;
+    age: 'adult' | 'adolescent';
+    invitationId: string;
+    language: 'es' | 'en';
+    hash: string;
+  } | null = null;
 
   /** Client-side-only complaint (password mismatch) — not an auth error. */
   protected readonly localError = signal('');
@@ -108,6 +131,18 @@ export class AccountPage {
   protected readonly safeReturnUrl = computed(() => safeLocalReturnUrl(this.returnUrl()));
 
   constructor() {
+    effect(() => {
+      const language = this.i18n.lang();
+      this.signupDocument.set(null);
+      this.ageChoice.set(null);
+      this.acceptsTerms.set(false);
+      this.understandsPrivacy.set(false);
+      void privacyDocument(language)
+        .then((text) => {
+          if (this.i18n.lang() === language) this.signupDocument.set(text);
+        })
+        .catch(() => this.localError.set(this.i18n.t().privacy.saveError));
+    });
     if (this.auth.status() === 'signedIn') this.step.set('profile');
     // Auth is the only eager graph on /account. Receipt hydration stays local
     // meta-only; Backup/Sync/repos remain behind the explicit closure click.
@@ -137,6 +172,12 @@ export class AccountPage {
   });
 
   protected go(step: Step): void {
+    if (step !== 'confirmCode') {
+      this.pendingSignup = null;
+      this.acceptsTerms.set(false);
+      this.understandsPrivacy.set(false);
+      this.ageChoice.set(null);
+    }
     this.auth.dismissChallenge();
     this.localError.set('');
     this.notice.set('');
@@ -174,7 +215,29 @@ export class AccountPage {
       return;
     }
     this.localError.set('');
+    if (
+      !this.ageChoice() ||
+      !this.acceptsTerms() ||
+      (this.ageChoice() === 'adolescent' &&
+        (!this.understandsPrivacy() || !/^[a-f0-9]{64}$/.test(this.privateInvitation().trim())))
+    ) {
+      this.localError.set(this.i18n.t().privacy.adultChoiceRequired);
+      return;
+    }
     const username = normalizedUsername(this.username());
+    const language = this.i18n.lang();
+    const text = this.signupDocument();
+    if (!text || text.document.language !== language) {
+      this.localError.set(this.i18n.t().privacy.saveError);
+      return;
+    }
+    this.pendingSignup = {
+      username,
+      age: this.ageChoice()!,
+      invitationId: this.privateInvitation().trim(),
+      language,
+      hash: text.hash,
+    };
     this.username.set(username);
     const result = await this.auth.signUp({
       username,
@@ -241,14 +304,22 @@ export class AccountPage {
   }
 
   protected async doSignOut(): Promise<void> {
+    this.pendingSignup = null;
     await this.auth.signOut();
     this.password.set('');
     this.go('welcome');
   }
 
   protected async doDelete(): Promise<void> {
+    if (!this.canCloseOwnAccount()) return;
     const result = await this.closure.requestClosure();
     if (result === 'completed' && !this.closure.receipt()) this.restartAfterClosure();
+  }
+
+  protected chooseAge(age: 'adult' | 'adolescent') {
+    this.ageChoice.set(age);
+    this.acceptsTerms.set(false);
+    this.understandsPrivacy.set(false);
   }
 
   protected async retryClosure(): Promise<void> {
@@ -282,6 +353,44 @@ export class AccountPage {
     this.password2.set('');
     this.code.set('');
     await this.closure.hydrate();
+    if (this.closure.receipt()) {
+      this.step.set('profile');
+      return;
+    }
+    try {
+      let status = await this.privacy.refresh(this.i18n.lang());
+      const signup = this.pendingSignup;
+      if (signup && signup.username === this.auth.user()?.username) {
+        if ((await privacyDocument(signup.language)).hash !== signup.hash)
+          throw new ApiError('VALIDATION');
+        status =
+          signup.age === 'adult'
+            ? await this.privacy.declareAdult(signup.language, true, true)
+            : await this.privacy.acceptAdolescent(signup.language, signup.invitationId, true, true);
+        this.pendingSignup = null;
+        this.acceptsTerms.set(false);
+        this.understandsPrivacy.set(false);
+        this.ageChoice.set(null);
+      }
+      if (
+        !status.adultDeclared &&
+        (status.scope !== 'adolescent_private' || !status.adolescentUnderstood)
+      ) {
+        this.step.set('admission');
+        return;
+      }
+    } catch (error) {
+      this.localError.set(
+        error instanceof ApiError
+          ? this.i18n.t().familia.errors[error.code]
+          : this.i18n.t().privacy.saveError,
+      );
+      this.step.set('admission');
+      return;
+    }
+    this.finishAdmission();
+  }
+  protected finishAdmission(): void {
     if (this.intent() === 'redeem') {
       this.step.set('profile');
       return;

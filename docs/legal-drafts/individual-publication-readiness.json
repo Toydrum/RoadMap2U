@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "status": "prepared_owner_approved_pending_environment_validation",
+  "adultPublicationApproved": false,
+  "productionPublicationApproved": false,
+  "paymentActivationApproved": false,
+  "familyActivationApproved": false,
+  "legalController": {
+    "name": "Héctor Coronado",
+    "type": "individual",
+    "noticeAddress": "Camelias 8, colonia Tlacoquemecatl del Valle, alcaldía Benito Juárez, C.P. 03200, Ciudad de México, México",
+    "noticeAddressConfirmedByOwnerOn": "2026-10-07",
+    "noticeAddressPublicUseAuthorizedByOwnerOn": "2026-10-07"
+  },
+  "publicContacts": {
+    "privacy": "overseer@roadmap2u.com",
+    "support": "overseer@roadmap2u.com"
+  },
+  "versions": {
+    "privacy": "privacy-2026-10-07-v2",
+    "terms": "terms-2026-10-07-v2",
+    "cloudConsent": "cloud-consent-2026-10-07-v2",
+    "retention": "adult-retention-2026-10-07-v1"
+  },
+  "effectiveDate": null,
+  "designApproved": true,
+  "designApprovedByOwnerOn": "2026-10-07",
+  "consentImplementedAndVerified": false,
+  "retentionImplementedAndReconciled": false,
+  "rightsProcedureRehearsed": false,
+  "providerContractsReviewed": false,
+  "draftSources": [
+    "adults-es.md",
+    "adults-en.md",
+    "adult-consent-copy.md",
+    "adult-retention-policy.md"
+  ],
+  "remainingGates": [
+    "secure_identity_representation_and_dispute_procedure",
+    "provider_entities_and_international_processing",
+    "read_only_inventory_and_additive_reconciliation",
+    "retention_restore_rehearsal",
+    "manual_rights_procedure_rehearsal",
+    "private_adolescent_cloud_capacity",
+    "authenticated_adult_private_adolescent_dev_test_smokes",
+    "exact_sha_contract_release_and_effective_date",
+    "authorized_server_enforcement_activation"
+  ],
+  "privateAdolescentPublicationApproved": false,
+  "privateAdolescentDesignApprovedByOwnerOn": "2026-10-07",
+  "implementationLocalOnly": true,
+  "legalReview": {
+    "reviewedBy": null,
+    "reviewedOn": null,
+    "documentHashes": {
+      "es": null,
+      "en": null
+    }
+  },
+  "publicationApproval": {
+    "basis": "responsible_owner",
+    "approvedBy": "Héctor Coronado",
+    "approvedOn": "2026-10-07",
+    "externalLegalReviewRequired": false,
+    "externalLegalReviewDeclinedByOwnerOn": "2026-10-07",
+    "documentHashes": {
+      "es": "6a9e3f1294ae9b10dd0c6fb47d43896580a955fae4153d2c675fb39b112ca143",
+      "en": "f7157b1d55ca253d1e67ec343d40cd25db75859eeb5211ecbd9d9b52ebeb48a5"
+    }
+  },
+  "localImplementation": {
+    "preparedOn": "2026-10-07",
+    "documentHashes": {
+      "es": "6a9e3f1294ae9b10dd0c6fb47d43896580a955fae4153d2c675fb39b112ca143",
+      "en": "f7157b1d55ca253d1e67ec343d40cd25db75859eeb5211ecbd9d9b52ebeb48a5"
+    },
+    "scope": "adult_private_adolescents",
+    "report": "../../../../reports/adult-mvp-privacy-implementation-2026-10-07.md",
+    "privacyRightsOperatorInstalled": false,
+    "requiresOperatorForRoutineSignup": false,
+    "authenticatedEnvironmentValidationComplete": false
+  },
+  "privateAdolescentCloudCapacity": {
+    "ownerDecisionOn": "2026-10-07",
+    "basis": "responsible_adult_current_premium",
+    "adolescentPlan": "free",
+    "limits": {
+      "maxActiveTrees": 2,
+      "maxVisibleBranchesPerTree": 10
+    },
+    "grantsPersonalPremium": false,
+    "grantsFamilyMembership": false,
+    "authenticatedEnvironmentValidationComplete": false
+  },
+  "privateAdolescentAuthorization": {
+    "ownerDecisionOn": "2026-10-07",
+    "method": "account_attestation",
+    "requiresConfirmedEmail": true,
+    "requiresRecentAuthenticationMinutes": 15,
+    "requiresCurrentResponsiblePremium": true,
+    "requiresDeclaredNameAndRelationship": true,
+    "verifiesCivilIdentityOrParentageDocuments": false,
+    "requiresManualOperatorForRoutineSignup": false
+  }
+}

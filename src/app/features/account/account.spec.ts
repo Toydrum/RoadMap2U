@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountClosureService } from '../../core/account-closure.service';
 import { AccessService } from '../../core/access/access.service';
 import { AuthService } from '../../core/auth/auth.service';
+import { API_CLIENT } from '../../core/api/api-client';
+import { ADULT_PRIVACY_VERSIONS } from '../../core/api/contracts';
+import { privacyDocument } from '../../core/api/privacy-document';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { EN } from '../../core/i18n/en';
 import { ES, type Dict } from '../../core/i18n/es';
@@ -59,6 +62,7 @@ function accountHarness(dict: Dict = ES) {
   };
   const i18n = {
     t: signal(dict),
+    lang: signal<'es' | 'en'>(dict === EN ? 'en' : 'es'),
     fill: (template: string, values: Record<string, string | number>) =>
       template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? '')),
   };
@@ -71,6 +75,24 @@ function accountHarness(dict: Dict = ES) {
     providers: [
       provideRouter([]),
       { provide: AuthService, useValue: auth },
+      {
+        provide: API_CLIENT,
+        useValue: {
+          getPrivacyStatus: async (language: 'es' | 'en') => ({
+            userId: user()!.userId,
+            scope: 'adult',
+            enforcement: 'enforce',
+            revision: 1,
+            adultDeclared: true,
+            cloudConsent: 'absent',
+            canUseCloud: false,
+            erasure: 'none',
+            versions: ADULT_PRIVACY_VERSIONS,
+            documentHash: (await privacyDocument(language)).hash,
+            updatedAt: 1,
+          }),
+        },
+      },
       { provide: AccountClosureService, useValue: closure },
       { provide: ACCOUNT_CLOSURE_RESTART, useValue: restart },
       { provide: I18nService, useValue: i18n },

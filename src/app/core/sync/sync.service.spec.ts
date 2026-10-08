@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { API_CLIENT, type ApiClient } from '../api/api-client';
 import {
   ApiError,
@@ -10,6 +10,9 @@ import {
   type SyncRecord,
 } from '../api/contracts';
 import { AuthService } from '../auth/auth.service';
+import { PrivacyService } from '../privacy.service';
+import { ADULT_PRIVACY_VERSIONS } from '../api/contracts';
+import { privacyDocument } from '../api/privacy-document';
 import { broadcastChange } from '../db/broadcast';
 import { newSyncBase, type SyncBase, type Tree, type TreeNode } from '../db/schema';
 import { CheckinsRepo } from '../repos/checkins.repo';
@@ -100,12 +103,15 @@ function configure(input: {
   trees?: Tree[];
   nodes?: TreeNode[];
   pushSync: ApiClient['pushSync'];
+  getPrivacyStatus?: ApiClient['getPrivacyStatus'];
+  getSyncChanges?: ApiClient['getSyncChanges'];
   metaStorage?: SyncMetaStorage;
 }): {
   service: SyncService;
   conflicts: SyncConflictStore;
   trees: RepoDouble<Tree>;
   nodes: RepoDouble<TreeNode>;
+  privacy: PrivacyService;
 } {
   const trees = new RepoDouble(input.trees);
   const nodes = new RepoDouble(input.nodes);
@@ -113,14 +119,43 @@ function configure(input: {
   const authUser = signal({ userId: 'owner-a' });
   const api = {
     pushSync: input.pushSync,
-    getSyncChanges: vi.fn(async () => ({ changes: [], cursor: 'cursor-1', more: false })),
+    getPrivacyStatus:
+      input.getPrivacyStatus ??
+      (async (language = 'es') => ({
+        userId: 'owner-a',
+        scope: 'adult',
+        enforcement: 'enforce',
+        revision: 2,
+        adultDeclared: true,
+        cloudConsent: 'granted',
+        canUseCloud: true,
+        erasure: 'none',
+        versions: ADULT_PRIVACY_VERSIONS,
+        documentHash: (await privacyDocument(language)).hash,
+        updatedAt: NOW,
+      })),
+    changePrivacyConsent: vi.fn(async (command) => ({
+      userId: 'owner-a',
+      scope: 'adult',
+      enforcement: 'enforce',
+      revision: 3,
+      adultDeclared: true,
+      cloudConsent: 'revoked',
+      canUseCloud: false,
+      erasure: 'none',
+      versions: ADULT_PRIVACY_VERSIONS,
+      documentHash: command.documentHash,
+      updatedAt: NOW,
+    })),
+    getSyncChanges:
+      input.getSyncChanges ?? vi.fn(async () => ({ changes: [], cursor: 'cursor-1', more: false })),
   } as unknown as ApiClient;
   TestBed.configureTestingModule({
     providers: [
       SyncService,
       SyncConflictStore,
       { provide: API_CLIENT, useValue: api },
-      { provide: AuthService, useValue: { user: authUser } },
+      { provide: AuthService, useValue: { user: authUser, sessionStale: signal(false) } },
       { provide: TreesRepo, useValue: trees },
       { provide: NodesRepo, useValue: nodes },
       { provide: CheckinsRepo, useValue: empty },
@@ -137,6 +172,7 @@ function configure(input: {
     conflicts: TestBed.inject(SyncConflictStore),
     trees,
     nodes,
+    privacy: TestBed.inject(PrivacyService),
   };
 }
 
@@ -149,7 +185,130 @@ const BLOCKING_CODES: ApiErrorCode[] = [
 ];
 
 describe('commercial sync conflicts', () => {
-  beforeEach(() => TestBed.resetTestingModule());
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    localStorage.removeItem('roadmap2u-privacy-withdraw-intents-v1');
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    localStorage.removeItem('roadmap2u-privacy-withdraw-intents-v1');
+  });
+
+  it('does not change the device link or send forest data without current consent', async () => {
+    const push = vi.fn<ApiClient['pushSync']>();
+    const meta = { read: vi.fn(async () => undefined), write: vi.fn(async () => undefined) };
+    const { service } = configure({
+      pushSync: push,
+      metaStorage: meta,
+      getPrivacyStatus: async (language = 'es') => ({
+        userId: 'owner-a',
+        scope: 'adult',
+        enforcement: 'enforce',
+        revision: 1,
+        adultDeclared: true,
+        cloudConsent: 'revoked',
+        canUseCloud: false,
+        erasure: 'none',
+        versions: ADULT_PRIVACY_VERSIONS,
+        documentHash: (await privacyDocument(language)).hash,
+        updatedAt: NOW,
+      }),
+    });
+    await expect(service.connect()).resolves.toBe(false);
+    expect(meta.write).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect(service.link()).toBeNull();
+  });
+
+  it('does not apply a delayed pull or advance its cursor after local withdrawal', async () => {
+    let release!: (value: Awaited<ReturnType<ApiClient['getSyncChanges']>>) => void;
+    const pull = vi.fn(
+      () =>
+        new Promise<Awaited<ReturnType<ApiClient['getSyncChanges']>>>((done) => {
+          release = done;
+        }),
+    );
+    const meta = { read: vi.fn(async () => undefined), write: vi.fn(async () => undefined) };
+    const { service, privacy, nodes } = configure({
+      pushSync: async (payload) => ({
+        applied: payloadRecords(payload).map((row) => row.record.id),
+        rejected: [],
+        serverRecords: [],
+      }),
+      getSyncChanges: pull,
+      metaStorage: meta,
+      nodes: [node('local', 'tree-a')],
+    });
+    const pending = service.connect();
+    await vi.waitFor(() => expect(pull).toHaveBeenCalledOnce());
+    await privacy.revokeCloud('es');
+    release({
+      changes: [{ store: 'nodes', record: node('from-cloud', 'tree-a') }],
+      cursor: 'advanced',
+      more: false,
+    });
+    await expect(pending).resolves.toBe(false);
+    expect(nodes.byId().has('from-cloud')).toBe(false);
+    expect(nodes.byId().has('local')).toBe(true);
+    const internal = service as unknown as { cursor: string; dirtyIds: Map<string, Set<string>> };
+    expect(internal.cursor).toBe('0');
+    expect(internal.dirtyIds.get('nodes')?.has('local')).toBe(true);
+  });
+  it('does not persist a delayed device connection after local withdrawal', async () => {
+    let resume!: () => void;
+    const opened = new Promise<void>((resolve) => (resume = resolve));
+    const saved: unknown[] = [];
+    const meta = {
+      read: vi.fn(async () => undefined),
+      write: vi.fn(async (value: unknown, authorize?: () => void) => {
+        await opened;
+        authorize?.();
+        saved.push(value);
+      }),
+    };
+    const push = vi.fn<ApiClient['pushSync']>();
+    const { service, privacy } = configure({ pushSync: push, metaStorage: meta });
+    const pending = service.connect();
+    await vi.waitFor(() => expect(meta.write).toHaveBeenCalledOnce());
+    await privacy.revokeCloud('es');
+    resume();
+    await expect(pending).resolves.toBe(false);
+    expect(saved).toEqual([]);
+    expect(push).not.toHaveBeenCalled();
+    expect(service.link()).toBeNull();
+  });
+
+  it('does not save a settled cursor while withdrawal interrupts its delayed write', async () => {
+    let resume!: () => void;
+    const opened = new Promise<void>((resolve) => (resume = resolve));
+    const saved: { key?: string; cursor?: string }[] = [];
+    let waiting = false;
+    const meta = {
+      read: vi.fn(async () => undefined),
+      write: vi.fn(async (value: unknown, authorize?: () => void) => {
+        const snapshot = value as { key?: string; cursor?: string };
+        if (snapshot.key === 'sync.state' && snapshot.cursor === 'cursor-1') {
+          waiting = true;
+          await opened;
+        }
+        authorize?.();
+        saved.push(snapshot);
+      }),
+    };
+    const { service, privacy } = configure({
+      pushSync: vi.fn<ApiClient['pushSync']>(),
+      metaStorage: meta,
+    });
+    const pending = service.connect();
+    await vi.waitFor(() => expect(waiting).toBe(true));
+    await privacy.revokeCloud('es');
+    resume();
+    await expect(pending).resolves.toBe(false);
+    expect(saved.some((row) => row.cursor === 'cursor-1')).toBe(false);
+    expect(service.lastSyncAt()).toBeNull();
+    const internal = service as unknown as { cursor: string };
+    expect(internal.cursor).toBe('0');
+  });
 
   it('drains an already-started sync meta write before terminal cleanup returns', async () => {
     let releaseWrite!: () => void;

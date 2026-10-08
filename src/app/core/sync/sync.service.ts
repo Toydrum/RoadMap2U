@@ -31,6 +31,7 @@ import { get, put } from '../db/idb';
 import { LocalWritesQuiescedError, onAccountClosureQuiesce } from '../db/account-closure-fence';
 import { broadcastRemote, createMutationGroupId, onLocalWrite } from '../db/broadcast';
 import { AuthService } from '../auth/auth.service';
+import { PrivacyService, type CloudPrivacyLease } from '../privacy.service';
 import { AccountLinkSnapshot, META_ACCOUNT_LINK } from '../auth/auth-types';
 import { RecordsRepo } from '../repos/records.repo';
 import { TreesRepo } from '../repos/trees.repo';
@@ -99,14 +100,14 @@ interface SyncStateSnapshot {
 
 export interface SyncMetaStorage {
   read(key: string): Promise<unknown>;
-  write(value: unknown): Promise<void>;
+  write(value: unknown, authorize?: () => void): Promise<void>;
 }
 
 export const SYNC_META_STORAGE = new InjectionToken<SyncMetaStorage>('SYNC_META_STORAGE', {
   providedIn: 'root',
   factory: () => ({
     read: (key) => get<unknown>('meta', key),
-    write: (value) => put('meta', value),
+    write: (value, authorize) => put('meta', value, authorize),
   }),
 });
 
@@ -116,6 +117,8 @@ export type SyncPhase = 'off' | 'mismatch' | 'idle' | 'syncing' | 'offline' | 'e
 export class SyncService {
   private readonly api = inject(API_CLIENT);
   private readonly auth = inject(AuthService);
+  private readonly privacy = inject(PrivacyService);
+  private privacyLease: CloudPrivacyLease | null = null;
   private readonly trees = inject(TreesRepo);
   private readonly nodes = inject(NodesRepo);
   private readonly checkins = inject(CheckinsRepo);
@@ -266,26 +269,55 @@ export class SyncService {
     if (this.accountClosureQuiesced) return false;
     const user = this.auth.user();
     if (!user) return false;
+    let lease: CloudPrivacyLease;
+    try {
+      lease = await this.privacy.requireCloud(this.privacyLanguage());
+    } catch (error) {
+      this.lastErrorSignal.set(error instanceof ApiError ? error.code : 'unknown');
+      return false;
+    }
+    if (this.auth.user() !== user || this.accountClosureQuiesced) return false;
+    const epoch = this.epoch;
+    const initial = { link: this.linkSignal(), watermark: this.watermark, cursor: this.cursor };
+    const authorize = () => {
+      if (this.accountClosureQuiesced || this.epoch !== epoch)
+        throw new ApiError('CLOUD_CONSENT_REQUIRED');
+      this.privacy.assertLease(lease);
+    };
     const link: AccountLinkSnapshot = {
       key: META_ACCOUNT_LINK,
       accountId: user.userId,
       linkedAt: Date.now(),
       uploadedAt: null,
     };
-    this.watermark = 0; // everything this device holds goes up
-    this.cursor = '0'; // and everything the account holds comes down
-    await this.persistLink(link);
-    await this.persistState();
-    const ok = await this.syncNow();
-    if (ok) {
-      await this.persistLink({ ...link, uploadedAt: Date.now() });
+    try {
+      authorize();
+      this.watermark = 0; // everything this device holds goes up
+      this.cursor = '0'; // and everything the account holds comes down
+      await this.persistLink(link, authorize);
+      await this.persistState(authorize);
+      authorize();
+      const ok = await this.syncNow();
+      if (ok) {
+        await this.persistLink({ ...link, uploadedAt: Date.now() }, authorize);
+      }
+      return ok;
+    } catch (error) {
+      if (this.epoch === epoch && !this.accountClosureQuiesced) {
+        this.linkSignal.set(initial.link);
+        this.watermark = initial.watermark;
+        this.cursor = initial.cursor;
+        this.lastErrorSignal.set(error instanceof ApiError ? error.code : 'unknown');
+      }
+      return false;
     }
-    return ok;
   }
 
   /** Lets go of the device↔account link. Local data is untouched. */
   async disconnect(): Promise<void> {
     if (this.accountClosureQuiesced) return;
+    this.epoch++;
+    this.privacyLease = null;
     const current = this.linkSignal();
     await this.persistLink({
       key: META_ACCOUNT_LINK,
@@ -317,7 +349,6 @@ export class SyncService {
   }
 
   private async runSyncPass(ownerId: string): Promise<boolean> {
-    await this.conflicts.open(ownerId);
     if (this.accountClosureQuiesced) return false;
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       this.lastErrorSignal.set('offline');
@@ -326,7 +357,20 @@ export class SyncService {
     this.busySignal.set(true);
     this.lastErrorSignal.set(null);
     const epoch = this.epoch;
+    const initial = {
+      watermark: this.watermark,
+      cursor: this.cursor,
+      forcePending: this.forcePending,
+      lastSyncAt: this.lastSyncAtSignal(),
+    };
+    let captured: SyncRecord[] = [];
     try {
+      this.privacyLease = await this.privacy.requireCloud(this.privacyLanguage());
+      if (this.privacyLease.owner.userId !== ownerId) throw new ApiError('UNAUTHENTICATED');
+      this.assertPrivacy();
+      await this.conflicts.open(ownerId);
+      this.assertPrivacy();
+      captured = this.gatherAll();
       if (this.forcePending) {
         this.watermark = 0; // a restore pushes EVERYTHING, and it wins
         await this.pushForceWins();
@@ -335,21 +379,51 @@ export class SyncService {
         await this.pushDirty();
       }
       await this.pullChanges();
+      this.assertPrivacy();
       // A reset (forgetEverything) mid-pass: our watermark/cursor belong to
       // the OLD cloud — persisting them would make the fresh cursor silently
       // skip records, the exact failure the reset guards against.
       if (epoch !== this.epoch) return false;
       this.lastSyncAtSignal.set(Date.now());
-      await this.persistState();
+      await this.persistState(() => {
+        if (epoch !== this.epoch || this.accountClosureQuiesced)
+          throw new ApiError('CLOUD_CONSENT_REQUIRED');
+        this.assertPrivacy();
+      });
+      this.assertPrivacy();
       return true;
     } catch (error) {
       if (epoch !== this.epoch || this.accountClosureQuiesced) return false;
+      if (
+        error instanceof ApiError &&
+        [
+          'CLOUD_CONSENT_REQUIRED',
+          'ADULT_DECLARATION_REQUIRED',
+          'UNAUTHENTICATED',
+          'PRIVACY_ERASURE_PENDING',
+          'PRIVACY_REVISION_CONFLICT',
+        ].includes(error.code)
+      ) {
+        this.watermark = initial.watermark;
+        this.cursor = initial.cursor;
+        this.forcePending = initial.forcePending;
+        this.lastSyncAtSignal.set(initial.lastSyncAt);
+        this.markDirty(captured);
+      }
       this.lastErrorSignal.set(error instanceof ApiError ? error.code : 'unknown');
       if (epoch === this.epoch) await this.persistState();
       return false;
     } finally {
+      this.privacyLease = null;
       if (!this.accountClosureQuiesced) this.busySignal.set(false);
     }
+  }
+  private privacyLanguage(): 'es' | 'en' {
+    return document.documentElement.lang.startsWith('en') ? 'en' : 'es';
+  }
+  private assertPrivacy() {
+    if (!this.privacyLease) throw new ApiError('CLOUD_CONSENT_REQUIRED');
+    this.privacy.assertLease(this.privacyLease);
   }
 
   /** Dirty marks reach disk shortly after they're made — not only after a
@@ -396,6 +470,7 @@ export class SyncService {
     // later batch fails, advancing the watermark cannot hide an untried row.
     this.markDirty(groups.flatMap((group) => group.records));
     for (const batch of chunkMutationGroups(groups)) {
+      this.assertPrivacy();
       let result;
       try {
         result = await this.api.pushSync({
@@ -407,6 +482,7 @@ export class SyncService {
         await this.recordBlockedGroups(error, batch);
         throw error;
       }
+      this.assertPrivacy();
       const rejectionReasons = new Map(
         result.rejected.map((entry) => [entry.id, entry.reason as string]),
       );
@@ -475,6 +551,7 @@ export class SyncService {
     const captureAt = Date.now();
     const groups = buildSyncMutationGroups(this.gatherAll(), this.memberships());
     for (const batch of chunkMutationGroups(groups)) {
+      this.assertPrivacy();
       const records = batch.flatMap((group) => group.records);
       this.markDirty(records);
       let result;
@@ -488,6 +565,7 @@ export class SyncService {
         await this.recordBlockedGroups(error, batch);
         throw error;
       }
+      this.assertPrivacy();
 
       const rejectedById = new Map(
         result.rejected.map((rejection) => [rejection.id, rejection.reason as string]),
@@ -554,12 +632,15 @@ export class SyncService {
             updatedAt: Date.now(),
           };
           try {
-            await put(entry.store, stamped);
+            this.assertPrivacy();
+            await put(entry.store, stamped, () => this.assertPrivacy());
           } catch (error) {
+            if (error instanceof ApiError) throw error;
             if (error instanceof LocalWritesQuiescedError || this.accountClosureQuiesced) return;
             /* memory-only session */
           }
           if (this.accountClosureQuiesced) return;
+          this.assertPrivacy();
           this.repoOf(entry.store).applyExternal(stamped as never);
           retryRecords.push({ store: entry.store, record: stamped });
         }
@@ -572,6 +653,7 @@ export class SyncService {
       }
       let second;
       try {
+        this.assertPrivacy();
         second = await this.api.pushSync({
           schemaVersion: SCHEMA_VERSION,
           contractVersion: CONTRACT_VERSION,
@@ -581,6 +663,7 @@ export class SyncService {
         await this.recordBlockedGroups(error, retryGroups);
         throw error;
       }
+      this.assertPrivacy();
       const secondReasons = new Map(
         second.rejected.map((rejection) => [rejection.id, rejection.reason as string]),
       );
@@ -828,7 +911,9 @@ export class SyncService {
 
   private async pullChanges(): Promise<void> {
     for (let page = 0; page < MAX_PULL_PAGES; page++) {
+      this.assertPrivacy();
       const batch = await this.api.getSyncChanges(this.cursor === '0' ? undefined : this.cursor);
+      this.assertPrivacy();
       const touched = new Map<SyncStore, string[]>();
       for (const change of batch.changes) {
         if (await this.acceptRemote(change)) {
@@ -841,6 +926,7 @@ export class SyncService {
       // own sync handler (these records came FROM the server; re-marking
       // them dirty echoed a pointless full re-push after every pull).
       for (const [store, ids] of touched) broadcastRemote({ store, ids });
+      this.assertPrivacy();
       this.cursor = batch.cursor;
       if (!batch.more) break;
     }
@@ -851,17 +937,20 @@ export class SyncService {
    *  two replicas that stamped the same rev converge instead of diverging. */
   private async acceptRemote(change: SyncRecord): Promise<boolean> {
     if (this.accountClosureQuiesced) return false;
+    this.assertPrivacy();
     const repo = this.repoOf(change.store);
     const incoming = change.record;
     const current = repo.byId().get(incoming.id);
     if (current && lwwBeats(current, incoming)) return false;
     try {
-      await put(change.store, incoming);
+      await put(change.store, incoming, () => this.assertPrivacy());
     } catch (error) {
+      if (error instanceof ApiError) throw error;
       if (error instanceof LocalWritesQuiescedError || this.accountClosureQuiesced) return false;
       /* memory-only session still benefits from the in-memory apply */
     }
     if (this.accountClosureQuiesced) return false;
+    this.assertPrivacy();
     repo.applyExternal(incoming as never);
     // The server's copy IS our copy now — nothing left to push for this id.
     this.dirtyIds.get(change.store)?.delete(incoming.id);
@@ -888,37 +977,48 @@ export class SyncService {
 
   // ── persistence ───────────────────────────────────────────────────────────
 
-  private async persistLink(link: AccountLinkSnapshot): Promise<void> {
+  private async persistLink(link: AccountLinkSnapshot, authorize?: () => void): Promise<void> {
     if (this.accountClosureQuiesced) return;
+    authorize?.();
+    try {
+      await this.writeMeta(link, authorize);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      /* memory-only session */
+    }
+    if (this.accountClosureQuiesced) return;
+    authorize?.();
     this.linkSignal.set(link);
-    try {
-      await this.writeMeta(link);
-    } catch {
-      /* memory-only session */
-    }
   }
 
-  private async persistState(): Promise<void> {
+  private async persistState(authorize?: () => void): Promise<void> {
     if (this.accountClosureQuiesced) return;
+    authorize?.();
     try {
-      await this.writeMeta({
-        key: META_SYNC_STATE,
-        watermark: this.watermark,
-        cursor: this.cursor,
-        lastSyncAt: this.lastSyncAtSignal(),
-        forcePending: this.forcePending,
-        dirty: Object.fromEntries(
-          [...this.dirtyIds].filter(([, ids]) => ids.size).map(([store, ids]) => [store, [...ids]]),
-        ),
-        mutationGroups: this.memberships(),
-      } satisfies SyncStateSnapshot);
-    } catch {
+      await this.writeMeta(
+        {
+          key: META_SYNC_STATE,
+          watermark: this.watermark,
+          cursor: this.cursor,
+          lastSyncAt: this.lastSyncAtSignal(),
+          forcePending: this.forcePending,
+          dirty: Object.fromEntries(
+            [...this.dirtyIds]
+              .filter(([, ids]) => ids.size)
+              .map(([store, ids]) => [store, [...ids]]),
+          ),
+          mutationGroups: this.memberships(),
+        } satisfies SyncStateSnapshot,
+        authorize,
+      );
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
       /* memory-only session */
     }
   }
 
-  private async writeMeta(value: unknown): Promise<void> {
-    const write = this.metaStorage.write(value);
+  private async writeMeta(value: unknown, authorize?: () => void): Promise<void> {
+    const write = this.metaStorage.write(value, authorize);
     this.pendingMetaWrites.add(write);
     try {
       await write;

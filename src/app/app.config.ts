@@ -38,7 +38,15 @@ export const appConfig: ApplicationConfig = {
         const auth = inject(AUTH_PROVIDER);
         return APP_CONFIG.backend === 'aws'
           ? lazySeam(() => import('./core/api/http-api').then((m) => new m.HttpApi(auth)))
-          : lazySeam(() => import('./core/api/mock-api').then((m) => new m.MockApi(auth)));
+          : lazySeam(() =>
+              import('./core/api/mock-api').then(
+                (m) =>
+                  new m.MockApi(auth, {
+                    adultPrivacyMode: 'enforce',
+                    privateAdolescentMode: 'enforce',
+                  }),
+              ),
+            );
       },
     },
     provideRouter(

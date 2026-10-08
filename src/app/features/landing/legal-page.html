@@ -1,0 +1,55 @@
+<a class="skip-link" routerLink="." fragment="legal-main" (click)="focusMain()">{{ copy().landing.skip }}</a>
+<header class="legal-header">
+  <a class="brand" routerLink="/" data-home>
+    <img src="brand/roadmap2u-lockup.svg" [alt]="copy().app.name" />
+  </a>
+  <div class="language-switch" role="group" [attr.aria-label]="copy().landing.nav.language">
+    <button
+      type="button"
+      data-lang="es"
+      [attr.aria-pressed]="lang() === 'es'"
+      (click)="setLanguage('es')"
+    >
+      {{ copy().landing.nav.spanish }}
+    </button>
+    <button
+      type="button"
+      data-lang="en"
+      [attr.aria-pressed]="lang() === 'en'"
+      (click)="setLanguage('en')"
+    >
+      {{ copy().landing.nav.english }}
+    </button>
+  </div>
+</header>
+<main #main id="legal-main" tabindex="-1">
+  <a class="home-link" routerLink="/">{{ copy().legal.home }}</a>
+  <h1>{{ document().title }}</h1>
+  <aside class="review-note" data-review-status>
+    <strong>{{ copy().legal.review.title }}</strong>
+    <p>{{ copy().legal.review.body }}</p>
+  </aside>
+  <p class="intro">{{ document().intro }}</p>
+  @for (section of document().sections; track section.title) {
+    <section>
+      <h2>{{ section.title }}</h2>
+      @for (paragraph of section.paragraphs; track paragraph) {
+        <p>{{ paragraph }}</p>
+      }
+    </section>
+  }
+</main>
+<footer>
+  <nav [attr.aria-label]="copy().legal.navigation">
+    <a routerLink="/privacy" routerLinkActive="current" ariaCurrentWhenActive="page">{{
+      copy().landing.footer.privacy
+    }}</a>
+    <a routerLink="/terms" routerLinkActive="current" ariaCurrentWhenActive="page">{{
+      copy().landing.footer.terms
+    }}</a>
+    <a routerLink="/support" routerLinkActive="current" ariaCurrentWhenActive="page">{{
+      copy().landing.footer.support
+    }}</a>
+  </nav>
+  <p>{{ copy().landing.footer.rights }}</p>
+</footer>

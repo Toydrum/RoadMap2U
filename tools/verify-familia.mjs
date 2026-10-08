@@ -204,6 +204,7 @@ try {
       (await page.locator('.fam-transfer').count()) === 0,
   );
   await page.locator('.fam-open').click();
+  await page.locator('.familia-sheet').waitFor({ state: 'visible' });
   ok(
     'additional has no identity tools',
     (await page
@@ -227,10 +228,12 @@ try {
   await page.locator('h1', { hasText: 'Tu cuenta' }).waitFor();
   await page.goto(BASE + '/settings', { waitUntil: 'networkidle' });
   await page.locator('.fam-scope').waitFor();
+  const minorDisclosure = await page.locator('.familia').innerText();
   ok(
     'minor is informed without administration',
     (await page.locator('.fam-open, .fam-create, .fam-transfer').count()) === 0 &&
-      (await page.locator('.familia').innerText()).includes('siguen siendo solo tuyos'),
+      minorDisclosure.includes('En las visitas no ven tus sentimientos, check-ins ni clima personal.') &&
+      minorDisclosure.includes('respaldo de tus datos sincronizados, incluidos check-ins y sesiones'),
   );
   ok('no runtime errors', errors.length === 0, errors.join(' | '));
 } finally {

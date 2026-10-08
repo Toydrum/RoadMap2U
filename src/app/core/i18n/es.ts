@@ -4,6 +4,107 @@
  * no "deberías". Invitations over instructions. Growth metaphor everywhere.
  */
 export const ES = {
+  privacy: {
+    title: 'Mi privacidad',
+    cloudTitle: 'Tu bosque, tu decisión sobre la nube',
+    cloudBody:
+      'Tu bosque sigue aquí, en este dispositivo. Si lo conectas, RoadMap2U guardará en AWS, con servicios regionales en Estados Unidos, los árboles, ramas, notas, check-ins, sesiones, cosechas y conservas que sincronices para recuperarlos en tus dispositivos.',
+    cloudSensitive:
+      'Las notas y check-ins pueden incluir información íntima, como salud o creencias. Se usarán para las funciones de tu bosque. Puedes continuar en este dispositivo o retirar después tu autorización desde Privacidad.',
+    cloudCheckbox:
+      'Autorizo expresamente a Héctor Coronado, responsable de RoadMap2U, a almacenar y sincronizar el contenido de mi bosque, incluidas mis notas y check-ins y los datos sensibles que voluntariamente contengan, para las funciones descritas en el aviso de privacidad.',
+    readNotice: 'Leo el aviso de privacidad completo',
+    readTerms: 'Leo los términos de uso',
+    authorize: 'Autorizo y conecto mi bosque',
+    stayLocal: 'Sigo en este dispositivo',
+    saveError:
+      'Mi decisión no se pudo guardar. Mi bosque sigue en este dispositivo; puedo intentarlo después.',
+    adultTitle: 'Tu cuenta empieza aquí',
+    adultBody:
+      'Elijo la opción que corresponde a mi edad. La autorización de nube se elige después, por separado.',
+    adultCheckbox: 'Ya cumplí 18 años.',
+    adolescentChoice: 'Tengo entre 12 y 17 años.',
+    adolescentBody:
+      'Mi bosque es privado. No tiene amistades, visitas ni conexiones con otros bosques. Mi padre, madre o tutor autoriza el uso de cuenta y nube; esa autorización no abre mis notas a esa persona. La nube necesita su Premium vigente y mi propia autorización; mi bosque conserva los límites Free. Si termina esa capacidad, mis datos no se borran. Puedo seguir en este dispositivo, descargar mis datos o retirar mi decisión de nube. Si mis notas cuentan algo íntimo, como salud o creencias, también quedaría guardado al sincronizar.',
+    adolescentCheckbox:
+      'Entiendo cómo funciona mi bosque privado y acepto usar mi cuenta con esta explicación.',
+    representationCheckbox:
+      'Declaro que ejerzo la patria potestad o tutela del adolescente indicado y que tengo facultad para representarlo en esta autorización.',
+    guardianCheckbox:
+      'Autorizo expresamente a Héctor Coronado a tratar los datos de cuenta y sincronizar el bosque del adolescente indicado, incluidos los datos sensibles que voluntariamente contengan sus notas y check-ins, para las funciones descritas en el aviso. Esta autorización no me da acceso cotidiano a su bosque.',
+    guardianTitle: 'Autorizo una cuenta adolescente privada',
+    guardianName: 'Mi nombre completo declarado',
+    guardianRelationship: 'Mi relación con el adolescente',
+    chooseRelationship: 'Elijo mi relación',
+    parentRelationship: 'Soy su padre o madre',
+    legalGuardianRelationship: 'Soy su tutor legal',
+    automaticAuthorization:
+      'Mi correo confirmado, un inicio de sesión reciente y Premium vigente permiten registrar esta declaración. RoadMap2U no verifica documentos de identidad, parentesco o tutela en este alta. El adolescente decide después si acepta su cuenta y la nube.',
+    recipientUsername: 'Username exacto del adolescente',
+    majorityDate: 'Fecha en que cumple 18 años',
+    invitationLabel: 'Invitación privada',
+    ageLabel: 'Mi opción de edad',
+    refresh: 'Compruebo mi decisión',
+    manageInvitations: 'Consulto mis autorizaciones',
+    invitationStates: {
+      pending_verification: 'Pendiente de verificación',
+      authorized: 'Autorizada: puede aceptarse',
+      accepted: 'Aceptada',
+      revoked: 'Retirada',
+      expired: 'Venció',
+    },
+    majorityReview:
+      'Ya puedes decidir como adulto. Revisa los términos y tu propia autorización de nube; tu bosque sigue privado.',
+    guardianEnded: 'La autorización del representante terminó.',
+    guardianWithdrawn:
+      'La autorización del representante está retirada o necesita revisión; la nube está detenida.',
+    declarationDone: 'Mi elección y los términos quedaron registrados.',
+    guardianSaved: 'Mi decisión para esta cuenta quedó registrada.',
+    requestInvitation: 'Registro mi autorización privada',
+    acceptInvitation: 'Acepto mi invitación privada',
+    pendingVerification:
+      'La autorización necesita verificación del representante. Puedo consultar el procedimiento en overseer@roadmap2u.com; no envío documentos en mis notas.',
+    guardianRevoke: 'Retiro la autorización para esta cuenta',
+    guardianGrant: 'Renuevo la autorización para esta cuenta',
+    privateOnly: 'Mi bosque sigue privado: no hay amistades ni visitas.',
+    responsiblePremiumActive:
+      'Mi nube está cubierta por el Premium vigente de mi padre, madre o tutor. Mi bosque conserva los límites Free y sigue privado.',
+    responsiblePremiumRequired:
+      'Mi bosque sigue aquí. Para conectar la nube necesita Premium vigente de mi padre, madre o tutor. Puedo descargar mis datos o retirar mi autorización.',
+    adultChoiceRequired: 'Elijo mi opción de edad y acepto los términos para continuar.',
+    adolescentRequired:
+      'Mi cuenta privada necesita una invitación autorizada y mi aceptación. Mi bosque local sigue aquí.',
+    termsCheckbox: 'He leído y acepto los términos de uso de RoadMap2U.',
+    adultConfirm: 'Confirmo mi elección y los términos',
+    adultRequired: 'Mi cuenta necesita la declaración adulta y los términos antes de continuar.',
+    cloudRequired: 'Mi bosque sigue aquí. La nube necesita mi autorización vigente.',
+    granted: 'Mi autorización de nube está vigente.',
+    absent: 'Todavía no he autorizado la nube.',
+    revoked: 'Mi autorización de nube está retirada.',
+    reviewRequired: 'El aviso cambió; puedo revisar mi decisión de nube.',
+    revoke: 'Retiro mi autorización de nube',
+    revokeTitle: 'Tu bosque permanece contigo',
+    revokeBody:
+      'Retirar la autorización detiene las nuevas operaciones de nube. Conserva tu cuenta, el bosque del dispositivo y las copias remotas existentes; puedo solicitar su cancelación por separado.',
+    revokeConfirm: 'Retiro mi autorización',
+    export: 'Descargo mis datos remotos',
+    exportDone: 'Mi copia remota está lista.',
+    erase: 'Solicito cancelar mi bosque de la nube',
+    eraseTitle: 'Tu copia del dispositivo sigue aquí',
+    eraseBody:
+      'Se retirará la autorización y se suprimirán los registros del bosque remoto que procedan. La cuenta y el bosque de este dispositivo se conservan. Puedo descargar una copia antes; la descarga no es condición para ejercer mis derechos.',
+    eraseConfirm: 'Solicito la cancelación remota',
+    erasurePending: 'Mi cancelación remota está en proceso. La nube permanece detenida.',
+    erasureBlocked:
+      'Mi solicitud necesita revisión por una obligación de conservación. Puedo consultar su alcance en overseer@roadmap2u.com.',
+    erasureComplete:
+      'Se verificó la supresión del bosque remoto activo. Los puntos históricos expiran según su ventana de recuperación y permanecen excluidos de restauraciones.',
+    rights: 'Solicito atención de mis derechos',
+    rightsBody:
+      'Acceso, rectificación, cancelación, oposición o revocación: overseer@roadmap2u.com. No envío contraseñas, códigos MFA ni tokens. Las copias remotas, locales y descargadas tienen alcances distintos.',
+    loading: 'Mi decisión se está comprobando…',
+    version: 'Versión del aviso',
+  },
   app: {
     name: 'RoadMap2U',
     memoryOnly:
@@ -93,15 +194,15 @@ export const ES = {
           'Sincronización segura entre dispositivos',
           'Amistades y visitas de sólo lectura',
         ],
-        note: 'Mismas capacidades en mensual y anual. Familia no está incluida en esta fase.',
+        note: 'Los planes de pago aún no están disponibles. El piloto familiar gratuito se ofrece por invitación independiente.',
         cta: 'Conocer Premium',
       },
     },
     key: {
       eyebrow: 'Acceso patrocinado',
-      title: '¿Recibiste una llave de acceso?',
-      body: 'Algunas personas reciben acceso Premium por invitación, con o sin fecha de caducidad. La llave se vincula a tu propia cuenta.',
-      cta: 'Entrar para canjearla',
+      title: 'Familias por invitación',
+      body: 'Los hogares invitados pueden participar en un piloto gratuito para hasta dos menores y una persona responsable adicional. Cada persona usa su propia cuenta. Registrarte no activa la cobertura familiar.',
+      cta: 'Entrar a mi cuenta',
     },
     faq: {
       eyebrow: 'Preguntas frecuentes',
@@ -128,9 +229,9 @@ export const ES = {
             'Tu bosque funciona primero en tu dispositivo. RoadMap2U no usa anuncios, analítica ni rastreadores, y puedes exportar tu información.',
         },
         {
-          question: '¿Cómo funciona una llave?',
+          question: '¿Cómo participa mi familia?',
           answer:
-            'Creas o abres tu cuenta y canjeas la llave que recibiste. El acceso puede tener una fecha de caducidad o permanecer activo, según la invitación.',
+            'La cobertura del piloto se concede de forma privada a hogares invitados, sin cobros ni vencimiento automático. Incluye hasta dos menores y una persona responsable adicional. La cuenta adulta gratuita no la activa por sí sola; las ofertas familiares de pago llegan después.',
         },
       ],
     },
@@ -147,6 +248,137 @@ export const ES = {
       support: 'Soporte',
       contact: 'Contacto',
       rights: 'RoadMap2U · Hecho para crecer a tu ritmo.',
+    },
+  },
+  legal: {
+    home: 'Volver a RoadMap2U',
+    navigation: 'Documentos y ayuda',
+    review: {
+      title: 'Tus decisiones sobre tus datos',
+      body: 'La cuenta y la nube tienen decisiones separadas. Aquí puedes conocer qué se guarda, para qué se usa y cómo ejercer tus derechos.',
+    },
+    privacy: {
+      title: 'Aviso de privacidad',
+      intro:
+        'RoadMap2U funciona primero en tu dispositivo. Este aviso explica el tratamiento de datos de cuentas adultas y de cuentas adolescentes privadas de 12 a 17 años.',
+      sections: [
+        {
+          title: 'Responsable y contacto',
+          paragraphs: [
+            'Héctor Coronado, persona física, es responsable de RoadMap2U. Domicilio para notificaciones: Camelias 8, colonia Tlacoquemecatl del Valle, alcaldía Benito Juárez, C.P. 03200, Ciudad de México, México. Privacidad y soporte: overseer@roadmap2u.com.',
+          ],
+        },
+        {
+          title: 'Datos y finalidades',
+          paragraphs: [
+            'La cuenta utiliza correo, identificador, username, nombre mostrado y atributos de acceso para registro, autenticación, recuperación, seguridad y atención de solicitudes. Iniciar o cerrar sesión no borra tu bosque del dispositivo.',
+            'Al autorizar la nube se almacenan los árboles, ramas, notas, check-ins, sesiones, cosechas y conservas que sincronices para guardar y recuperar tu propio bosque entre dispositivos. Las notas y check-ins pueden revelar datos sensibles, como salud o creencias. Su almacenamiento y sincronización requieren tu autorización expresa, separada de los términos de cuenta. Puedes usar el bosque local sin autorizar esa sincronización.',
+            'Conservamos evidencia de decisiones de privacidad —sujeto, texto, idioma, versión, fecha y revisión— para aplicar y acreditar tus elecciones. RoadMap2U no incorpora anuncios, analítica ni rastreadores, y no vende el contenido de tu bosque.',
+          ],
+        },
+        {
+          title: 'Adolescentes con cuenta privada',
+          paragraphs: [
+            'La modalidad de 12 a 17 años utiliza una declaración autenticada de padre, madre o tutor: correo confirmado, inicio de sesión reciente, cuenta adulta admitida y Premium vigente. Guardamos nombre completo y calidad declarados, identificadores del responsable y destinatario exacto, fecha de mayoría, texto, idioma, versiones y evidencia de las decisiones. Este alta no verifica documentos de identidad, parentesco o tutela. No envíes identificaciones en tus notas ni en el formulario de la app.',
+            'El adolescente recibe su propia explicación y decide por separado si usa la nube. Su bosque no permite amistades, visitas, búsqueda de usuarios ni conexiones con bosques ajenos. La autorización del representante no le concede lectura cotidiana ni exportación del bosque, cobertura familiar o Premium.',
+            'La capacidad de nube del adolescente depende del Premium vigente de ese representante; el bosque conserva los límites Free. Si termina esa capacidad, se detiene la nube sin borrar la cuenta o el bosque. Descargar datos y ejercer derechos de privacidad no requiere Premium.',
+            'Al cumplir 18 años conserva cuenta y datos; termina la autorización parental y se requiere su propia aceptación adulta y autorización de nube, junto con una capacidad propia cuando corresponda. La restricción social permanece. Una disputa o cambio de representante se atiende por soporte con verificación; no existe transferencia automática.',
+          ],
+        },
+        {
+          title: 'Dispositivo, nube y proveedores',
+          paragraphs: [
+            'El bosque funciona localmente. Autenticación y gestión de cuenta sí utilizan servicios remotos; rechazar sincronización no convierte la cuenta en anónima. La nube utiliza Amazon Web Services (AWS): Cognito, API Gateway, Lambda y DynamoDB, con servicios regionales en Estados Unidos. La aplicación web se distribuye mediante CloudFront. Estos proveedores intervienen en la prestación y protección del servicio, por lo que existe tratamiento fuera de México.',
+            'Las funciones sociales adultas solo operan cuando estén habilitadas y autorizadas. Las visitas tienen una vista limitada y no incluyen check-ins ni sesiones. La modalidad adolescente privada bloquea todos esos accesos, incluso para un representante con vínculos anteriores. Los archivos que descargues quedan bajo tu control.',
+            'No se comparte el contenido del bosque para publicidad o finalidades ajenas al servicio. Una comunicación exigida por una obligación legal o autoridad competente se limita a los datos y alcance que correspondan.',
+          ],
+        },
+        {
+          title: 'Tus decisiones y derechos',
+          paragraphs: [
+            'Puedes seguir en el dispositivo, autorizar la nube o retirar después tu autorización desde Mi privacidad. Desconectar un dispositivo solo detiene su sincronización. Revocar detiene nuevas operaciones de nube y conserva las copias existentes hasta su cancelación correspondiente.',
+            'Puedes descargar tus datos remotos y solicitar cancelación del bosque remoto sin Premium ni descarga obligatoria. La cuenta y el bosque del dispositivo se conservan. Cierre de cuenta, copias locales y archivos descargados tienen alcances distintos.',
+            'Las solicitudes de acceso, rectificación, cancelación, oposición, revocación o limitación se reciben en overseer@roadmap2u.com. Indica tu nombre, medio de respuesta, la cuenta y lo que solicitas; para rectificación, el cambio que buscas. Se comprobará tu identidad y, cuando corresponda, representación mediante un canal privado acordado para el caso. No envíes contraseñas, MFA ni tokens.',
+            'En solicitudes sobre adolescentes no se presume autoridad por conocer su username o recibir un email. La determinación se comunica en un plazo máximo de 20 días hábiles desde la recepción de la solicitud y, si procede, se hace efectiva dentro de los 15 días hábiles siguientes. Las ampliaciones justificadas se comunican conforme a las reglas aplicables. La entrega electrónica disponible es gratuita.',
+          ],
+        },
+        {
+          title: 'Conservación, supresión y seguridad',
+          paragraphs: [
+            'Cuenta y bosque se conservan mientras continúe su finalidad y, para la nube, la autorización correspondiente. La cancelación se procesa por lotes y se verifica. Si una obligación concreta exige bloqueo, se registra motivo, categoría, alcance, revisión y vencimiento; no se conserva todo indefinidamente.',
+            'El calendario operativo distingue registros ordinarios y logs de hasta 30 días, puntos de recuperación de hasta 35 días y exclusiones mínimas de restauración durante 36 días tras la supresión. Son decisiones técnicas, no plazos universales impuestos por la ley. La evidencia de consentimiento y verificaciones se conserva según su finalidad; cualquier obligación fiscal o comercial tiene su alcance y regla propios.',
+            'La infraestructura utiliza HTTPS, cifrado de DynamoDB en reposo, autorización por cuenta y permisos administrativos limitados. Una restauración del bosque no puede restablecer autorizaciones retiradas ni datos excluidos: se contrasta con el registro de privacidad independiente. El cifrado de AWS no protege por sí solo los archivos que descargas ni sustituye la seguridad de tu dispositivo.',
+          ],
+        },
+        {
+          title: 'Cambios del aviso',
+          paragraphs: [
+            'El aviso vigente se publica en /privacy y los términos en /terms. Sus versiones se identifican en la evidencia de tu decisión. Los cambios de finalidad o consentimiento requieren información y una nueva decisión cuando corresponda. Conservamos el texto, idioma, versión y fecha que realmente aceptaste.',
+          ],
+        },
+      ],
+    },
+    terms: {
+      title: 'Términos de uso',
+      intro:
+        'RoadMap2U es una herramienta de organización personal: tus metas crecen como árboles, ramas y siguientes pasos. No ofrece diagnóstico ni tratamiento médico ni sustituye atención profesional.',
+      sections: [
+        {
+          title: 'Cuenta y modalidad de uso',
+          paragraphs: [
+            'Adultos eligen su modalidad y aceptan estos términos. Adolescentes de 12 a 17 años usan cuenta privada tras declaración autenticada de padre, madre o tutor, además de su propia aceptación y correo confirmado. Quien autoriza declara verazmente su nombre, relación y facultad de representación; la app comprueba su cuenta, no sus documentos civiles. No se ofrece alta de menores de 12 en esta modalidad.',
+            'Cada persona protege sus credenciales y proporciona datos de cuenta veraces. La cuenta privada adolescente no permite visitas ni amistades, y la autorización del representante no abre sus notas. El bosque local se conserva al entrar, salir o rechazar la nube.',
+          ],
+        },
+        {
+          title: 'Nube y capacidades',
+          paragraphs: [
+            'La sincronización necesita autorización de privacidad vigente y la capacidad comercial correspondiente. Tener Premium no sustituye el consentimiento. Autorizar privacidad no concede Premium ni familia.',
+            'La nube adolescente se vincula al Premium vigente de la cuenta responsable que registró la autorización y conserva los límites Free: dos árboles activos y diez ramas visibles por árbol. Terminar el Premium o retirar una autorización detiene nuevas operaciones de nube y conserva los datos. El adolescente no recibe Premium propio, funciones sociales ni acceso familiar por este vínculo.',
+            'Las funciones familiares permanecen desactivadas en este lanzamiento. Las concesiones patrocinadas son gratuitas y no se venden. Las condiciones de pagos, renovaciones, cancelaciones y devoluciones se describirán antes de habilitar compras; esta modalidad no ofrece compra ni activa Stripe.',
+          ],
+        },
+        {
+          title: 'Privacidad, cierre y soporte',
+          paragraphs: [
+            'Archivar un elemento, cancelar el bosque remoto y cerrar la cuenta son operaciones distintas. El aviso de privacidad explica copias, conservación, derechos y excepciones. La cancelación no exige comprar Premium ni descargar un archivo.',
+            'Al cumplir 18, la cuenta privada y sus datos se conservan; termina la autorización parental y se solicita aceptación propia adulta antes de continuar nube. No se abren funciones sociales automáticamente.',
+            'Ayuda y reclamaciones: overseer@roadmap2u.com. Las solicitudes sobre adolescentes se tramitan con verificación de identidad y representación adecuada al caso. Nunca compartas contraseña, MFA ni tokens.',
+          ],
+        },
+        {
+          title: 'Disponibilidad y reglas aplicables',
+          paragraphs: [
+            'Pueden existir interrupciones por mantenimiento, conectividad o incidentes. El bosque local y las copias que decidas descargar ayudan a conservar tu trabajo; la nube no garantiza disponibilidad continua. El acceso remoto puede limitarse por seguridad, cierre solicitado o incumplimiento de estas condiciones, conservando los derechos de privacidad que correspondan.',
+            'Usa la aplicación para contenido propio o que tengas derecho a utilizar, sin vulnerar derechos de terceros ni intentar acceder a cuentas ajenas. Estos términos se interpretan conforme a la legislación mexicana y no limitan derechos irrenunciables de privacidad o de las personas consumidoras. Las reclamaciones pueden presentarse ante la autoridad competente.',
+          ],
+        },
+      ],
+    },
+    support: {
+      title: 'Soporte y cuidado',
+      intro:
+        'Soporte y privacidad: overseer@roadmap2u.com. Puedes pedir ayuda con tu cuenta, tus decisiones de nube y tus derechos sobre los datos.',
+      sections: [
+        {
+          title: 'Acceso y representación',
+          paragraphs: [
+            'Soporte verifica identidad y, cuando corresponda, representación. Conocer un username, recibir un email o marcar una casilla no prueba esa facultad. Primero acordamos el canal privado para comprobarla. No compartas contraseñas, códigos MFA ni tokens, ni adjuntes identificaciones en tus notas.',
+          ],
+        },
+        {
+          title: 'Privacidad y cancelación',
+          paragraphs: [
+            'Puedes descargar tus propios datos remotos o solicitar cancelación sin Premium y sin descarga obligatoria. El cierre de una cuenta adolescente privada se tramita por soporte con verificación adecuada al caso. Autorizar la cuenta no permite al representante leer o exportar su bosque cotidianamente. Las copias locales y descargadas se administran por separado.',
+          ],
+        },
+        {
+          title: 'Cuenta adolescente privada',
+          paragraphs: [
+            'Las cuentas adolescentes privadas no tienen amistades ni visitas. La nube requiere Premium vigente del representante y ambas autorizaciones. Una autorización retirada, un cambio de representante o una disputa se atienden por soporte; no se cambia la edad ni se abre el bosque para resolverlos. Una solicitud aceptada no demuestra que su eliminación física haya terminado.',
+          ],
+        },
+      ],
     },
   },
   finder: {
@@ -817,7 +1049,7 @@ export const ES = {
     minutes: 'min',
     data: 'Tus datos',
     dataHint:
-      'Tu bosque vive en este dispositivo. Cuando las cuentas lleguen, podrá viajar contigo — y nada sale de aquí sin ti.',
+      'Tu bosque vive en este dispositivo. La cuenta utiliza servicios remotos; sincronizar el bosque requiere tu autorización de nube por separado.',
     export: 'Exportar mi copia',
     import: 'Importar una copia',
     importWarning: 'Esto reemplaza lo que hay ahora. Antes descargamos un respaldo automático.',
@@ -911,7 +1143,8 @@ export const ES = {
     signInCta: 'Entrar',
     forgotLink: '¿Se te olvidó tu contraseña?',
     createTitle: 'Crear mi cuenta',
-    createHint: 'Para personas con correo propio. Las cuentas de peques las crea su familia.',
+    createHint:
+      'Cuenta con correo propio. De 12 a 17 años necesito una invitación privada con representación verificada.',
     displayName: '¿Cómo te llamamos?',
     email: 'Tu correo',
     passwordNew: 'Elige una contraseña',
@@ -984,33 +1217,42 @@ export const ES = {
   },
   familia: {
     title: 'Familia',
-    sponsoredActive: 'Cobertura familiar patrocinada para este hogar invitado. No hay cobros ni fecha de pago.',
-    sponsoredEnded: 'La cobertura familiar patrocinada terminó. Las cuentas y los vínculos de cuidado permanecen.',
+    sponsoredActive:
+      'Cobertura familiar patrocinada para este hogar invitado. No hay cobros ni fecha de pago.',
+    sponsoredEnded:
+      'La cobertura familiar patrocinada terminó. Las cuentas y los vínculos de cuidado permanecen.',
     accountIdLabel: 'Tu ID de cuenta para invitaciones',
     linkCodeCta: 'Crear código para vincular a este menor',
     linkCodeTitle: 'Código de vinculación',
-    linkCodeBody: 'Comparte este código solo con la persona adulta que recibirá la responsabilidad. El vínculo se hará después de ambas aprobaciones.',
+    linkCodeBody:
+      'Comparte este código solo con la persona adulta que recibirá la responsabilidad. El vínculo se hará después de ambas aprobaciones.',
     linkRequestTitle: 'Solicitar vinculación de un menor',
-    linkRequestBody: 'Escribe el código del responsable actual. Esa persona deberá aprobar y luego tú aceptarás la responsabilidad.',
+    linkRequestBody:
+      'Escribe el código del responsable actual. Esa persona deberá aprobar y luego tú aceptarás la responsabilidad.',
     linkRequestSubmit: 'Enviar solicitud',
     linkRequested: 'Solicitud enviada. Espera la aprobación del responsable actual.',
     linkApproveCta: 'Aprobar salida del menor',
-    linkApproveBody: 'La persona destinataria tendrá que aceptar expresamente la responsabilidad. Hasta entonces sigues siendo responsable.',
+    linkApproveBody:
+      'La persona destinataria tendrá que aceptar expresamente la responsabilidad. Hasta entonces sigues siendo responsable.',
     linkAcceptCta: 'Aceptar responsabilidad del menor',
-    linkAcceptBody: 'Al aceptar, el menor pasará a tu hogar y asumirás su responsabilidad principal. Su cuenta y datos se conservan.',
+    linkAcceptBody:
+      'Al aceptar, el menor pasará a tu hogar y asumirás su responsabilidad principal. Su cuenta y datos se conservan.',
     additionalInviteCta: 'Invitar responsable adicional',
     additionalInviteTitle: 'Invitar a otra persona adulta',
-    additionalInviteBody: 'Pide a la persona su ID de cuenta. Solo podrá cuidar a los menores que selecciones y deberá aceptar la invitación.',
+    additionalInviteBody:
+      'Pide a la persona su ID de cuenta. Solo podrá cuidar a los menores que selecciones y deberá aceptar la invitación.',
     adultIdLabel: 'ID de cuenta de la persona adulta',
     selectMinors: 'Selecciona los menores a quienes podrá acompañar.',
     additionalInviteSubmit: 'Enviar invitación',
     additionalInvited: 'Invitación enviada. Falta la aceptación de la otra persona.',
     additionalAcceptCta: 'Aceptar invitación de cuidado',
-    additionalAcceptBody: 'Aceptarás acompañar solo a los menores autorizados por el responsable principal.',
+    additionalAcceptBody:
+      'Aceptarás acompañar solo a los menores autorizados por el responsable principal.',
     scopeEditCta: 'Cambiar menores autorizados',
     scopeSaved: 'Alcance de cuidado actualizado.',
     additionalRevokeCta: 'Revocar acceso adicional',
-    additionalRevokeBody: 'La otra persona perderá el acceso de cuidado a este hogar. Las cuentas de los menores permanecen.',
+    additionalRevokeBody:
+      'La otra persona perderá el acceso de cuidado a este hogar. Las cuentas de los menores permanecen.',
     additionalRevoked: 'Acceso adicional revocado.',
     noticeConfirmTitle: 'Confirmar solicitud familiar',
     noticeConfirmCta: 'Confirmar',
@@ -1045,8 +1287,7 @@ export const ES = {
       revoked: 'Revocada',
       expired: 'Vencida',
     },
-    primaryHint:
-      'Administra el hogar. Cada persona conserva su propio inicio de sesión.',
+    primaryHint: 'Administra el hogar. Cada persona conserva su propio inicio de sesión.',
     additionalTitle: 'Responsable adicional autorizado',
     scopeHint: 'Puede acompañar únicamente a: {names}. No administra pagos, contraseñas ni bajas.',
     scopeEmpty: 'ningún menor asignado',
@@ -1082,7 +1323,7 @@ export const ES = {
     guardiansTitle: 'Te cuidan',
     minorsTitle: 'Cuidas a',
     disclosure:
-      'Las personas responsables autorizadas pueden acompañar tu bosque dentro de sus permisos. La familia no crea amistades automáticamente. Tus sentimientos, tus check-ins y tu clima siguen siendo solo tuyos.',
+      'Las personas responsables autorizadas pueden acompañar tu bosque dentro de sus permisos. En las visitas no ven tus sentimientos, check-ins ni clima personal. La persona responsable principal puede pedir por separado un respaldo de tus datos sincronizados, incluidos check-ins y sesiones. La familia no crea amistades automáticamente.',
     emptyAdult: 'Aún no hay menores en este hogar.',
     kindCreated: 'a tu cuidado',
     kindInvited: 'vinculada',
@@ -1171,6 +1412,12 @@ export const ES = {
       COMMERCIAL_CONFIGURATION_UNAVAILABLE:
         'No pudimos confirmar tu acceso ahora. Tu copia local sigue disponible; inténtalo después.',
       ADULT_MINOR_FRIENDSHIP_FORBIDDEN: 'Ese vínculo de amistad no está disponible.',
+      ADULT_DECLARATION_REQUIRED:
+        'Necesito confirmar que tengo 18 años o más y revisar los términos.',
+      CLOUD_CONSENT_REQUIRED: 'Mi nube está en pausa. Puedo revisar la autorización en Ajustes.',
+      PRIVACY_REVISION_CONFLICT: 'Mi decisión cambió en otra sesión. Puedo volver a revisarla.',
+      PRIVACY_ERASURE_PENDING:
+        'La eliminación de mi bosque remoto está en proceso. Mi bosque local se conserva.',
       ACCOUNT_TYPE_INCOMPATIBLE: 'Esa combinación de cuentas no puede usar este camino.',
       RESPONSIBLE_SCOPE_REQUIRED:
         'Ese menor no está dentro del alcance autorizado de este vínculo.',
@@ -1188,6 +1435,8 @@ export const ES = {
         'Encontramos una suscripción que necesita conciliación. No hicimos cambios.',
       PAYMENT_REQUIRED: 'Este cambio necesita confirmar el pago antes de abrir cobertura.',
       REAUTHENTICATION_REQUIRED: 'Para cuidar esta cuenta, vuelve a entrar antes de continuar.',
+      EMAIL_VERIFICATION_REQUIRED:
+        'Mi cuenta necesita confirmar su correo antes de autorizar o aceptar una cuenta adolescente.',
       STALE_REVISION:
         'El hogar cambió mientras estabas aquí. Actualiza para partir de su estado más reciente.',
       offline: 'Sin conexión ahora mismo — inténtalo cuando vuelva.',
@@ -1207,10 +1456,12 @@ export const ES = {
   amigos: {
     title: 'Amistades',
     minorCreateCode: 'Crear código para otra persona menor',
-    minorCodeHint: 'Compártelo fuera de la app con otro menor. Vale 24 horas y se usa una vez. La amistad necesita cuatro consentimientos.',
+    minorCodeHint:
+      'Compártelo fuera de la app con otro menor. Vale 24 horas y se usa una vez. La amistad necesita cuatro consentimientos.',
     minorPendingTitle: 'Amistades esperando consentimientos',
     minorConsentProgress: '{count} de 4 consentimientos registrados',
-    minorConsentHint: 'La amistad solo se activa cuando ambos menores y sus responsables han dicho que sí.',
+    minorConsentHint:
+      'La amistad solo se activa cuando ambos menores y sus responsables han dicho que sí.',
     minorAcceptPending: 'Tu aceptación quedó registrada. Aún faltan los demás consentimientos.',
     myCode: 'Tu código de amistad',
     codeHint:
@@ -1239,7 +1490,7 @@ export const ES = {
   nube: {
     title: 'Mi bosque en la nube',
     offHint:
-      'Tu bosque vive solo en este dispositivo. Si lo conectas, viajará con tu cuenta — y tu familia podrá cuidarlo contigo.',
+      'Tu bosque sigue en este dispositivo. Para sincronizarlo con tu cuenta necesitas autorizar la nube por separado y tener esa capacidad disponible.',
     connectCta: 'Conectar mi bosque',
     connectOk: 'Tu bosque ya viaja contigo ☁️🌿',
     syncing: 'Sincronizando…',
@@ -1315,12 +1566,12 @@ export const ES = {
       {
         icon: '🔒',
         title: 'Tus datos',
-        body: 'Tu bosque vive en tu dispositivo y nada viaja sin ti. Estamos preparando cuentas para familias y amistades: cuando conectes la tuya, tu bosque podrá respaldarse y abrirse solo a quien tú elijas — y siempre sabrás quién puede verlo. Sin anuncios, sin rastreo, nunca. En Ajustes puedes exportar tu copia (hazlo seguido — es tu respaldo) e importarla en otro dispositivo. Ajustes te muestra la fecha de tu última copia, y si pasa mucho tiempo sin una, la app te lo recuerda con una sola línea — puedes apagar ese recordatorio ahí mismo. Nada se borra por accidente: ramas y árboles descansan en el archivo (🗃), recuperables siempre, y cada aviso de archivo te ofrece «Deshacer» durante unos segundos. Borrar para siempre solo existe dentro del archivo, y antes de hacerlo la app descarga sola un respaldo.',
+        body: 'Tu bosque funciona primero en este dispositivo. La cuenta utiliza servicios remotos; la sincronización del bosque requiere autorización separada. En Ajustes puedes exportar o importar tu copia local. Archivar conserva los elementos para recuperarlos; borrar un elemento del archivo, cancelar el bosque remoto y cerrar la cuenta son acciones distintas. Privacidad permite retirar la nube, descargar datos propios y solicitar cancelación sin comprar Premium ni descargar un respaldo obligatorio. Las copias locales y descargadas no se eliminan al cancelar datos remotos.',
       },
       {
         icon: '🤝',
         title: 'Cuentas familiares',
-        body: 'Cada persona conserva su inicio de sesión. El responsable principal de la cuenta administra el hogar y será quien pague; hay hasta dos lugares para menores y uno para un responsable adicional autorizado, con alcance explícito por menor. Crear una cuenta menor requiere declarar México, la fecha en que cumplirá 18 años y dos consentimientos versionados. Solo el responsable principal administra contraseñas, exportación y bajas; la transferencia requiere que la otra persona acepte. La bandeja familiar es privada de cada cuenta. Las amistades adultas no dan acceso a otros integrantes de su familia. Esta pantalla está en implementación: los pagos y los controles de invitación o vinculación siguen pendientes de habilitar.',
+        body: 'Adultos y adolescentes de 12 a 17 años tienen admisiones distintas. El adolescente necesita una invitación para su username exacto, autorización de padre, madre o tutor con representación verificada, su propia aceptación y una decisión separada de nube. Su bosque no tiene visitas ni amistades, tampoco se abre al representante. Al cumplir 18 conserva cuenta y datos, termina la autorización parental y solicita su propia aceptación adulta; sigue privado. La implementación familiar se conserva con sus controles desactivados para este lanzamiento. Consentir no concede Premium, familia ni una compra; las concesiones patrocinadas son gratuitas.',
       },
     ],
   },

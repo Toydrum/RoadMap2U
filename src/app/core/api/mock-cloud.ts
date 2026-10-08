@@ -223,6 +223,7 @@ export interface MockRecordRow {
   /** Server receive order — the change-feed cursor (kv 'changeSeq'). */
   seq: number;
   syncedAt: number;
+  privacyRevision?: number;
 }
 
 export function mockAccountClosureKey(userId: string, accountInstanceId: string): string {
@@ -355,6 +356,23 @@ export async function mockPut<T>(store: MockStore, value: T): Promise<void> {
   tx.objectStore(store).put(value);
   return txDone(tx);
 }
+/** Canonical decision/evidence and an optional own-forest purge commit together. */
+export async function mockPutPrivacyDecision(
+  entries: readonly { key: string; value: unknown }[],
+  erasureOwner?: string,
+  profile?: MockUserRow,
+): Promise<void> {
+  const db = await ready();
+  const tx = db.transaction(['records', 'kv', 'users'], 'readwrite');
+  if (erasureOwner) {
+    const records = tx.objectStore('records');
+    const all = await requestToPromise<MockRecordRow[]>(records.getAll());
+    for (const row of all) if (row.ownerId === erasureOwner) records.delete(row.key);
+  }
+  for (const entry of entries) tx.objectStore('kv').put(entry);
+  if (profile) tx.objectStore('users').put(profile);
+  await txDone(tx);
+}
 
 export interface MockRecordGroupResult {
   applied: MockRecordRow[];
@@ -371,6 +389,7 @@ export async function mockApplyRecordGroup(
   ownerId: string,
   entries: readonly SyncRecord[],
   syncedAt: number,
+  privacyRevision?: number,
 ): Promise<MockRecordGroupResult> {
   if (!entries.length) return { applied: [], stale: [] };
 
@@ -405,6 +424,7 @@ export async function mockApplyRecordGroup(
         record: entry.record,
         seq: firstSeq + index,
         syncedAt,
+        ...(privacyRevision === undefined ? {} : { privacyRevision }),
       }) satisfies MockRecordRow,
   );
 

@@ -62,6 +62,12 @@ import {
   TransferPrimaryResponsibilityRequest,
   UserProfile,
   createFreeAccessSummary,
+  PrivacyStatus,
+  PrivacyConsentCommand,
+  PrivacyExportPage,
+  PrivateAdolescentInvitationCommand,
+  PrivateAdolescentInvitation,
+  PrivateAdolescentGuardianCommand,
 } from './contracts';
 import {
   CheckIn,
@@ -75,6 +81,7 @@ import {
 } from '../db/schema';
 import { AuthProvider } from '../auth/auth-provider';
 import { USERNAME_PATTERN } from '../auth/auth-types';
+import { MockAdultPrivacy } from './mock-privacy';
 import { parseMockToken } from '../auth/mock-auth.provider';
 import {
   MockCodeRow,
@@ -157,7 +164,58 @@ export function hasCompleteMinorFriendConsents(kinds: readonly ConsentKind[]): b
  * lie if stubbed throw instead.
  */
 export class MockApi implements ApiClient {
-  constructor(private readonly auth: AuthProvider) {}
+  private readonly privacy: MockAdultPrivacy;
+  constructor(
+    private readonly auth: AuthProvider,
+    options: {
+      adultPrivacyMode?: 'off' | 'enforce';
+      privateAdolescentMode?: 'off' | 'enforce';
+    } = {},
+  ) {
+    this.privacy = new MockAdultPrivacy(
+      options.adultPrivacyMode ?? 'off',
+      options.privateAdolescentMode ?? 'off',
+      async (user) => {
+        const token = await this.auth.idToken();
+        const payload = token ? parseMockToken(token) : null;
+        if (
+          !payload ||
+          payload.sub !== user.userId ||
+          payload.accountInstanceId !== user.accountInstanceId
+        )
+          throw new ApiError('UNAUTHENTICATED');
+        return {
+          authenticatedAt: Number.isSafeInteger(payload.auth_time)
+            ? payload.auth_time! * 1000
+            : undefined,
+          emailVerified: payload.email_verified === true,
+        };
+      },
+    );
+  }
+  async getPrivacyStatus(language: 'es' | 'en' = 'es'): Promise<PrivacyStatus> {
+    return this.privacy.status(await this.caller(true), language);
+  }
+  async changePrivacyConsent(command: PrivacyConsentCommand): Promise<PrivacyStatus> {
+    return this.privacy.change(await this.caller(true), command);
+  }
+  async exportOwnPrivacy(cursor?: string): Promise<PrivacyExportPage> {
+    return this.privacy.export(await this.caller(true), cursor);
+  }
+  async createPrivateAdolescentInvitation(
+    command: PrivateAdolescentInvitationCommand,
+  ): Promise<PrivateAdolescentInvitation> {
+    return this.privacy.invite(await this.caller(true), command);
+  }
+  async listPrivateAdolescentInvitations(): Promise<PrivateAdolescentInvitation[]> {
+    return this.privacy.invitations(await this.caller(true));
+  }
+  async changePrivateAdolescentGuardianConsent(
+    id: string,
+    command: PrivateAdolescentGuardianCommand,
+  ): Promise<PrivacyStatus> {
+    return this.privacy.guardian(await this.caller(true), id, command);
+  }
 
   // ── commercial access ────────────────────────────────────────────────────
 
@@ -169,6 +227,8 @@ export class MockApi implements ApiClient {
   async getAccess(): Promise<AccessSummary> {
     await simLatency('api.getAccess');
     const caller = await this.caller();
+    if (caller.accountType === 'minor' && caller.privacyMode === 'adolescent_private')
+      return createFreeAccessSummary();
     const coverage = await mockGet<MockCoverageRow>('coverages', caller.userId);
     if (
       !coverage ||
@@ -215,11 +275,18 @@ export class MockApi implements ApiClient {
 
   async getMe(): Promise<MeResponse> {
     await simLatency('api.getMe');
-    const caller = await this.caller();
+    const caller = await this.caller(true);
     const links = await mockGetAll<MockGuardianLinkRow>('guardianLinks');
     const guardians: FamilyLinkView[] = [];
     const minors: FamilyLinkView[] = [];
+    if (caller.privacyMode)
+      return { profile: this.profileOf(caller), family: { guardians, minors } };
     for (const link of links) {
+      const other = await mockGet<MockUserRow>(
+        'users',
+        link.minorId === caller.userId ? link.guardianId : link.minorId,
+      );
+      if (other?.privacyMode) continue;
       if (link.minorId === caller.userId) {
         guardians.push(await this.linkView(link, link.guardianId, false));
       } else if (link.guardianId === caller.userId) {
@@ -231,15 +298,20 @@ export class MockApi implements ApiClient {
 
   async patchMe(patch: { displayName?: string }): Promise<UserProfile> {
     await simLatency('api.patchMe');
-    return this.withAccountMutation(async (caller) => {
-      const displayName = patch.displayName?.trim();
-      if (displayName !== undefined) {
-        if (!displayName || displayName.length > 40) throw new ApiError('VALIDATION');
-        caller.displayName = displayName;
-        await mockPut('users', caller);
-      }
-      return this.profileOf(caller);
-    });
+    return this.withAccountMutation(
+      async (caller) => {
+        const displayName = patch.displayName?.trim();
+        if (displayName !== undefined) {
+          if (!displayName || displayName.length > 40) throw new ApiError('VALIDATION');
+          caller.displayName = displayName;
+          await mockPut('users', caller);
+        }
+        return this.profileOf(caller);
+      },
+      async () => [],
+      async () => [],
+      true,
+    );
   }
 
   async deleteMe(): Promise<AccountClosureReceipt> {
@@ -777,6 +849,7 @@ export class MockApi implements ApiClient {
   async getFamilyInbox(cursor?: string): Promise<FamilyInboxView> {
     await simLatency('api.getFamilyInbox');
     const caller = await this.caller();
+    if (caller.privacyMode) throw new ApiError('FORBIDDEN');
     if (cursor && !/^[A-Za-z0-9:._@-]{1,256}$/.test(cursor)) throw new ApiError('VALIDATION');
     const notices = (await mockGetAll<MockAccountNoticeRow>('accountNotices'))
       .filter((notice) =>
@@ -899,20 +972,33 @@ export class MockApi implements ApiClient {
 
   async createMinorLinkCode(req: CreateMinorLinkCodeRequest): Promise<CodeGrant> {
     await simLatency('api.createMinorLinkCode');
-    return this.withAccountMutation(async (caller) => {
-      if (caller.accountType !== 'adult') throw new ApiError('FORBIDDEN');
-      const minor = await mockGet<MockUserRow>('users', req.minorId);
-      const source = await this.primaryHouseholdForMinor(req.minorId);
-      if (!minor || minor.accountType !== 'minor' || !source ||
-        source.primaryResponsibleId !== caller.userId || source.state !== 'active') {
-        throw new ApiError('NOT_FOUND');
-      }
-      const code = await this.mintCode();
-      const expiresAt = Date.now() + INVITE_TTL_MS;
-      await mockPut('codes', { code, kind: 'linkExisting', userId: caller.userId,
-        minorId: req.minorId, expiresAt } satisfies MockCodeRow);
-      return { code, expiresAt };
-    }, async () => [req.minorId]);
+    return this.withAccountMutation(
+      async (caller) => {
+        if (caller.accountType !== 'adult') throw new ApiError('FORBIDDEN');
+        const minor = await mockGet<MockUserRow>('users', req.minorId);
+        const source = await this.primaryHouseholdForMinor(req.minorId);
+        if (
+          !minor ||
+          minor.accountType !== 'minor' ||
+          !source ||
+          source.primaryResponsibleId !== caller.userId ||
+          source.state !== 'active'
+        ) {
+          throw new ApiError('NOT_FOUND');
+        }
+        const code = await this.mintCode();
+        const expiresAt = Date.now() + INVITE_TTL_MS;
+        await mockPut('codes', {
+          code,
+          kind: 'linkExisting',
+          userId: caller.userId,
+          minorId: req.minorId,
+          expiresAt,
+        } satisfies MockCodeRow);
+        return { code, expiresAt };
+      },
+      async () => [req.minorId],
+    );
   }
 
   async createMinorLinkRequest(req: CreateMinorLinkRequest): Promise<MinorLinkRequestView> {
@@ -1812,13 +1898,19 @@ export class MockApi implements ApiClient {
     await simLatency('api.getMinorFriendRequests');
     const caller = await this.caller();
     const minor = await mockGet<MockUserRow>('users', minorId);
-    if (!minor || minor.accountType !== 'minor' ||
-      (caller.userId !== minorId && !(await this.isResponsibleFor(caller.userId, minorId)))) {
+    if (
+      !minor ||
+      minor.accountType !== 'minor' ||
+      (caller.userId !== minorId && !(await this.isResponsibleFor(caller.userId, minorId)))
+    ) {
       throw new ApiError('NOT_FOUND');
     }
-    const pending = (await mockGetAll<MockMinorFriendRequestRow>('minorFriendRequests'))
-      .filter((request) => request.state === 'pending' && request.expiresAt > Date.now() &&
-        (request.requesterId === minorId || request.recipientId === minorId));
+    const pending = (await mockGetAll<MockMinorFriendRequestRow>('minorFriendRequests')).filter(
+      (request) =>
+        request.state === 'pending' &&
+        request.expiresAt > Date.now() &&
+        (request.requesterId === minorId || request.recipientId === minorId),
+    );
     return Promise.all(pending.map((request) => this.minorFriendRequestView(request)));
   }
 
@@ -1985,6 +2077,8 @@ export class MockApi implements ApiClient {
     const caller = await this.caller();
     const owner = await mockGet<MockUserRow>('users', userId);
     if (!owner) throw new ApiError('NOT_FOUND');
+    if (caller.userId !== userId && (caller.privacyMode || owner.privacyMode))
+      throw new ApiError('NOT_FOUND');
     let detail: ForestSnapshot['detail'] | null = null;
     let includeSocial = false;
     if (caller.userId === userId || (await this.canSupervise(caller.userId, userId))) {
@@ -2006,10 +2100,23 @@ export class MockApi implements ApiClient {
         detail = 'stripped';
     }
     if (!detail) throw new ApiError('NOT_FOUND');
+    let privacy;
+    try {
+      privacy = await this.privacy.requireCloud(owner);
+    } catch (error) {
+      if (caller.userId !== owner.userId) throw new ApiError('NOT_FOUND');
+      throw error;
+    }
 
     const records = (await mockGetAll<MockRecordRow>('records')).filter(
       (r) => r.ownerId === userId,
     );
+    try {
+      await this.privacy.verifyCloud(owner, privacy, records);
+    } catch (error) {
+      if (caller.userId !== owner.userId) throw new ApiError('NOT_FOUND');
+      throw error;
+    }
     const trees = records
       .filter((r) => r.store === 'trees')
       .map((r) => r.record as Tree)
@@ -2050,12 +2157,14 @@ export class MockApi implements ApiClient {
   async getSyncChanges(cursor?: string): Promise<SyncChangesResponse> {
     await simLatency('api.getSyncChanges');
     const caller = await this.caller();
+    const privacy = await this.privacy.requireCloud(caller);
     const after = cursor ? Number(cursor) || 0 : 0;
     const page = 200;
     const mine = (await mockGetAll<MockRecordRow>('records'))
       .filter((r) => r.ownerId === caller.userId && r.seq > after)
       .sort((a, b) => a.seq - b.seq);
     const slice = mine.slice(0, page);
+    await this.privacy.verifyCloud(caller, privacy, slice);
     return {
       changes: slice.map((r) => ({ store: r.store, record: r.record })),
       cursor: slice.length ? String(slice[slice.length - 1].seq) : (cursor ?? '0'),
@@ -2065,7 +2174,13 @@ export class MockApi implements ApiClient {
 
   async pushSync(req: SyncPushPayload): Promise<SyncPushResponse> {
     await simLatency('api.pushSync');
-    return this.withAccountMutation((caller) => this.pushInto(caller.userId, req));
+    const identity = await this.callerIdentity();
+    return this.withAccountMutation(
+      (caller) => this.pushInto(caller.userId, req),
+      async () => [],
+      () => this.privacy.participants(identity.sub),
+      true,
+    );
   }
 
   /** Guardian write-through (co-gardening): same rev-LWW law as own pushes;
@@ -2078,6 +2193,7 @@ export class MockApi implements ApiClient {
         return this.pushInto(userId, req);
       },
       async () => [userId],
+      () => this.privacy.participants(userId),
     );
   }
 
@@ -2085,6 +2201,14 @@ export class MockApi implements ApiClient {
    *  v2 validates the complete request up front and commits each mutation
    *  group all-or-nothing. */
   private async pushInto(ownerId: string, req: SyncPushPayload): Promise<SyncPushResponse> {
+    const owner = await mockGet<MockUserRow>('users', ownerId);
+    if (!owner) throw new ApiError('NOT_FOUND');
+    const privacy = await this.privacy.requireCloud(owner);
+    await this.privacy.verifyCloud(
+      owner,
+      privacy,
+      (await mockGetAll<MockRecordRow>('records')).filter((row) => row.ownerId === ownerId),
+    );
     const groups = this.syncGroups(req);
     // The executable spec must rehearse what the Lambda enforces: a client
     // whose schema outruns the server gets SYNC_TOO_OLD, and every record
@@ -2126,7 +2250,8 @@ export class MockApi implements ApiClient {
     const rejected: { id: string; reason: 'STALE_REV' }[] = [];
     const serverRecords: SyncPushResponse['serverRecords'] = [];
     for (const group of groups) {
-      const result = await mockApplyRecordGroup(ownerId, group, Date.now());
+      await this.privacy.verifyCloud(owner, privacy);
+      const result = await mockApplyRecordGroup(ownerId, group, Date.now(), privacy?.revision);
       if (result.stale.length) {
         for (const winner of result.stale) {
           rejected.push({ id: winner.record.id, reason: 'STALE_REV' });
@@ -2197,6 +2322,7 @@ export class MockApi implements ApiClient {
   }
 
   private async householdForCaller(caller: MockUserRow): Promise<MockHouseholdRow> {
+    if (caller.privacyMode) throw new ApiError('FORBIDDEN');
     const households = await mockGetAll<MockHouseholdRow>('households');
     if (caller.accountType === 'adult') {
       // Match the server: accepted family coverage selects the care household
@@ -2412,9 +2538,12 @@ export class MockApi implements ApiClient {
       state: household.state,
       myRole,
       primaryResponsible: this.publicOf(primary, false),
-      familyCoverage: await mockGet<MockCoverageRow>('coverages', primary.userId)
-        .then((coverage) => coverage?.householdId === household.householdId
-          ? { source: coverage.source, state: coverage.state } : null),
+      familyCoverage: await mockGet<MockCoverageRow>('coverages', primary.userId).then(
+        (coverage) =>
+          coverage?.householdId === household.householdId
+            ? { source: coverage.source, state: coverage.state }
+            : null,
+      ),
       additionalResponsible,
       minors,
       availableMinorSeats: Math.max(0, 2 - minors.length) as 0 | 1 | 2,
@@ -2489,7 +2618,13 @@ export class MockApi implements ApiClient {
   private async isResponsibleFor(adultId: string, minorId: string): Promise<boolean> {
     const adult = await mockGet<MockUserRow>('users', adultId);
     const minor = await mockGet<MockUserRow>('users', minorId);
-    if (adult?.accountType !== 'adult' || minor?.accountType !== 'minor') return false;
+    if (
+      adult?.accountType !== 'adult' ||
+      minor?.accountType !== 'minor' ||
+      adult.privacyMode ||
+      minor.privacyMode
+    )
+      return false;
     const pairLinks = (await mockGetAll<MockSupervisionLinkRow>('supervisionLinks')).filter(
       (link) => link.adultId === adultId && link.minorId === minorId,
     );
@@ -2690,8 +2825,10 @@ export class MockApi implements ApiClient {
   }
 
   /** Bearer-token gate — same 401 semantics HttpApi will meet in production. */
-  private async caller(): Promise<MockUserRow> {
-    return this.callerForIdentity(await this.callerIdentity());
+  private async caller(skipAdult = false): Promise<MockUserRow> {
+    const user = await this.callerForIdentity(await this.callerIdentity());
+    if (!skipAdult) await this.privacy.admit(user);
+    return user;
   }
 
   private async callerIdentity(): Promise<MockCallerIdentity> {
@@ -2733,6 +2870,7 @@ export class MockApi implements ApiClient {
     operation: (caller: MockUserRow) => Promise<T>,
     participantIds: () => Promise<readonly string[]> = async () => [],
     lockOnlyIds: () => Promise<readonly string[]> = async () => [],
+    ownPrivateOperation = false,
   ): Promise<T> {
     const identity = await this.callerIdentity();
     await this.callerForIdentity(identity);
@@ -2767,9 +2905,11 @@ export class MockApi implements ApiClient {
           if (tombstone || user?.accountInstanceId !== participant.accountInstanceId) {
             throw new ApiError(participant.sub === identity.sub ? 'UNAUTHENTICATED' : 'NOT_FOUND');
           }
+          if (user?.privacyMode && !ownPrivateOperation) throw new ApiError('FORBIDDEN');
           if (participant.sub === identity.sub) caller = user;
         }
         if (!caller) throw new ApiError('UNAUTHENTICATED');
+        await this.privacy.admit(caller);
         return operation(caller);
       },
     );
@@ -2889,6 +3029,7 @@ export class MockApi implements ApiClient {
       accountType: user.accountType,
       socialEnabled: user.socialEnabled,
       createdAt: user.createdAt,
+      ...(user.privacyMode ? { privacyMode: user.privacyMode, majorityAt: user.majorityAt } : {}),
     };
   }
 
@@ -2923,6 +3064,7 @@ export class MockApi implements ApiClient {
   // ── friends internals ─────────────────────────────────────────────────────
 
   private requireSocial(user: MockUserRow): void {
+    if (user.privacyMode) throw new ApiError('FORBIDDEN');
     assertSocialEnabled(user);
   }
 
@@ -2945,7 +3087,7 @@ export class MockApi implements ApiClient {
     for (const f of friendships) {
       const otherId = f.userA === userId ? f.userB : f.userA;
       const other = await mockGet<MockUserRow>('users', otherId);
-      if (!other) continue;
+      if (!other || other.privacyMode) continue;
       friends.push({
         friendshipId: f.friendshipId,
         user: this.publicOf(other, false),
@@ -2955,7 +3097,7 @@ export class MockApi implements ApiClient {
     const incoming: FriendRequestView[] = [];
     for (const r of requests.filter((r) => r.toId === userId)) {
       const other = await mockGet<MockUserRow>('users', r.fromId);
-      if (!other) continue;
+      if (!other || other.privacyMode) continue;
       incoming.push({
         requestId: r.requestId,
         user: this.publicOf(other, false),
@@ -2966,7 +3108,7 @@ export class MockApi implements ApiClient {
     const outgoing: FriendRequestView[] = [];
     for (const r of requests.filter((r) => r.fromId === userId)) {
       const other = await mockGet<MockUserRow>('users', r.toId);
-      if (!other) continue;
+      if (!other || other.privacyMode) continue;
       outgoing.push({
         requestId: r.requestId,
         user: this.publicOf(other, false),

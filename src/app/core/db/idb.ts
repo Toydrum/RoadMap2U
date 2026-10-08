@@ -24,11 +24,7 @@ export interface AccountClosureFenceRow {
   receiptKey?: string;
 }
 
-export type DurableAccountClosureState =
-  | 'requested'
-  | 'purging'
-  | 'purgeComplete'
-  | 'completed';
+export type DurableAccountClosureState = 'requested' | 'purging' | 'purgeComplete' | 'completed';
 
 export interface DurableAccountClosureSnapshot {
   key: string;
@@ -478,11 +474,7 @@ export function commitAccountClosureSnapshotInDatabase(
   let planned = false;
 
   const plan = () => {
-    if (
-      planned ||
-      receiptRequest.readyState !== 'done' ||
-      fenceRequest.readyState !== 'done'
-    ) {
+    if (planned || receiptRequest.readyState !== 'done' || fenceRequest.readyState !== 'done') {
       return;
     }
     planned = true;
@@ -510,10 +502,7 @@ export function commitAccountClosureSnapshotInDatabase(
           if (!stored || stored.receipt.state !== 'completed') store.put(canonical);
           return;
         }
-        if (
-          expectedGeneration === undefined ||
-          fence.generation !== expectedGeneration
-        ) {
+        if (expectedGeneration === undefined || fence.generation !== expectedGeneration) {
           throw new LocalWritesQuiescedError();
         }
         const nextFence: AccountClosureFenceRow = {
@@ -690,10 +679,13 @@ export async function finalizeAccountClosureFenceInDatabase(
   connectionFenceGeneration.set(db, releasedGeneration);
 }
 
-export async function put<T>(store: StoreName, value: T): Promise<void> {
+export async function put<T>(store: StoreName, value: T, authorize?: () => void): Promise<void> {
   return runAccountClosureGuardedWrite([{ store, value }], async () => {
     const db = await openDb();
     return accountClosureGuardedWriteInDatabase(db, [store], (tx) => {
+      // A delayed database open must not apply a response from a withdrawn
+      // cloud lease or a different signed-in account.
+      authorize?.();
       tx.objectStore(store).put(value);
     });
   });

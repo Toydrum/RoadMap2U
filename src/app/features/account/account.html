@@ -129,6 +129,61 @@
           </label>
           <p class="hint">{{ i18n.t().account.passwordHint }}</p>
 
+          @if (signupDocument(); as consentText) {
+            <fieldset class="age-choice">
+              <legend>{{ i18n.t().privacy.ageLabel }}</legend>
+              <label class="consent-choice"
+                ><input
+                  type="radio"
+                  name="signup-age"
+                  [checked]="ageChoice() === 'adult'"
+                  (change)="chooseAge('adult')"
+                />{{ consentText.document.declaration.adult }}</label
+              >
+              <label class="consent-choice"
+                ><input
+                  type="radio"
+                  name="signup-age"
+                  [checked]="ageChoice() === 'adolescent'"
+                  (change)="chooseAge('adolescent')"
+                />{{ i18n.t().privacy.adolescentChoice }}</label
+              >
+            </fieldset>
+            @if (ageChoice() === 'adolescent') {
+              <p class="hint">{{ consentText.document.adolescent.explanation }}</p>
+              <label class="field"
+                ><span>{{ i18n.t().privacy.invitationLabel }}</span
+                ><input
+                  type="text"
+                  autocomplete="off"
+                  spellcheck="false"
+                  maxlength="64"
+                  [value]="privateInvitation()"
+                  (input)="privateInvitation.set(inputValue($event))"
+              /></label>
+              <label class="consent-choice"
+                ><input
+                  type="checkbox"
+                  [checked]="understandsPrivacy()"
+                  (change)="understandsPrivacy.set($any($event.target).checked)"
+                />{{ consentText.document.adolescent.understanding }}</label
+              >
+            }
+            <p class="hint">
+              <a routerLink="/privacy">{{ i18n.t().privacy.readNotice }}</a> ·
+              <a routerLink="/terms">{{ i18n.t().privacy.readTerms }}</a>
+            </p>
+            <label class="consent-choice"
+              ><input
+                type="checkbox"
+                [checked]="acceptsTerms()"
+                (change)="acceptsTerms.set($any($event.target).checked)"
+              />{{ consentText.document.declaration.terms }}</label
+            >
+          } @else {
+            <p role="status">{{ i18n.t().common.loading }}</p>
+          }
+
           @if (localError()) {
             <p class="error-line" role="alert">{{ localError() }}</p>
             <a class="error-report" [href]="bugReportUrl" target="_blank" rel="noopener">
@@ -142,7 +197,11 @@
             </a>
           }
 
-          <button type="submit" class="btn btn-primary big" [disabled]="auth.busy()">
+          <button
+            type="submit"
+            class="btn btn-primary big"
+            [disabled]="auth.busy() || !signupDocument()"
+          >
             {{ auth.busy() ? i18n.t().common.loading : i18n.t().account.createCta }}
           </button>
         </form>
@@ -352,6 +411,19 @@
       </section>
     }
 
+    @case ('admission') {
+      <section class="stage" aria-live="polite">
+        <h1>{{ i18n.t().privacy.adultTitle }}</h1>
+        @if (localError()) {
+          <p role="alert">{{ localError() }}</p>
+        }
+        <app-privacy-panel (admitted)="finishAdmission()" />
+        <a class="btn btn-ghost" routerLink="/forest">{{ i18n.t().privacy.stayLocal }}</a>
+        <button type="button" class="btn btn-ghost" (click)="doSignOut()">
+          {{ i18n.t().account.signOutCta }}
+        </button>
+      </section>
+    }
     @case ('closureRecovery') {
       <section class="stage closure-recovery" aria-live="polite">
         <h1>{{ i18n.t().account.closureStatusTitle }}</h1>
@@ -386,7 +458,7 @@
             <span class="who-detail">&#64;{{ user.username }}</span>
             <span class="who-role">
               {{
-                user.accountType === 'minor'
+                privacy.status()?.scope === 'adolescent_private' || user.accountType === 'minor'
                   ? i18n.t().account.roleMinor
                   : i18n.t().account.roleAdult
               }}
@@ -424,7 +496,8 @@
             }
           </div>
         } @else {
-          @if (auth.user()?.accountType === 'adult') {
+          <app-privacy-panel />
+          @if (auth.user()?.accountType === 'adult' && !privacy.status()?.privateOnly) {
             <div class="card access-card">
               <app-access-key-form (redeemed)="redeemCompleted.set(true)" />
               @if (redeemCompleted()) {
@@ -451,11 +524,11 @@
             <a class="btn btn-ghost" routerLink="/forest">{{ i18n.t().common.goForest }}</a>
           </div>
 
-          @if (auth.user()?.accountType === 'adult' && !confirmingDelete()) {
+          @if (canCloseOwnAccount() && !confirmingDelete()) {
             <button type="button" class="btn btn-ghost danger" (click)="confirmingDelete.set(true)">
               {{ i18n.t().account.deleteCta }}
             </button>
-          } @else if (auth.user()?.accountType === 'adult') {
+          } @else if (canCloseOwnAccount()) {
             <div class="card danger-card">
               <h2>{{ i18n.t().account.deleteTitle }}</h2>
               <p>{{ i18n.t().account.deleteBody }}</p>
