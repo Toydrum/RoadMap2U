@@ -14,6 +14,8 @@ const contractFiles = [
   ['api/contracts.ts', join(root, 'src/app/core/api/contracts.ts')],
   ['db/schema.ts', join(root, 'src/app/core/db/schema.ts')],
   ['auth/auth-types.ts', join(root, 'src/app/core/auth/auth-types.ts')],
+  ['i18n/es.ts', join(root, 'src/app/core/i18n/es.ts')],
+  ['i18n/en.ts', join(root, 'src/app/core/i18n/en.ts')],
 ];
 const configEnvKeys = [
   'ROADMAP2U_STAGE',
@@ -203,6 +205,26 @@ test('rejects a backend contract hash that differs from the frontend contract', 
   try {
     assert.notEqual(run.status, 0);
     assert.match(run.stderr, /contract hash mismatch/i);
+  } finally {
+    run.cleanup();
+  }
+});
+
+test('rejects a contract hash that omits the ES/EN shared dictionaries', () => {
+  const incompleteHash = createHash('sha256');
+  for (const [relativePath, source] of contractFiles.slice(0, 3)) {
+    incompleteHash.update(relativePath, 'utf8');
+    incompleteHash.update('\0');
+    incompleteHash.update(readFileSync(source, 'utf8').replaceAll('\r\n', '\n'), 'utf8');
+    incompleteHash.update('\0');
+  }
+  const env = validEnvironment();
+  env.ROADMAP2U_CONTRACT_HASH = incompleteHash.digest('hex');
+  const run = runGenerator(env);
+  try {
+    assert.notEqual(run.status, 0, 'An incomplete three-file contract must not authorize a deployment');
+    assert.match(run.stderr, /contract hash mismatch/i);
+    assert.equal(existsSync(run.output), false);
   } finally {
     run.cleanup();
   }

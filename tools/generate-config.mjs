@@ -11,6 +11,8 @@ const contractFiles = [
   ['api/contracts.ts', resolve(root, 'src/app/core/api/contracts.ts')],
   ['db/schema.ts', resolve(root, 'src/app/core/db/schema.ts')],
   ['auth/auth-types.ts', resolve(root, 'src/app/core/auth/auth-types.ts')],
+  ['i18n/es.ts', resolve(root, 'src/app/core/i18n/es.ts')],
+  ['i18n/en.ts', resolve(root, 'src/app/core/i18n/en.ts')],
 ];
 const requiredInputs = [
   'ROADMAP2U_STAGE',
