@@ -5,8 +5,10 @@ import { AccessService } from '../../core/access/access.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { BackupReminderService } from '../../core/backup-reminder.service';
 import { BootService } from '../../core/boot.service';
+import { DEFAULT_SETTINGS } from '../../core/db/schema';
 import { MotionService } from '../../core/motion.service';
 import { RemindersService } from '../../core/reminders.service';
+import { SETTINGS_STORAGE, SettingsService } from '../../core/repos/settings.service';
 import { RitualsService } from '../../core/rituals.service';
 import { SyncService } from '../../core/sync/sync.service';
 import { ThemeService } from '../../core/theme/theme.service';
@@ -32,6 +34,7 @@ describe('route-scoped startup', () => {
       providers: [
         AuthInitializer,
         { provide: AuthService, useValue: { hydrate } },
+        { provide: SettingsService, useValue: { load: () => Promise.resolve() } },
         { provide: BootService, useFactory: () => (constructed.push('boot'), {}) },
         { provide: SyncService, useFactory: () => (constructed.push('sync'), {}) },
         { provide: RemindersService, useFactory: () => (constructed.push('reminders'), {}) },
@@ -48,6 +51,40 @@ describe('route-scoped startup', () => {
 
     gate.resolve();
     await first;
+  });
+
+  it('restores the saved account language before the route is ready', async () => {
+    const diskReady = deferred();
+    let routeReady = false;
+    const write = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [
+        AuthInitializer,
+        { provide: AuthService, useValue: { hydrate: () => Promise.resolve() } },
+        {
+          provide: SETTINGS_STORAGE,
+          useValue: {
+            read: async () => {
+              await diskReady.promise;
+              return { key: 'settings', value: { ...DEFAULT_SETTINGS, lang: 'en' } };
+            },
+            write,
+          },
+        },
+      ],
+    });
+    const settings = TestBed.inject(SettingsService);
+    const ready = TestBed.inject(AuthInitializer)
+      .init()
+      .then(() => {
+        routeReady = true;
+      });
+    await Promise.resolve();
+    expect(routeReady).toBe(false);
+    diskReady.resolve();
+    await ready;
+    expect(settings.lang()).toBe('en');
+    expect(write).not.toHaveBeenCalled();
   });
 
   it('starts data seams before chrome and performs the whole startup only once', async () => {

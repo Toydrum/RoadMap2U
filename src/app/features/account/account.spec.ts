@@ -123,6 +123,33 @@ function accountHarness(dict: Dict = ES) {
   return { auth, closure, constructed, restart, access };
 }
 
+describe('private adolescent admission copy', () => {
+  it.each([
+    {
+      locale: 'es',
+      dict: ES,
+      declaration: /declaración autenticada/i,
+      falseClaim: /representación verificada|parentesco verificado|tutela verificada/i,
+    },
+    {
+      locale: 'en',
+      dict: EN,
+      declaration: /authenticated declaration/i,
+      falseClaim: /verified representation|verified parentage|verified guardianship/i,
+    },
+  ])(
+    'describes the approved declaration model in registration and guide ($locale)',
+    ({ dict, declaration, falseClaim }) => {
+      const familyGuide = dict.guide.sections.find((section) => section.icon === '🤝');
+      expect(familyGuide).toBeDefined();
+      for (const copy of [dict.account.createHint, familyGuide!.body]) {
+        expect(copy).toMatch(declaration);
+        expect(copy).not.toMatch(falseClaim);
+      }
+    },
+  );
+});
+
 describe('account create validation', () => {
   it('normalizes username case before signup', () => {
     expect(normalizedUsername(' LynxPardelle ')).toBe('lynxpardelle');

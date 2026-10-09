@@ -311,10 +311,18 @@ Si los enciendes, de vez en cuando la app te hace una **pregunta suave**: *"¿D�
 
 ## Cuenta 🗝
 
-La sección **Cuenta** es la puerta a algo que apenas está germinando: **una llave para tu bosque**. Con ella, más adelante, tu bosque podrá viajar contigo entre dispositivos y abrirse a tu familia y a tus amistades — solo a quien tú elijas, y siempre sabrás quién puede verlo.
+La sección **Cuenta** es la puerta a **una llave para tu bosque**. La cuenta, la autorización de nube y las funciones familiares son decisiones separadas.
 
-- Hoy la llave funciona en **modo ensayo**: puedes crear una cuenta y entrar, pero la "nube" todavía es de práctica y vive dentro de tu propio dispositivo. Nada viaja a internet.
+- En **modo ensayo** puedes crear una cuenta y entrar, pero la "nube" es de práctica y vive dentro de tu propio dispositivo. La versión conectada a AWS utiliza servicios remotos; el modo indicado por la app identifica cuál estás usando.
 - Entrar o salir de tu cuenta **jamás toca tus árboles**: tu bosque local sigue intacto, exactamente donde estaba.
+
+### La cuenta adolescente privada
+
+El MVP preparado permite cuentas de **12 a 17 años** por invitación al nombre de usuario exacto. El padre, madre o tutor autoriza desde su cuenta con correo confirmado, sesión reciente y Premium vigente. Registra su nombre, calidad y **declaración autenticada** de representación; el alta no verifica documentos de parentesco o tutela. El adolescente acepta su propia explicación y los términos.
+
+Su bosque permanece privado frente a otras personas, incluido el adulto que autorizó la cuenta. No tiene amistades, visitas ni conexiones con otros bosques. Para sincronizar necesita su propia autorización de nube y Premium vigente del responsable; mantiene los límites Free y no recibe Premium personal por aceptar la invitación. Si esa cobertura termina, conserva su cuenta y sus datos locales, y puede descargar sus datos remotos o retirar su autorización de nube.
+
+Esta modalidad está separada de las funciones familiares que se describen a continuación. **Las funciones familiares se conservan implementadas, con sus controles cerrados para este MVP.**
 
 ### La familia 🤝
 
@@ -328,11 +336,13 @@ Con sesión iniciada, en Ajustes aparece la sección **Familia**:
 - **Quien es cuidado siempre lo sabe**: la sección nombra a sus responsables y muestra el alcance de supervisión. La familia no crea amistades automáticas; sentimientos, check-ins y clima permanecen privados. Una amistad entre adultos no abre el bosque del responsable adicional ni el de los menores: cada amistad adulta es independiente.
 - Perder cobertura no borra cuentas, datos ni responsabilidad principal. Una fuente individual o patrocinada vigente puede conservar Premium. Las cuentas menores no pueden liberarse de supervisión con un simple botón.
 
-Esta pantalla Household v2 está en implementación local. Los pagos y el despliegue siguen desactivados; la nueva experiencia de aprobaciones de amistades infantiles se integra en el siguiente bloque.
+La implementación Household v2 se conserva con sus controles cerrados para este MVP. Las ofertas familiares de pago siguen su plan posterior; este alta adolescente privada no concede familia ni supervisión del bosque.
 
 ### Mi bosque en la nube ☁️
 
-Con sesión iniciada, la sección **«Mi bosque en la nube»** te ofrece **Conectar mi bosque**: tu bosque sube a tu cuenta y, desde entonces, cada cambio viaja solo (unos segundos después de cada edición, y al abrir la app). Todo es **opcional y explícito** — sin conectar, nada sale de tu dispositivo, como siempre.
+Con sesión iniciada, **Mi privacidad** permite elegir la autorización de nube por separado de los términos de la cuenta. Con la capacidad de nube vigente y tu autorización, **Conectar mi bosque** sincroniza los cambios entre tus dispositivos. Aceptar esa autorización no concede Premium. Las notas y check-ins que sincronices pueden contener información íntima; el diálogo explica su tratamiento y enlaza al aviso completo antes de aceptar.
+
+Desde Privacidad puedes retirar tu autorización, descargar tus datos remotos propios o solicitar cancelar el bosque remoto sin comprar Premium. Retirar la autorización conserva los datos locales; solicitar cancelación remota es una acción distinta y no elimina tus copias locales o descargadas.
 
 - **Conectar** hace las dos direcciones: sube lo que este dispositivo tiene y baja lo que tu cuenta ya guarde (por ejemplo, ramas que tu familia plantó cuidando tu jardín).
 - **Desconectar** solo suelta el enlace — tu bosque local no se toca.
@@ -343,7 +353,7 @@ Con sesión iniciada, la sección **«Mi bosque en la nube»** te ofrece **Conec
 
 ### Amistades 👥
 
-Para cuentas con **amigos y visitas** activado (personas adultas siempre; peques cuando su familia lo enciende), la sección **Amistades** funciona así:
+Para cuentas con la capacidad de **amigos y visitas** habilitada, la sección **Amistades** funciona así. Las cuentas adolescentes privadas no tienen esta capacidad; cumplir 18 años tampoco la abre automáticamente.
 
 - **Tu código de amistad** es la única puerta: no hay búsqueda de personas ni perfiles públicos. Compártelo fuera de la app con quien tú elijas (vale 7 días, y puedes cambiarlo cuando quieras).
 - Quien canjea un código **envía una solicitud** — la amistad solo nace cuando la otra persona la **acepta**. Decir «Ahora no» es **silencioso**: la solicitud simplemente se desvanece, sin avisos ni vergüenzas.

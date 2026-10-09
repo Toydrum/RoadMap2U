@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
 import { authReadyGate } from './auth-initializer';
 
-/** Public auth machine: cached identity only, no product startup. */
+/** Public auth machine: cached identity and preferences, no product startup. */
 export const ACCOUNT_ROUTES: Routes = [
   {
     path: '',
