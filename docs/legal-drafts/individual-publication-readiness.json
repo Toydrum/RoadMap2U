@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "status": "prepared_owner_approved_pending_environment_validation",
-  "adultPublicationApproved": false,
-  "productionPublicationApproved": false,
+  "status": "approved_for_publication",
+  "adultPublicationApproved": true,
+  "productionPublicationApproved": true,
   "paymentActivationApproved": false,
   "familyActivationApproved": false,
   "legalController": {
@@ -22,33 +22,36 @@
     "cloudConsent": "cloud-consent-2026-10-07-v2",
     "retention": "adult-retention-2026-10-07-v1"
   },
-  "effectiveDate": null,
+  "effectiveDate": "2026-10-10",
   "designApproved": true,
   "designApprovedByOwnerOn": "2026-10-07",
-  "consentImplementedAndVerified": false,
-  "retentionImplementedAndReconciled": false,
-  "rightsProcedureRehearsed": false,
-  "providerContractsReviewed": false,
+  "consentImplementedAndVerified": true,
+  "retentionImplementedAndReconciled": true,
+  "rightsProcedureRehearsed": true,
+  "providerContractsReviewed": true,
   "draftSources": [
     "adults-es.md",
     "adults-en.md",
     "adult-consent-copy.md",
     "adult-retention-policy.md"
   ],
-  "remainingGates": [
-    "secure_identity_representation_and_dispute_procedure",
-    "provider_entities_and_international_processing",
-    "read_only_inventory_and_additive_reconciliation",
-    "retention_restore_rehearsal",
-    "manual_rights_procedure_rehearsal",
-    "private_adolescent_cloud_capacity",
-    "authenticated_adult_private_adolescent_dev_test_smokes",
-    "exact_sha_contract_release_and_effective_date",
-    "authorized_server_enforcement_activation"
-  ],
-  "privateAdolescentPublicationApproved": false,
+  "remainingGates": [],
+  "publicationEvidence": "individual-publication-evidence-2026-10-10.json",
+  "publicationRelease": {
+    "candidateVersion": "0.0.127",
+    "verifiedBaseFrontendSha": "0dc867c70ea78761537213d902e9e6efb901c913",
+    "requiredBackendSha": "3ca793829aeab952782f6d1a90db012ec38be794",
+    "requiredContractHash": "da9049c1534ea02c20c174c111b2e95ace0ff6f816091e781aea32852d834413",
+    "requiresNewCandidateCi": true,
+    "requiresExactShaDevTestProdPromotion": true,
+    "launchGatesAfterPublication": [
+      "authenticated_final_production_ui",
+      "launch_quota_capability_activation"
+    ]
+  },
+  "privateAdolescentPublicationApproved": true,
   "privateAdolescentDesignApprovedByOwnerOn": "2026-10-07",
-  "implementationLocalOnly": true,
+  "implementationLocalOnly": false,
   "legalReview": {
     "reviewedBy": null,
     "reviewedOn": null,
@@ -76,9 +79,9 @@
     },
     "scope": "adult_private_adolescents",
     "report": "../../../../reports/adult-mvp-privacy-implementation-2026-10-07.md",
-    "privacyRightsOperatorInstalled": false,
+    "privacyRightsOperatorInstalled": true,
     "requiresOperatorForRoutineSignup": false,
-    "authenticatedEnvironmentValidationComplete": false
+    "authenticatedEnvironmentValidationComplete": true
   },
   "privateAdolescentCloudCapacity": {
     "ownerDecisionOn": "2026-10-07",
@@ -90,7 +93,7 @@
     },
     "grantsPersonalPremium": false,
     "grantsFamilyMembership": false,
-    "authenticatedEnvironmentValidationComplete": false
+    "authenticatedEnvironmentValidationComplete": true
   },
   "privateAdolescentAuthorization": {
     "ownerDecisionOn": "2026-10-07",

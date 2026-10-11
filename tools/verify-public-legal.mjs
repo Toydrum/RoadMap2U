@@ -1,6 +1,30 @@
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { BASE, launchPage, ok } from './lib/harness.mjs';
+import { loadPrivacyDocuments } from './validate-individual-publication.mjs';
+
+const documents = await loadPrivacyDocuments();
+async function verifyCanonicalText(page, path, language, width) {
+  const document =
+    path === 'privacy'
+      ? documents[language].notice
+      : path === 'terms'
+        ? documents[language].terms
+        : null;
+  if (!document) return;
+  const actual = await page.locator('main').evaluate((main) => ({
+    intro: main.querySelector('.intro').textContent.trim(),
+    sections: [...main.querySelectorAll('section')].map((section) => ({
+      title: section.querySelector('h2').textContent.trim(),
+      paragraphs: [...section.querySelectorAll('p')].map((p) => p.textContent.trim()),
+    })),
+  }));
+  ok(
+    `${width} /${path} ${language} exact canonical text`,
+    JSON.stringify(actual) ===
+      JSON.stringify({ intro: document.intro, sections: document.sections }),
+  );
+}
 
 const output = resolve(process.env.RM_LEGAL_SCREENSHOTS ?? 'tools/battery-logs/public-legal');
 await mkdir(output, { recursive: true });
@@ -47,8 +71,8 @@ for (const viewport of [
   try {
     const width = viewport.width;
     for (const [path, title, english] of [
-      ['privacy', 'Privacidad', 'Privacy'],
-      ['terms', 'Términos de uso', 'Terms of use'],
+      ['privacy', documents.es.notice.title, documents.en.notice.title],
+      ['terms', documents.es.terms.title, documents.en.terms.title],
       ['support', 'Soporte y cuidado', 'Support and care'],
     ]) {
       await page.goto(`${BASE}/${path}`, { waitUntil: 'networkidle' });
@@ -57,11 +81,11 @@ for (const viewport of [
         (await page.locator('app-legal-page h1').textContent()) === title,
       );
       ok(
-        `${width} /${path} draft visible`,
+        `${width} /${path} data choices guidance`,
         await page
           .locator('[data-review-status]')
           .innerText()
-          .then((t) => t.includes('Borrador para revisión')),
+          .then((t) => t.includes('Tus decisiones sobre tus datos') && !t.includes('Borrador')),
       );
       ok(`${width} /${path} one main`, (await page.locator('main').count()) === 1);
       ok(
@@ -69,9 +93,15 @@ for (const viewport of [
         (await page.locator(`footer a[href="/${path}"]`).getAttribute('aria-current')) === 'page',
       );
       ok(
-        `${width} /${path} no fabricated contacts`,
-        (await page.locator('a[href^="mailto:"]').count()) === 0,
+        `${width} /${path} confirmed support contact`,
+        (await page.locator('main').innerText()).includes('overseer@roadmap2u.com') &&
+          (await page
+            .locator('a[href^="mailto:"]')
+            .evaluateAll((links) =>
+              links.every((link) => link.getAttribute('href') === 'mailto:overseer@roadmap2u.com'),
+            )),
       );
+      await verifyCanonicalText(page, path, 'es', width);
       ok(
         `${width} /${path} no overflow`,
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -83,6 +113,7 @@ for (const viewport of [
         (await page.locator('h1').textContent()) === english &&
           (await page.locator('html').getAttribute('lang')) === 'en',
       );
+      await verifyCanonicalText(page, path, 'en', width);
       const activity = await page.evaluate(() => window.__publicLegalActivity);
       ok(
         `${width} /${path} no storage or SW startup`,

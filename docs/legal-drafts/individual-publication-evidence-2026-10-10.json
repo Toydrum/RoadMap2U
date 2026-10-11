@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "kind": "individual_publication_candidate_evidence_v1",
+  "preparedAtUtc": "2026-10-10T23:55:49.935Z",
+  "scope": "adult_private_adolescents",
+  "canonicalTextVersions": {
+    "privacy": "privacy-2026-10-07-v2",
+    "terms": "terms-2026-10-07-v2",
+    "cloudConsent": "cloud-consent-2026-10-07-v2"
+  },
+  "canonicalTextHashes": {
+    "es": "6a9e3f1294ae9b10dd0c6fb47d43896580a955fae4153d2c675fb39b112ca143",
+    "en": "f7157b1d55ca253d1e67ec343d40cd25db75859eeb5211ecbd9d9b52ebeb48a5"
+  },
+  "ownerApprovalBasis": "responsible_owner",
+  "externalLegalReviewRequired": false,
+  "effectiveDate": "2026-10-10",
+  "candidateVersion": "0.0.127",
+  "verifiedBaseFrontendSha": "0dc867c70ea78761537213d902e9e6efb901c913",
+  "baseTree": "1b13f36e8e79fe38023cc5f28313518ad000099b",
+  "requiredBackendSha": "3ca793829aeab952782f6d1a90db012ec38be794",
+  "requiredContractHash": "da9049c1534ea02c20c174c111b2e95ace0ff6f816091e781aea32852d834413",
+  "gates": [
+    {
+      "id": "secure_identity_representation_and_dispute_procedure",
+      "status": "verified",
+      "evidence": ["owner", "support", "testSmoke"],
+      "note": "Authenticated guardian declaration approved for the MVP; no documentary parentage verification claim."
+    },
+    {
+      "id": "provider_entities_and_international_processing",
+      "status": "verified",
+      "evidence": ["provider", "providerIdentity", "annex"]
+    },
+    {
+      "id": "read_only_inventory_and_additive_reconciliation",
+      "status": "verified",
+      "evidence": ["backend", "audit"],
+      "note": "One historical row classified conditionally; all original attributes preserved, no expiry or deletion."
+    },
+    {
+      "id": "retention_restore_rehearsal",
+      "status": "verified",
+      "evidence": ["recovery", "testRights"]
+    },
+    {
+      "id": "manual_rights_procedure_rehearsal",
+      "status": "verified",
+      "evidence": ["support", "testRights"]
+    },
+    {
+      "id": "private_adolescent_cloud_capacity",
+      "status": "verified",
+      "evidence": ["testSmoke", "testRights"],
+      "note": "Current responsible adult Premium; Free limits for adolescent; no family membership."
+    },
+    {
+      "id": "authenticated_adult_private_adolescent_dev_test_smokes",
+      "status": "verified",
+      "evidence": ["testSmoke", "testRights"]
+    },
+    {
+      "id": "exact_sha_contract_release_and_effective_date",
+      "status": "enforced_by_release_workflow",
+      "evidence": ["backend", "testSmoke", "prodApi"],
+      "note": "Effective date and candidate version are explicit. The unchanged release workflow checks the exact candidate SHA, its prior-stage success marker and backend contract before PROD publication; this record does not claim a future promotion already occurred."
+    },
+    {
+      "id": "authorized_server_enforcement_activation",
+      "status": "verified",
+      "evidence": ["backend", "audit", "activation", "prodApi"],
+      "note": "Production server enforcement and authenticated API verified. Final-client authenticated UI and permanent launch quota/capability activation are subsequent launch gates."
+    }
+  ],
+  "evidence": {
+    "backend": {
+      "operatorWorkspaceRecord": "qa-output/private-privacy-promotion/prod-backend-release-completion-reference-2026-10-10.json",
+      "sha256": "7466e3adfad91977029b66a9b4444dcbea693ee8cba434e8abf2ceb915a728a0"
+    },
+    "recovery": {
+      "operatorWorkspaceRecord": "qa-output/private-privacy-promotion/prod-recovery-completion-reference-2026-10-10.json",
+      "sha256": "9956a638739ec30a1c4ff2089a6b106714a4e9edf8471c65a6b1f44c81f0bf4c"
+    },
+    "testSmoke": {
+      "operatorWorkspaceRecord": "qa-output/private-privacy-promotion/authenticated-test-smoke-completion-reference-2026-10-10.json",
+      "sha256": "73fa8296179ca319fe51bd71ed93ea84547be563e53067d4efdb9069de7d513e"
+    },
+    "testRights": {
+      "operatorWorkspaceRecord": "qa-output/private-privacy-promotion/test-rights-completion-reference-2026-10-10.json",
+      "sha256": "448cb6b67655e3a6ac15c40c0810192d608b22e28074120db5d4fd22e9af5c25"
+    },
+    "owner": {
+      "operatorWorkspaceRecord": "reports/private-privacy-owner-review-2026-10-07.md",
+      "sha256": "1004473bf8b5bdae0f56d78e87544e487a83018b0a5f218f0410bd98fa03b45e"
+    },
+    "provider": {
+      "operatorWorkspaceRecord": "reports/private-privacy-production-publication-audit-2026-10-10.md",
+      "sha256": "cb0c9589a17e67405a4aa341a360e59da7f136e77564fd2361fc4f915cc20c35"
+    },
+    "providerIdentity": {
+      "operatorWorkspaceRecord": "qa-output/private-privacy-promotion/production-publication-gaps-1791656854638/provider-entity-read-result.json",
+      "sha256": "544e49375564caa3a7413f26effcc84c053fd5b7d41e34594ad4d1f09dace9ca"
+    },
+    "support": {
+      "operatorWorkspaceRecord": "worktrees/frontend/docs/legal-drafts/support-privacy-procedure.md",
+      "sha256": "64608de4e0ddd6149a78e462e4b7956cf5ca1b4a53e4ef4f993c71f2cfa60c82"
+    },
+    "annex": {
+      "operatorWorkspaceRecord": "worktrees/frontend/docs/legal-drafts/technical-privacy-annex.md",
+      "sha256": "4f715d4bdad1d91239e6d60774dc130e2b425a5387f8c67edf271ebedcf151f1"
+    },
+    "auditProposal": {
+      "operatorWorkspaceRecord": "reports/private-privacy-prod-audit-migration-approval-2026-10-10.md",
+      "sha256": "f42c44d7b00e6efb5f1077bb0202f66942f5461735357e964d073bd77340e275"
+    },
+    "auditPreflight": {
+      "operatorWorkspaceRecord": "qa-output/private-privacy-prod-audit/execution/51bbfb157f03d2d51f79bf3fd9a7804399d6d135da166993bd4163d7a042a9cf/preflight-1791673281721.json",
+      "sha256": "6c347b9d03060ff52df8cf0ae813654349ed601aeea3e35281a13ddec10f2fd7"
+    },
+    "audit": {
+      "operatorWorkspaceRecord": "qa-output/private-privacy-promotion/prod-audit-completion-reference-2026-10-10.json",
+      "sha256": "02db4cd9efd75e298f42e86ef63e77875f7665729a5b5ee9ed70f7df00e657bc"
+    },
+    "activation": {
+      "operatorWorkspaceRecord": "qa-output/private-privacy-promotion/prod-activation-completion-reference-2026-10-10.json",
+      "sha256": "b2d167c40b8e91e5a6456606b4ce2a9896013e22385b45257d108397d4b734c2"
+    },
+    "prodApi": {
+      "operatorWorkspaceRecord": "qa-output/private-privacy-promotion/authenticated-prod-api-completion-reference-2026-10-10.json",
+      "sha256": "9e98681292445bcdb7c1a8bc4dc32fdc8c32eab694c46f3471c872e26e3f14e2"
+    }
+  },
+  "productionApi": {
+    "completed": true,
+    "retainedSyntheticAccounts": 4,
+    "apiWrites": 24,
+    "apiReads": 23,
+    "individualSourcesRevoked": 2,
+    "privacyModes": "enforce/enforce"
+  },
+  "stateAtPreparation": {
+    "installedProductionFrontendSha": "42a5dd7e42f9d709bc9a7e6ae80bb3567a8941d4",
+    "finalProductionFrontendPublished": false,
+    "authenticatedFinalProductionUiCompleted": false,
+    "launchQuotaMode": "off",
+    "launchCapabilityMode": "off",
+    "launchFlagsRevision": 3,
+    "familyActivationApproved": false,
+    "paymentActivationApproved": false
+  },
+  "releaseConditions": {
+    "newCandidateCiRequired": true,
+    "exactCandidateShaRequired": true,
+    "priorStageSuccessMarkerRequired": true,
+    "backendContractCheckRequired": true,
+    "publicationGateValidatorUnchanged": true
+  },
+  "remainingLaunchGates": [
+    "authenticated_final_production_ui",
+    "launch_quota_capability_activation"
+  ]
+}
