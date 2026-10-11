@@ -1,8 +1,8 @@
-# RoadMap2U — adultos y adolescentes privados — versión candidata para publicación
+# RoadMap2U — adultos y adolescentes privados — versión para publicación
 
 privacy-2026-10-07-v2; terms-2026-10-07-v2
 
-Sin fecha efectiva / No effective date. Aprobación del responsable y validación por ambientes pendientes / Controller approval and environment validation pending. Revisión externa de abogado no requerida por decisión del responsable / External attorney review is not required by the controller’s decision.
+Fecha efectiva: 10 de octubre de 2026. Textos aprobados por el responsable y comprobados en los ambientes de la aplicación. La publicación del cliente sigue el control de CI y promoción del mismo SHA por DEV, TEST y PROD. Revisión externa de abogado no requerida por decisión del responsable.
 
 ## Aviso de privacidad
 

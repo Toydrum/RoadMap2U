@@ -122,7 +122,7 @@ test('external legal review alone does not replace the responsible owner approva
     false,
   );
 });
-test('validates current sources in DEV/TEST and rejects the current draft for PROD', async () => {
+test('validates the owner-approved current sources and exact ES/EN hashes in DEV/TEST/PROD', async () => {
   const manifest = JSON.parse(
     await readFile(
       new URL('../docs/legal-drafts/individual-publication-readiness.json', import.meta.url),
@@ -130,8 +130,18 @@ test('validates current sources in DEV/TEST and rejects the current draft for PR
     ),
   );
   const current = await currentPrivacyDocuments();
-  for (const stage of ['dev', 'test'])
+  for (const stage of ['dev', 'test', 'prod'])
     assert.equal(validateIndividualPublication(manifest, { stage, ...current }).valid, true);
-  assert.equal(validateIndividualPublication(manifest, { stage: 'prod', ...current }).valid, false);
+  assert.deepEqual(manifest.publicationApproval.documentHashes, current.hashes);
+  assert.equal(manifest.paymentActivationApproved, false);
+  assert.equal(manifest.familyActivationApproved, false);
+  assert.equal(
+    manifest.privateAdolescentAuthorization.verifiesCivilIdentityOrParentageDocuments,
+    false,
+  );
+  assert.equal(
+    manifest.privateAdolescentAuthorization.requiresManualOperatorForRoutineSignup,
+    false,
+  );
   assert.notEqual(current.hashes.es, current.hashes.en);
 });
