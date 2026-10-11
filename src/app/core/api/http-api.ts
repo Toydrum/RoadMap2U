@@ -13,6 +13,16 @@ import {
   BillingActionView,
   BillingRedirectView,
   BillingSummary,
+  IndividualBillingCatalog,
+  IndividualBillingSummary,
+  IndividualCheckoutRequest,
+  IndividualPortalRequest,
+  IndividualBillingCommandResult,
+  isIndividualBillingCatalog,
+  isIndividualBillingSummary,
+  isIndividualCheckoutRequest,
+  isIndividualPortalRequest,
+  isIndividualBillingCommandResult,
   CodeGrant,
   CreateAdditionalResponsibleInvitationRequest,
   CreateAdultFriendRequestRequest,
@@ -319,6 +329,28 @@ export class HttpApi implements ApiClient {
   }
 
   // ── billing v1 ────────────────────────────────────────────────────────────
+  async getIndividualBillingCatalog(): Promise<IndividualBillingCatalog> {
+    const result = await this.request('GET', API_PATHS.individualBillingCatalog, undefined, { authenticated: false });
+    if (!isIndividualBillingCatalog(result)) throw new ApiError('server');
+    return result;
+  }
+  async getIndividualBillingSummary(): Promise<IndividualBillingSummary> {
+    const result = await this.request('GET', API_PATHS.individualBillingSummary);
+    if (!isIndividualBillingSummary(result)) throw new ApiError('server');
+    return result;
+  }
+  async createIndividualCheckout(req: IndividualCheckoutRequest): Promise<IndividualBillingCommandResult> {
+    if (!isIndividualCheckoutRequest(req)) throw new ApiError('VALIDATION');
+    const result = await this.request('POST', API_PATHS.individualBillingCheckout, req, { idempotent: true });
+    if (!isIndividualBillingCommandResult(result)) throw new ApiError('server');
+    return result;
+  }
+  async createIndividualPortalSession(req: IndividualPortalRequest): Promise<IndividualBillingCommandResult> {
+    if (!isIndividualPortalRequest(req)) throw new ApiError('VALIDATION');
+    const result = await this.request('POST', API_PATHS.individualBillingPortal, req, { idempotent: true });
+    if (!isIndividualBillingCommandResult(result)) throw new ApiError('server');
+    return result;
+  }
   getBillingSummary(): Promise<BillingSummary> {
     return this.request('GET', API_PATHS.billingSummary);
   }

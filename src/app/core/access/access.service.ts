@@ -100,6 +100,10 @@ function isTimestamp(value: unknown): value is number {
 
 function isSource(value: unknown, now: number): value is AccessSource {
   if (!isObject(value)) return false;
+  // Individual access never consumes household coverage, even if a malformed
+  // response labels that coverage as sponsored or paid Premium.
+  if (value['householdId'] !== undefined || value['seatType'] !== undefined ||
+      (value['scope'] !== undefined && value['scope'] !== 'individual')) return false;
   if (
     value['kind'] === 'default' &&
     value['sourceId'] === 'default' &&
@@ -109,17 +113,18 @@ function isSource(value: unknown, now: number): value is AccessSource {
     return true;
   }
 
-  // `subscription` is reserved in the wire type for the later payments
-  // phase. This launch has no live billing source, and every issued grant is
-  // the allowlisted Premium sponsored offer.
+  const individualPaid = value['kind'] === 'subscription' &&
+    value['scope'] === 'individual' && isTimestamp(value['validUntil']) &&
+    value['validUntil'] > now;
+  const sponsored = value['kind'] === 'sponsored' &&
+    (value['validUntil'] === null ||
+      (isTimestamp(value['validUntil']) && value['validUntil'] > now));
   return (
-    value['kind'] === 'sponsored' &&
+    (individualPaid || sponsored) &&
     typeof value['sourceId'] === 'string' &&
     value['sourceId'].length > 0 &&
     value['sourceId'].length <= 128 &&
-    value['planKey'] === 'premium' &&
-    (value['validUntil'] === null ||
-      (isTimestamp(value['validUntil']) && (value['validUntil'] as number) > now))
+    value['planKey'] === 'premium'
   );
 }
 
@@ -135,7 +140,9 @@ function hasCanonicalEntitlements(
     sourceIds.size === sources.length &&
     (planKey === 'free'
       ? sources.length === 1 && sources[0]?.kind === 'default'
-      : sources.length > 0 && sources.every((source) => source.kind === 'sponsored'));
+      : sources.length > 0 &&
+        sources.filter((source) => source.kind === 'subscription').length <= 1 &&
+        sources.every((source) => source.kind === 'sponsored' || source.kind === 'subscription'));
 
   return (
     canonicalSources &&
@@ -223,6 +230,7 @@ function normalizeSummary(value: unknown, now: number): AccessSummary {
       sourceId: source.sourceId,
       planKey: source.planKey,
       validUntil: source.validUntil,
+      ...(source.scope === 'individual' ? { scope: 'individual' as const } : {}),
     })),
     limits: {
       maxActiveTrees: limits['maxActiveTrees'],

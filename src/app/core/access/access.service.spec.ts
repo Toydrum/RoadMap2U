@@ -179,6 +179,51 @@ describe('PlanCatalogService', () => {
 describe('AccessService', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
+  it('accepts a finite individual paid source and keeps its paid boundary offline', async () => {
+    const paidThrough = NOW + 60_000;
+    const service = configure({ api: apiWith({ getAccess: vi.fn(async () => premium({
+      activeSources: [{ kind: 'subscription', sourceId: 'paid-individual', scope: 'individual', planKey: 'premium', validUntil: paidThrough }],
+      nextRecomputeAt: null,
+      offlineValidUntil: NOW + ACCESS_OFFLINE_LEASE_MS * 2,
+    })) }) });
+    await service.refresh();
+    expect(service.access().effectivePlanKey).toBe('premium');
+    expect(service.access().offlineValidUntil).toBe(paidThrough);
+    expect(service.access().activeSources[0]?.scope).toBe('individual');
+  });
+
+  it('accepts sponsored and individual sources together then preserves sponsorship after paid expiry', async () => {
+    const clock = runtime();
+    const grant = premium().activeSources[0]!;
+    const getAccess = vi.fn(async () => premium({
+      activeSources: [{ kind: 'subscription', scope: 'individual', sourceId: 'paid-individual', planKey: 'premium', validUntil: NOW + 60_000 }, grant],
+      nextRecomputeAt: null,
+    }));
+    const service = configure({ runtime: clock, api: apiWith({ getAccess }) });
+    await service.refresh();
+    expect(service.access().activeSources).toHaveLength(2);
+    expect(service.access().offlineValidUntil).toBe(NOW + 60_000);
+    clock.nowValue = NOW + 60_000;
+    getAccess.mockResolvedValue(premium({ activeSources: [grant] }));
+    await service.refresh();
+    expect(service.access().effectivePlanKey).toBe('premium');
+    expect(service.access().activeSources).toEqual([grant]);
+  });
+
+  it.each([
+    { scope: 'family_member' },
+    { scope: 'individual', householdId: 'other-household' },
+    { scope: 'individual', seatType: 'minor' },
+    { scope: 'individual', validUntil: null },
+    { scope: 'individual', validUntil: NOW },
+  ])('rejects an untrusted subscription shape %j', async (fields) => {
+    const invalid = premium({ activeSources: [{ kind: 'subscription', sourceId: 'paid', planKey: 'premium', validUntil: NOW + 60_000, ...fields } as AccessSummary['activeSources'][number]] });
+    const service = configure({ api: apiWith({ getAccess: vi.fn(async () => invalid) }) });
+    await service.refresh();
+    expect(service.access().effectivePlanKey).toBe('free');
+    expect(service.lastError()).toBe('unknown');
+  });
+
   it('paints a valid user-scoped cache first and preserves it when refresh fails', async () => {
     const cache = cachePort();
     cache.rows.set('rocio', premium());

@@ -14,6 +14,13 @@ import {
   BillingCommandBase,
   BillingRedirectView,
   BillingSummary,
+  IndividualBillingCatalog,
+  IndividualBillingSummary,
+  IndividualCheckoutRequest,
+  IndividualPortalRequest,
+  IndividualBillingCommandResult,
+  isIndividualCheckoutRequest,
+  isIndividualPortalRequest,
   CONTRACT_VERSION,
   CONSENT_KINDS,
   CURRENT_MINOR_LINK_PRIVACY_VERSION,
@@ -82,6 +89,7 @@ import {
 import { AuthProvider } from '../auth/auth-provider';
 import { USERNAME_PATTERN } from '../auth/auth-types';
 import { MockAdultPrivacy } from './mock-privacy';
+import { MockIndividualBilling } from './mock-individual-billing';
 import { parseMockToken } from '../auth/mock-auth.provider';
 import {
   MockCodeRow,
@@ -165,13 +173,16 @@ export function hasCompleteMinorFriendConsents(kinds: readonly ConsentKind[]): b
  */
 export class MockApi implements ApiClient {
   private readonly privacy: MockAdultPrivacy;
+  private readonly individualBilling: MockIndividualBilling;
   constructor(
     private readonly auth: AuthProvider,
     options: {
       adultPrivacyMode?: 'off' | 'enforce';
       privateAdolescentMode?: 'off' | 'enforce';
+      individualPaymentsEnabled?: boolean;
     } = {},
   ) {
+    this.individualBilling = new MockIndividualBilling(options.individualPaymentsEnabled === true);
     this.privacy = new MockAdultPrivacy(
       options.adultPrivacyMode ?? 'off',
       options.privateAdolescentMode ?? 'off',
@@ -190,6 +201,10 @@ export class MockApi implements ApiClient {
             : undefined,
           emailVerified: payload.email_verified === true,
         };
+      },
+      async (user) => {
+        const source = await this.individualBilling.source(user);
+        return source ? { validUntil: source.validUntil ?? null } : null;
       },
     );
   }
@@ -229,6 +244,18 @@ export class MockApi implements ApiClient {
     const caller = await this.caller();
     if (caller.accountType === 'minor' && caller.privacyMode === 'adolescent_private')
       return createFreeAccessSummary();
+    const individual = await this.individualBilling.source(caller);
+    if (individual) {
+      const fallback = createFreeAccessSummary();
+      return {
+        ...fallback, effectivePlanKey: 'premium', activeSources: [individual],
+        limits: { ...PREPAYMENT_PLAN_CATALOG.plans.premium.limits },
+        capabilities: { ...PREPAYMENT_PLAN_CATALOG.plans.premium.capabilities },
+        revision: (await this.individualBilling.summary(caller)).revision,
+        nextRecomputeAt: individual.validUntil,
+        offlineValidUntil: Math.min(fallback.offlineValidUntil, individual.validUntil!),
+      };
+    }
     const coverage = await mockGet<MockCoverageRow>('coverages', caller.userId);
     if (
       !coverage ||
@@ -2025,6 +2052,31 @@ export class MockApi implements ApiClient {
   }
 
   // ── billing v1 ────────────────────────────────────────────────────────────
+  async getIndividualBillingCatalog(): Promise<IndividualBillingCatalog> {
+    return this.individualBilling.catalog();
+  }
+  async getIndividualBillingSummary(): Promise<IndividualBillingSummary> {
+    const caller = await this.caller(true);
+    if (caller.accountType !== 'adult') throw new ApiError('BILLING_BUYER_INELIGIBLE');
+    return this.individualBilling.summary(caller);
+  }
+  async createIndividualCheckout(req: IndividualCheckoutRequest): Promise<IndividualBillingCommandResult> {
+    if (!isIndividualCheckoutRequest(req)) throw new ApiError('VALIDATION');
+    return this.withAccountMutation(async (caller) => {
+      if (caller.accountType !== 'adult') throw new ApiError('BILLING_BUYER_INELIGIBLE');
+      const token = await this.auth.idToken();
+      if (!token || parseMockToken(token)?.email_verified !== true) throw new ApiError('EMAIL_VERIFICATION_REQUIRED');
+      if (!(await this.privacy.status(caller)).adultDeclared) throw new ApiError('ADULT_DECLARATION_REQUIRED');
+      return this.individualBilling.command(caller, req, 'checkout');
+    }, async () => [], async () => [], true);
+  }
+  async createIndividualPortalSession(req: IndividualPortalRequest): Promise<IndividualBillingCommandResult> {
+    if (!isIndividualPortalRequest(req)) throw new ApiError('VALIDATION');
+    return this.withAccountMutation(async (caller) => {
+      if (caller.accountType !== 'adult') throw new ApiError('BILLING_BUYER_INELIGIBLE');
+      return this.individualBilling.command(caller, req, 'portal');
+    }, async () => [], async () => [], true);
+  }
   async getBillingSummary(): Promise<BillingSummary> {
     await simLatency('api.getBillingSummary');
     const caller = await this.caller();
