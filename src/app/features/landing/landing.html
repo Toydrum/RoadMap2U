@@ -156,12 +156,23 @@
           <div class="plan-head">
             <div class="plan-name-row">
               <h3>{{ copy().landing.plans.premium.name }}</h3>
-              <span class="coming-soon">{{ copy().landing.plans.premium.badge }}</span>
+              <span class="coming-soon individual-offer-status" aria-live="polite">{{
+                plans.individualLoading()
+                  ? copy().billing.loading
+                  : plans.individualError()
+                    ? copy().billing.catalogUnavailable
+                    : plans.individualCatalog()?.purchasesEnabled
+                      ? copy().billing.available
+                      : copy().billing.purchasesClosed
+              }}</span>
             </div>
-            <div class="premium-prices">
-              <strong>{{ copy().landing.plans.premium.monthly }}</strong>
-              <span>{{ copy().landing.plans.premium.yearly }}</span>
-            </div>
+            @if (plans.individualCatalog()) {
+              <div class="premium-prices">
+                <strong>{{ price('month') }}</strong>
+                <span>{{ price('year') }}</span>
+              </div>
+              <p>{{ copy().billing.taxIncluded }}</p>
+            }
             <p>{{ copy().landing.plans.premium.summary }}</p>
           </div>
           <div class="plan-body">
@@ -171,9 +182,13 @@
                 <li><span aria-hidden="true">✓</span>{{ feature }}</li>
               }
             </ul>
-            <p class="plan-note">{{ copy().landing.plans.premium.note }}</p>
+            <p class="plan-note">
+              {{ copy().billing.sameCapabilities }} {{ copy().billing.recurring }}
+            </p>
           </div>
-          <a class="button button-quiet" href="#faq">{{ copy().landing.plans.premium.cta }}</a>
+          <a class="button button-quiet" routerLink="/account/subscription">{{
+            copy().billing.accountLink
+          }}</a>
         </article>
       </div>
     </section>
@@ -230,6 +245,9 @@
     <nav [attr.aria-label]="copy().landing.nav.label">
       <a routerLink="/privacy">{{ copy().landing.footer.privacy }}</a>
       <a routerLink="/terms">{{ copy().landing.footer.terms }}</a>
+      <a routerLink="/subscription-terms" [queryParams]="{ lang: lang() }">{{
+        copy().billing.termsTitle
+      }}</a>
       <a routerLink="/support">{{ copy().landing.footer.support }}</a>
       <a routerLink="/support">{{ copy().landing.footer.contact }}</a>
     </nav>

@@ -497,6 +497,10 @@
           </div>
         } @else {
           <app-privacy-panel />
+          @if (auth.user()?.accountType === 'adult' && privacy.status()?.scope === 'adult') {
+            <a class="btn btn-soft billing-account-link" routerLink="/account/subscription">{{ i18n.t().billing.accountLink }}</a>
+            <p class="hint">{{ i18n.t().billing.settingsHint }}</p>
+          }
           @if (auth.user()?.accountType === 'adult' && !privacy.status()?.privateOnly) {
             <div class="card access-card">
               <app-access-key-form (redeemed)="redeemCompleted.set(true)" />
