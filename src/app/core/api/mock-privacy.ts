@@ -71,7 +71,7 @@ const declaredNameValid = (value: unknown): value is string =>
 const premiumCurrent = (coverage: MockCoverageRow | undefined, accountId: string) =>
   coverage?.accountId === accountId &&
   ['active', 'grace_period', 'scheduled_end'].includes(coverage.state) &&
-  (coverage.validUntil === null || coverage.validUntil > Date.now());
+  (coverage.validUntil === null || (Number.isSafeInteger(coverage.validUntil) && coverage.validUntil > Date.now()));
 export const mockPrivateInvitationKey = (id: string) => `private-adolescent-invitation:${id}`;
 const requestText = (value: object) =>
   JSON.stringify(Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))));
@@ -82,7 +82,19 @@ export class MockAdultPrivacy {
     private readonly authentication?: (
       user: MockUserRow,
     ) => Promise<{ authenticatedAt?: number; emailVerified?: boolean }>,
+    private readonly individualPremium?: (
+      user: MockUserRow,
+    ) => Promise<{ validUntil: number | null } | null>,
   ) {}
+  private async parentPremium(user: MockUserRow): Promise<{ validUntil: number | null } | null> {
+    user = await this.active(user);
+    if (user.accountType !== 'adult') return null;
+    const individual = await this.individualPremium?.(user);
+    if (individual && Number.isSafeInteger(individual.validUntil) && individual.validUntil! > Date.now())
+      return individual;
+    const coverage = await mockGet<MockCoverageRow>('coverages', user.userId);
+    return premiumCurrent(coverage, user.userId) ? { validUntil: coverage!.validUntil } : null;
+  }
   private async recentConfirmed(user: MockUserRow) {
     const evidence = await this.authentication?.(user);
     if (
@@ -147,7 +159,7 @@ export class MockAdultPrivacy {
       user.majorityAt > privacyCalendarDate()
     );
   }
-  private async parent(state: State) {
+  private async parent(state: Pick<State, 'guardianId' | 'guardianInstance'>) {
     const user = state.guardianId
       ? await mockGet<MockUserRow>('users', state.guardianId)
       : undefined;
@@ -209,13 +221,8 @@ export class MockAdultPrivacy {
       ? { kind: 'responsible_premium', state: 'unavailable', validUntil: null }
       : undefined;
     if (adolescent && guardianCurrent && item?.guardianId) {
-      const coverage = await mockGet<MockCoverageRow>('coverages', item.guardianId);
-      if (
-        coverage?.accountId === item.guardianId &&
-        ['active', 'grace', 'scheduled_end'].includes(coverage.state) &&
-        (coverage.validUntil === null ||
-          (Number.isSafeInteger(coverage.validUntil) && coverage.validUntil > Date.now()))
-      ) {
+      const coverage = await this.parentPremium((await this.parent(item)).user);
+      if (coverage) {
         cloudCoverage = {
           kind: 'responsible_premium',
           state: 'active',
@@ -423,7 +430,7 @@ export class MockAdultPrivacy {
           throw new ApiError('PRIVACY_REVISION_CONFLICT');
         return this.invitationView(old.value);
       }
-      if (!premiumCurrent(await mockGet<MockCoverageRow>('coverages', user.userId), user.userId))
+      if (!(await this.parentPremium(user)))
         throw new ApiError('CAPABILITY_REQUIRED');
       const all = await mockGetAll<{ key: string; value: Invitation }>('kv');
       if (
@@ -589,10 +596,7 @@ export class MockAdultPrivacy {
         throw new ApiError('FORBIDDEN');
       if (
         invite.authorizationMethod === 'account_attestation' &&
-        !premiumCurrent(
-          await mockGet<MockCoverageRow>('coverages', invite.guardianId),
-          invite.guardianId,
-        )
+        !(await this.parentPremium((await this.parent({ guardianId: invite.guardianId, guardianInstance: invite.guardianInstance })).user))
       )
         throw new ApiError('CAPABILITY_REQUIRED');
       for (const store of [

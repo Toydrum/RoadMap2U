@@ -1,7 +1,9 @@
 import { APP_BASE_HREF } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { PUBLIC_INDIVIDUAL_CATALOG } from '../../core/api/public-individual-catalog';
+import { CLOSED_INDIVIDUAL_BILLING_CATALOG } from '../../core/api/contracts';
 import { AuthService } from '../../core/auth/auth.service';
 import { BootService } from '../../core/boot.service';
 import { EN } from '../../core/i18n/en';
@@ -12,6 +14,56 @@ import { LandingPage } from './landing';
 import { marketingTreeModel } from './marketing-tree';
 
 describe('commercial landing foundation', () => {
+  it('shows the actual individual catalog availability and opens the subscription account door', async () => {
+    await TestBed.configureTestingModule({
+      imports: [LandingPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: PUBLIC_INDIVIDUAL_CATALOG,
+          useValue: async () => ({ ...CLOSED_INDIVIDUAL_BILLING_CATALOG, purchasesEnabled: true }),
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(LandingPage);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(root.querySelector('.individual-offer-status')?.textContent ?? '').toContain(
+        ES.billing.available,
+      );
+    });
+    expect(root.querySelector('.premium-plan a')?.getAttribute('href')).toBe(
+      '/account/subscription',
+    );
+    expect(root.querySelector('.premium-prices')?.textContent).toContain('$99 MXN');
+    expect(root.querySelector('.premium-prices')?.textContent).toContain('$949 MXN');
+    expect(root.querySelector('.premium-plan')?.textContent).toContain(ES.billing.recurring);
+  });
+  it('keeps the individual offer closed when the public catalog is unavailable', async () => {
+    await TestBed.configureTestingModule({
+      imports: [LandingPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: PUBLIC_INDIVIDUAL_CATALOG,
+          useValue: async () => {
+            throw new Error('offline');
+          },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(LandingPage);
+    fixture.detectChanges();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('.individual-offer-status')
+          ?.textContent ?? '',
+      ).toContain(ES.billing.catalogUnavailable);
+    });
+  });
   it('keeps the approved hero and prepayment offer exact in both languages', () => {
     expect(ES.landing.hero.eyebrow).toBe('Un mapa vivo para tus planes');
     expect(ES.landing.hero.title).toBe('Haz visible el camino. Hazlo crecer.');

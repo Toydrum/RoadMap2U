@@ -31,6 +31,12 @@ export const routes: Routes = [
     data: { legalDocument: 'support' },
   },
   {
+    path: 'subscription-terms',
+    pathMatch: 'full',
+    loadComponent: () => import('./features/landing/legal-page').then((m) => m.LegalPage),
+    data: { legalDocument: 'subscription' },
+  },
+  {
     path: 'account',
     loadChildren: () => import('./features/shell/account.routes').then((m) => m.ACCOUNT_ROUTES),
   },

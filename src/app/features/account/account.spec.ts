@@ -15,6 +15,7 @@ import { ES, type Dict } from '../../core/i18n/es';
 import { BackupService } from '../../core/repos/backup.service';
 import { TreesRepo } from '../../core/repos/trees.repo';
 import { SyncService } from '../../core/sync/sync.service';
+import { PrivacyService } from '../../core/privacy.service';
 import {
   ACCOUNT_CLOSURE_RESTART,
   AccountPage,
@@ -24,6 +25,8 @@ import {
 } from './account';
 
 function accountHarness(dict: Dict = ES) {
+  const privacyScope = signal<'adult' | 'adolescent_private'>('adult');
+  const adultDeclared = signal(true);
   const status = signal<'guest' | 'signedIn'>('guest');
   const user = signal<{
     userId: string;
@@ -80,10 +83,10 @@ function accountHarness(dict: Dict = ES) {
         useValue: {
           getPrivacyStatus: async (language: 'es' | 'en') => ({
             userId: user()!.userId,
-            scope: 'adult',
+            scope: privacyScope(),
             enforcement: 'enforce',
             revision: 1,
-            adultDeclared: true,
+            adultDeclared: adultDeclared(),
             cloudConsent: 'absent',
             canUseCloud: false,
             erasure: 'none',
@@ -120,7 +123,7 @@ function accountHarness(dict: Dict = ES) {
       },
     ],
   });
-  return { auth, closure, constructed, restart, access };
+  return { auth, closure, constructed, restart, access, privacyScope, adultDeclared };
 }
 
 describe('private adolescent admission copy', () => {
@@ -380,4 +383,37 @@ describe('account sponsored access UI', () => {
     expect(fixture.nativeElement.querySelector('app-access-key-form')).not.toBeNull();
     expect(fixture.nativeElement.textContent as string).toContain(ES.access.key.title);
   });
+});
+
+describe('account individual subscription entry', () => {
+  beforeEach(() => TestBed.resetTestingModule());
+
+  it.each([
+    ['adult', true, true],
+    ['adolescent_private', false, false],
+    ['adult', false, true],
+  ] as const)(
+    'uses canonical %s privacy when auth still has the initial adult claim',
+    async (scope, declared, visible) => {
+      const h = accountHarness();
+      h.closure.receipt.set(null);
+      h.privacyScope.set(scope);
+      h.adultDeclared.set(declared);
+      h.auth.user.set({
+        userId: 'owner-a',
+        username: 'owner-a',
+        displayName: 'Owner',
+        email: 'owner@example.test',
+        accountType: 'adult',
+      });
+      h.auth.status.set('signedIn');
+      const fixture = TestBed.createComponent(AccountPage);
+      fixture.detectChanges();
+      await TestBed.inject(PrivacyService).refresh('es');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(Boolean(fixture.nativeElement.querySelector('.billing-account-link'))).toBe(visible);
+    },
+  );
 });

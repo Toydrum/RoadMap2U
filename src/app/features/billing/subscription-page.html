@@ -1,0 +1,184 @@
+<main class="container billing-page" id="billing-main">
+  <header>
+    <a routerLink="/account">← {{ i18n.t().billing.accountBack }}</a>
+    <div class="billing-languages" role="group" [attr.aria-label]="i18n.t().landing.nav.language">
+      <button
+        type="button"
+        class="chip"
+        [attr.aria-pressed]="i18n.lang() === 'es'"
+        (click)="i18n.set('es')"
+      >
+        {{ i18n.t().landing.nav.spanish }}
+      </button>
+      <button
+        type="button"
+        class="chip"
+        [attr.aria-pressed]="i18n.lang() === 'en'"
+        (click)="i18n.set('en')"
+      >
+        {{ i18n.t().landing.nav.english }}
+      </button>
+    </div>
+  </header>
+  <h1 #heading tabindex="-1">{{ i18n.t().billing.title }}</h1>
+  <p>{{ i18n.t().billing.intro }}</p>
+  @if (!auth.user()) {
+    <section class="card billing-card">
+      <p>{{ i18n.t().billing.signInHint }}</p>
+      <a
+        class="btn billing-sign-in"
+        routerLink="/account"
+        [queryParams]="{ volver: '/account/subscription' }"
+        >{{ i18n.t().billing.signIn }}</a
+      >
+    </section>
+  } @else if (billing(); as bill) {
+    <section
+      #status
+      tabindex="-1"
+      class="card billing-card billing-status"
+      role="status"
+      aria-live="polite"
+      [attr.aria-busy]="bill.loading() || bill.busy()"
+    >
+      @if (returned) {
+        <p>{{ i18n.t().billing.returnNotice }}</p>
+      }
+      @if (bill.busy()) {
+        <p>{{ i18n.t().billing.opening }}</p>
+      } @else if (bill.loading()) {
+        <p>{{ i18n.t().billing.loading }}</p>
+      }
+      @if (bill.confirmation() === 'waiting') {
+        <p class="billing-waiting">{{ i18n.t().billing.waiting }}</p>
+      } @else if (bill.pending()) {
+        <p class="billing-pending">{{ i18n.t().billing.pending }}</p>
+      }
+      @if (bill.summary(); as summary) {
+        <p>{{ stateText(summary.state) }}</p>
+        @if (summary.paidThrough !== null) {
+          <p>{{ i18n.fill(i18n.t().billing.paidThrough, { date: date(summary.paidThrough!) }) }}</p>
+        }
+        @if (summary.cancelAtPeriodEnd) {
+          <p>{{ i18n.t().billing.cancellation }}</p>
+        }
+        @if (summary.nextRenewalAt !== null && !summary.cancelAtPeriodEnd) {
+          <p>
+            {{ i18n.fill(i18n.t().billing.nextRenewal, { date: date(summary.nextRenewalAt!) }) }}
+          </p>
+        }
+        @if (summary.canOpenPortal && canonicalAdult()) {
+          <button
+            type="button"
+            class="btn billing-portal"
+            [disabled]="bill.busy()"
+            (click)="portal()"
+          >
+            {{ i18n.t().billing.portal }}
+          </button>
+        }
+      }
+      <p class="billing-access">
+        {{
+          access()?.effectivePlanKey === 'premium'
+            ? i18n.t().billing.accessPremium
+            : i18n.t().billing.accessFree
+        }}
+      </p>
+      <p class="hint">{{ i18n.t().billing.sponsor }}</p>
+      @if (errorText()) {
+        <p class="billing-error" role="alert">{{ errorText() }}</p>
+      }
+      <button
+        type="button"
+        class="btn btn-soft billing-refresh"
+        [disabled]="bill.loading() || bill.busy()"
+        (click)="recheck()"
+      >
+        {{ i18n.t().billing.refresh }}
+      </button>
+    </section>
+    @if (catalog.individualCatalog(); as offer) {
+      <section class="card billing-card billing-offer">
+        <h2>{{ i18n.t().landing.plans.premium.name }}</h2>
+        <p class="billing-prices">
+          <strong>{{ price('month') }}</strong
+          ><span>{{ price('year') }}</span>
+        </p>
+        <p>{{ i18n.t().billing.taxIncluded }}</p>
+        <p>{{ i18n.t().billing.sameCapabilities }}</p>
+        <p>{{ i18n.t().billing.recurring }}</p>
+        @if (!offer.purchasesEnabled) {
+          <p class="billing-closed">{{ i18n.t().billing.purchasesClosed }}</p>
+        } @else if (adultAdmissionPending()) {
+          <p role="status">{{ i18n.t().billing.loading }}</p>
+        } @else if (!eligibleBuyer()) {
+          <p>{{ i18n.t().billing.adultOnly }}</p>
+        } @else if (bill.canCheckout()) {
+          <form (submit)="$event.preventDefault(); checkout()">
+            <fieldset>
+              <legend>{{ i18n.t().billing.sameCapabilities }}</legend>
+              <label
+                ><input
+                  type="radio"
+                  name="billing-interval"
+                  value="month"
+                  [checked]="interval() === 'month'"
+                  (change)="interval.set('month')"
+                />{{ price('month') }}</label
+              >
+              <label
+                ><input
+                  type="radio"
+                  name="billing-interval"
+                  value="year"
+                  [checked]="interval() === 'year'"
+                  (change)="interval.set('year')"
+                />{{ price('year') }}</label
+              >
+            </fieldset>
+            @if (!termsMatch()) {
+              <p>{{ i18n.t().billing.catalogUnavailable }}</p>
+            }
+            <label class="billing-choice"
+              ><input
+                id="billing-terms"
+                type="checkbox"
+                [checked]="acceptsTerms()"
+                (change)="acceptsTerms.set(checked($event))"
+              />{{ i18n.t().billing.termsAccept }}</label
+            >
+            <label class="billing-choice"
+              ><input
+                id="billing-country"
+                type="checkbox"
+                [checked]="mexico()"
+                (change)="mexico.set(checked($event))"
+              />{{ i18n.t().billing.countryAccept }}</label
+            >
+            <button type="submit" class="btn billing-checkout" [disabled]="!canCheckout()">
+              {{ i18n.t().billing.checkout }}
+            </button>
+          </form>
+        }
+      </section>
+    } @else if (catalog.individualError()) {
+      <p role="status">{{ i18n.t().billing.catalogUnavailable }}</p>
+    }
+  }
+  <section class="card billing-card billing-terms">
+    <h2>{{ i18n.t().billing.termsTitle }}</h2>
+    <p class="hint">{{ i18n.t().billing.termsDraft }}</p>
+    <details>
+      <summary>{{ i18n.t().billing.termsRead }}</summary>
+      <p>{{ document()?.text }}</p>
+    </details>
+    <a routerLink="/subscription-terms" [queryParams]="{ lang: i18n.lang() }">{{
+      i18n.t().billing.termsTitle
+    }}</a>
+  </section>
+  <section class="billing-support">
+    <p>{{ i18n.t().billing.supportHint }}</p>
+    <a routerLink="/support">{{ i18n.t().billing.support }}</a>
+  </section>
+</main>

@@ -13,6 +13,7 @@ describe('public legal documents', () => {
     ['privacy', 'Aviso de privacidad', 'Privacy notice'],
     ['terms', 'Términos de uso', 'Terms of use'],
     ['support', 'Soporte y cuidado', 'Support and care'],
+    ['subscription-terms', 'Condiciones de suscripción', 'Subscription terms'],
   ]) {
     it(`opens /${path} directly without starting the product or auth`, async () => {
       const constructed: string[] = [];

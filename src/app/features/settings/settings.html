@@ -297,6 +297,10 @@
           </a>
         </div>
       }
+      @if (user.accountType === 'adult' && privacy.status()?.scope === 'adult' && !closure.receipt()) {
+        <a class="btn btn-soft billing-account-link" routerLink="/account/subscription">{{ i18n.t().billing.accountLink }}</a>
+        <p class="hint">{{ i18n.t().billing.settingsHint }}</p>
+      }
     } @else {
       <p class="hint">{{ i18n.t().settings.accountGuestHint }}</p>
       <a class="btn btn-soft" routerLink="/account">🗝 {{ i18n.t().settings.accountOpen }}</a>

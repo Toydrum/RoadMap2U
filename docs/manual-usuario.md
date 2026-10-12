@@ -414,6 +414,24 @@ Sí: planta un árbol por cada una. Con tres o más, el arroyo aparece en tu bos
 
 ---
 
+# Mi suscripción individual
+
+Desde **Cuenta** o **Ajustes → Mi suscripción** consulto la oferta vigente, mi periodo pagado y el Portal. La página pública muestra la disponibilidad real; cuando las compras están cerradas puedo seguir gestionando una suscripción existente, aunque Premium haya terminado.
+
+Premium individual es para mi propia cuenta adulta con correo confirmado, en México: **$99 MXN cada mes o $949 MXN cada año**, precio final con impuestos incluidos y las mismas capacidades. La renovación es automática. Leo las condiciones recurrentes y marco por separado mi aceptación y mi residencia en México antes de salir al Checkout de Stripe. Puedo cancelar la renovación en el Portal y conservar el periodo pagado. No hay prueba gratuita, cupones, cambios de modalidad durante la suscripción ni días de gracia.
+
+Al volver de Stripe, la app consulta el resumen y el acceso durante un máximo de un minuto. La dirección de retorno nunca concede Premium. Si la confirmación sigue pendiente, **Consulto de nuevo** o **Pido ayuda**, sin iniciar otro pago. El Portal permite gestionar tarjeta, recibos y cancelación de renovación. Soporte atiende aclaraciones, devoluciones y CFDI en **overseer@roadmap2u.com**; el recibo de Stripe no es un CFDI. Una devolución total retira el periodo afectado, una parcial conserva el acceso y una disputa suspende el periodo afectado y detiene renovaciones.
+
+Terminar Premium conserva mi bosque local y otros patrocinios vigentes. La compra no sustituye mis decisiones de privacidad, no concede Premium al adolescente y no habilita funciones familiares. Cerrar la cuenta detiene renovaciones y no solicita automáticamente una devolución. Las [condiciones comerciales](condiciones-suscripcion-borrador.md) son un borrador pendiente de aprobación comercial y fiscal antes de cobros reales.
+
+## My individual subscription
+
+From **Account** or **Settings → My subscription** I check the current offer, paid period and Portal. Individual Premium is for my own adult account with confirmed email in Mexico: **$99 MXN monthly or $949 MXN yearly**, final price including taxes, with the same capabilities. Renewal is automatic; I separately accept the recurring conditions and confirm Mexico before Checkout. I cancel renewal in the Portal and keep my paid period. There are no trials, coupons, interval changes during a subscription or grace days.
+
+After returning from Stripe, the app checks summary and access for at most one minute. A return URL never grants Premium. If confirmation remains pending, I check again or ask for help without paying again. The Portal remains available for an existing subscription after expiry or when purchases are closed. My local forest and other current sponsored grants remain; privacy is separate and adolescents receive neither personal Premium nor family functions. Support handles refunds, questions and CFDI at **overseer@roadmap2u.com**; a Stripe receipt is not a CFDI. The commercial terms remain a draft awaiting commercial and fiscal approval before live charges.
+
+---
+
 # Glosario del bosque
 
 | Término | Qué es |

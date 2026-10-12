@@ -26,12 +26,26 @@ export class LegalPage {
         return this.copy().legal.terms;
       case 'support':
         return this.copy().legal.support;
+      case 'subscription':
+        return {
+          title: this.copy().billing.termsTitle,
+          intro: this.copy().billing.termsDraft,
+          sections: [
+            {
+              title: this.copy().billing.termsVersion,
+              paragraphs: [this.copy().billing.termsText],
+            },
+          ],
+        };
       default:
         throw new Error('Unknown public legal document');
     }
   });
 
   constructor() {
+    const requestedLanguage = inject(ActivatedRoute).snapshot.queryParamMap.get('lang');
+    if (requestedLanguage === 'es' || requestedLanguage === 'en')
+      this.locale.set(requestedLanguage);
     effect(() => this.title.setTitle(this.copy().app.name + ' — ' + this.document().title));
   }
 

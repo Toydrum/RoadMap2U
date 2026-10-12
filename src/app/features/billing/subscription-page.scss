@@ -1,0 +1,92 @@
+:host {
+  display: block;
+}
+.billing-page {
+  max-width: 48rem;
+  padding-block: 1.5rem 4rem;
+  overflow-wrap: anywhere;
+}
+header,
+.billing-languages {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+h1 {
+  margin-block: 1.5rem 0.5rem;
+}
+.billing-card {
+  margin-block: 1rem;
+  padding: clamp(1rem, 4vw, 1.6rem);
+}
+.billing-prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  align-items: baseline;
+}
+.billing-prices strong {
+  font-size: 1.4em;
+}
+fieldset {
+  margin-block: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  padding: 1rem;
+}
+fieldset label,
+.billing-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  margin-block: 0.8rem;
+  line-height: 1.6;
+}
+input {
+  flex: none;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-top: 0.2rem;
+  accent-color: var(--primary);
+}
+.btn {
+  white-space: normal;
+  margin-block: 0.4rem;
+  max-width: 100%;
+}
+.billing-closed,
+.billing-pending,
+.billing-waiting,
+.billing-error {
+  padding: 0.8rem;
+  border-inline-start: 3px solid var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
+}
+summary {
+  cursor: pointer;
+  padding-block: 0.7rem;
+}
+.billing-support {
+  padding: 1rem 0.2rem;
+}
+:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 4px;
+}
+h1:focus,
+.billing-status:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 5px;
+}
+@media (max-width: 420px) {
+  .billing-prices {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .billing-checkout,
+  .billing-portal {
+    width: 100%;
+  }
+}

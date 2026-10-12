@@ -1,4 +1,6 @@
-<a class="skip-link" routerLink="." fragment="legal-main" (click)="focusMain()">{{ copy().landing.skip }}</a>
+<a class="skip-link" routerLink="." fragment="legal-main" (click)="focusMain()">{{
+  copy().landing.skip
+}}</a>
 <header class="legal-header">
   <a class="brand" routerLink="/" data-home>
     <img src="brand/roadmap2u-lockup.svg" [alt]="copy().app.name" />
@@ -49,6 +51,9 @@
     }}</a>
     <a routerLink="/support" routerLinkActive="current" ariaCurrentWhenActive="page">{{
       copy().landing.footer.support
+    }}</a>
+    <a routerLink="/subscription-terms" routerLinkActive="current" ariaCurrentWhenActive="page">{{
+      copy().billing.termsTitle
     }}</a>
   </nav>
   <p>{{ copy().landing.footer.rights }}</p>

@@ -1,6 +1,12 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, Injector, inject, signal } from '@angular/core';
 import { API_CLIENT } from '../api/api-client';
-import { PREPAYMENT_PLAN_CATALOG, type PlanCatalog } from '../api/contracts';
+import {
+  PREPAYMENT_PLAN_CATALOG,
+  isIndividualBillingCatalog,
+  type IndividualBillingCatalog,
+  type PlanCatalog,
+} from '../api/contracts';
+import { PUBLIC_INDIVIDUAL_CATALOG } from '../api/public-individual-catalog';
 
 function isLaunchCatalog(value: unknown): value is PlanCatalog {
   if (!value || typeof value !== 'object') return false;
@@ -29,18 +35,57 @@ function isLaunchCatalog(value: unknown): value is PlanCatalog {
 }
 
 /**
- * Public catalog facade. The launch catalog is compiled and immutable; the
- * network response can confirm it, but can never switch payments on or alter
- * the approved prices in a running client.
+ * Keeps the frozen compatibility catalog separate from the strictly validated
+ * individual offer. Public reads do not construct identity or product storage.
  */
 @Injectable({ providedIn: 'root' })
 export class PlanCatalogService {
-  private readonly api = inject(API_CLIENT);
+  private readonly injector = inject(Injector);
+  private readonly readIndividual = inject(PUBLIC_INDIVIDUAL_CATALOG);
   private readonly catalogSignal = signal<PlanCatalog>(PREPAYMENT_PLAN_CATALOG);
   private loaded = false;
   private inFlight: Promise<PlanCatalog> | null = null;
 
   readonly catalog = this.catalogSignal.asReadonly();
+  private readonly individualCatalogState = signal<IndividualBillingCatalog | null>(null);
+  private readonly individualLoadingState = signal(false);
+  private readonly individualErrorState = signal(false);
+  readonly individualCatalog = this.individualCatalogState.asReadonly();
+  readonly individualLoading = this.individualLoadingState.asReadonly();
+  readonly individualError = this.individualErrorState.asReadonly();
+  private individualInFlight: Promise<IndividualBillingCatalog | null> | null = null;
+
+  loadIndividual(): Promise<IndividualBillingCatalog | null> {
+    return this.individualCatalog()
+      ? Promise.resolve(this.individualCatalog())
+      : this.refreshIndividual();
+  }
+
+  refreshIndividual(): Promise<IndividualBillingCatalog | null> {
+    if (this.individualInFlight) return this.individualInFlight;
+    this.individualLoadingState.set(true);
+    this.individualErrorState.set(false);
+    const request = Promise.resolve()
+      .then(() => this.readIndividual())
+      .then((value) => {
+        if (!isIndividualBillingCatalog(value)) throw new Error('invalid individual catalog');
+        const catalog = structuredClone(value);
+        this.individualCatalogState.set(catalog);
+        return catalog;
+      })
+      .catch(() => {
+        // An old open offer cannot survive a failed availability refresh.
+        this.individualCatalogState.set(null);
+        this.individualErrorState.set(true);
+        return null;
+      })
+      .finally(() => {
+        if (this.individualInFlight === request) this.individualInFlight = null;
+        this.individualLoadingState.set(false);
+      });
+    this.individualInFlight = request;
+    return request;
+  }
 
   load(): Promise<PlanCatalog> {
     if (this.loaded) return Promise.resolve(this.catalogSignal());
@@ -52,7 +97,8 @@ export class PlanCatalogService {
   }
 
   private fetch(): Promise<PlanCatalog> {
-    const request = this.api
+    const request = this.injector
+      .get(API_CLIENT)
       .getPlans()
       .then((catalog) => {
         if (!isLaunchCatalog(catalog)) throw new Error('invalid plan catalog');
