@@ -19,11 +19,14 @@ describe('individual subscription entry and commercial copy', () => {
       const billing = (
         dictionary as unknown as { billing?: { termsText: string; termsVersion: string } }
       ).billing;
-      expect(billing?.termsVersion).toBe('individual-subscription-2026-10-11-draft-v1');
-      expect(billing?.termsText).toContain('$99 MXN');
-      expect(billing?.termsText).toContain('$949 MXN');
+      expect(billing?.termsVersion).toBe('individual-subscription-2026-10-12-draft-v2');
+      expect(billing?.termsText).toContain('$114.84 MXN');
+      expect(billing?.termsText).toContain('$1,100.84 MXN');
       expect(billing?.termsText).toContain('overseer@roadmap2u.com');
       expect(billing?.termsText).toContain('CFDI');
+      expect(billing?.termsText).toContain('jescricdy1@gmail.com');
+      expect(dictionary.billing.supportHint).toContain('jescricdy1@gmail.com');
+      expect(dictionary.billing.supportHint).toContain('overseer@roadmap2u.com');
     }
   });
 });

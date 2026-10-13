@@ -108,7 +108,7 @@ describe('individual subscription page', () => {
       ).toBe('false');
       expect(
         (fixture.nativeElement as HTMLElement).querySelector('details p')?.textContent,
-      ).toContain('$99 MXN');
+      ).toContain('$114.84 MXN');
     });
     return { fixture, root: fixture.nativeElement as HTMLElement, api, user, privacyStatus };
   }
@@ -137,8 +137,8 @@ describe('individual subscription page', () => {
     (root.querySelector('#billing-country') as HTMLInputElement).click();
     fixture.detectChanges();
     expect(checkout.disabled).toBe(false);
-    expect(root.textContent).toContain('$99 MXN');
-    expect(root.textContent).toContain('$949 MXN');
+    expect(root.textContent).toContain('$114.84 MXN');
+    expect(root.textContent).toContain('$1,100.84 MXN');
     expect(root.textContent).toContain(ES.billing.recurring);
   });
   it('keeps Portal visible after expiry with new purchases closed', async () => {

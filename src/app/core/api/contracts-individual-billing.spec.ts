@@ -36,9 +36,23 @@ describe('individual billing contracts', () => {
   it('keeps the legacy catalog closed and publishes a separate exact individual offer', () => {
     const catalog = (Contracts as unknown as Record<string, unknown>)['CLOSED_INDIVIDUAL_BILLING_CATALOG'];
     expect(accepts('isIndividualBillingCatalog', catalog)).toBe(true);
-    expect(catalog).toMatchObject({ country: 'MX', currency: 'MXN', taxInclusive: true, purchasesEnabled: false, offerKey: 'premium_individual', prices: { month: { amountMinor: 9900 }, year: { amountMinor: 94900 } } });
+    expect(catalog).toMatchObject({ catalogVersion: 'individual-mx-2026-10-v2', country: 'MX', currency: 'MXN', taxInclusive: true, purchasesEnabled: false, offerKey: 'premium_individual', prices: { month: { amountMinor: 11484 }, year: { amountMinor: 110084 } } });
     expect(Contracts.PREPAYMENT_PLAN_CATALOG.paymentsEnabled).toBe(false);
+    expect(Contracts.PREPAYMENT_PLAN_CATALOG.plans.premium.prices).toEqual({ month: { amountMinor: 9900 }, year: { amountMinor: 94900 } });
     expect(accepts('isIndividualBillingCatalog', { ...(catalog as object), customerId: 'injected' })).toBe(false);
+  });
+  it('validates each exact individual price pair against its catalog version', () => {
+    const base = Contracts.CLOSED_INDIVIDUAL_BILLING_CATALOG;
+    const legacy = { ...base, catalogVersion: 'individual-mx-2026-10-v1', prices: { month: { amountMinor: 9900 }, year: { amountMinor: 94900 } } };
+    const current = { ...base, catalogVersion: 'individual-mx-2026-10-v2', prices: { month: { amountMinor: 11484 }, year: { amountMinor: 110084 } } };
+    expect(accepts('isIndividualBillingCatalog', legacy)).toBe(true);
+    expect(accepts('isIndividualBillingCatalog', current)).toBe(true);
+    expect(accepts('isIndividualBillingCatalog', { ...current, prices: legacy.prices })).toBe(false);
+    expect(accepts('isIndividualBillingCatalog', { ...legacy, prices: current.prices })).toBe(false);
+    expect(accepts('isIndividualBillingCatalog', { ...legacy, catalogVersion: 'unrecognized' })).toBe(false);
+    for (const amountMinor of [11483, 11484.5, Infinity, '11484']) {
+      expect(accepts('isIndividualBillingCatalog', { ...current, prices: { ...current.prices, month: { amountMinor } } })).toBe(false);
+    }
   });
   it('validates finite paid periods and closed processing/state vocabularies without grace', () => {
     expect(accepts('isIndividualBillingSummary', summary)).toBe(true);
