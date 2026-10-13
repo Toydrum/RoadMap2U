@@ -84,34 +84,16 @@ export async function provisionCommercialAccess(page) {
   await writeMetaRows(page, [fixture.identity, fixture.cache]);
 }
 
-async function installCommercialAccessGuard(page) {
-  await page.addInitScript(() => {
-    const read = Storage.prototype.getItem;
-    let pendingAccessRefresh = true;
-    Storage.prototype.getItem = function (key) {
-      // Skip only the first token read in each product document: that is
-      // AccessService's eager mock refresh. The authoritative Free mock must
-      // not overwrite this probe-only sponsored lease; every later mock API
-      // call still receives the real token and exercises its normal gates.
-      if (pendingAccessRefresh && key === 'rm2u.mock.idToken') {
-        pendingAccessRefresh = false;
-        return null;
-      }
-      return read.call(this, key);
-    };
-  });
-}
-
 /** Add the commercial fixture to a context that intentionally had to boot
  * without it first (for example, the legacy-database migration probe). The
  * caller performs the next product navigation after its virgin-state checks. */
 export async function provisionCommercialAccessForNextBoot(page) {
-  await installCommercialAccessGuard(page);
   await provisionCommercialAccess(page);
 }
 
-/** Give the identity that just signed in its own lease. A reload is required
- * afterward so AccessService hydrates the new identity-scoped cache. */
+/** Give the identity that just signed in explicit local mock provider facts.
+ * The ordinary API resolves access after reload; existing payment scenarios and
+ * optional privacy consent remain untouched. */
 export async function provisionSignedInAccess(page, { reload = false } = {}) {
   const user = await page.evaluate(
     () =>
@@ -131,10 +113,58 @@ export async function provisionSignedInAccess(page, { reload = false } = {}) {
       }),
   );
   if (!user) throw new Error('the signed-in probe identity was not persisted');
-  await writeMetaRows(page, [commercialAccessFixture(Date.now(), user).cache]);
+  if (new URL(page.url()).origin !== new URL(BASE).origin ||
+      !['localhost', '127.0.0.1'].includes(new URL(BASE).hostname)) {
+    throw new Error('local mock payment fixture only');
+  }
+  await page.evaluate((userId) => new Promise((resolve, reject) => {
+    const token = localStorage.getItem('rm2u.mock.idToken');
+    const identity = token ? JSON.parse(atob(token.split('.')[1])) : null;
+    if (identity?.sub !== userId) return reject(new Error('signed-in mock identity required'));
+    const open = indexedDB.open('roadmap2u-mockcloud');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction(['users', 'kv'], 'readwrite');
+      let invalid;
+      const readUser = tx.objectStore('users').get(userId);
+      readUser.onsuccess = () => {
+        const owner = readUser.result;
+        if (owner?.accountType !== 'adult' || !owner.accountInstanceId ||
+            owner.accountInstanceId !== identity.accountInstanceId) {
+          invalid = new Error('current synthetic adult instance required');
+          tx.abort();
+          return;
+        }
+        const kv = tx.objectStore('kv');
+        const suffix = userId + ':' + owner.accountInstanceId;
+        const key = 'billing.individual.evidence:' + suffix;
+        const evidence = kv.get(key);
+        const pending = kv.get('billing.individual.pending:' + suffix);
+        let remaining = 2;
+        const preserveOrSeed = () => {
+          if (--remaining || evidence.result !== undefined || pending.result !== undefined) return;
+          kv.put({ key, value: {
+            source: 'test_seed',
+            accountId: userId,
+            accountInstanceId: owner.accountInstanceId,
+            invoiceId: 'invoice-battery-' + userId,
+            interval: 'month',
+            paidThrough: Date.now() + 24 * 60 * 60 * 1000,
+            cancelAtPeriodEnd: false,
+            revision: 1,
+          } });
+        };
+        evidence.onsuccess = preserveOrSeed;
+        pending.onsuccess = preserveOrSeed;
+      };
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = tx.onabort = () => { db.close(); reject(invalid ?? tx.error); };
+    };
+  }), user.userId);
   if (reload) {
     await page.reload({ waitUntil: 'networkidle' });
-    await page.locator('h1', { hasText: 'Tu cuenta' }).waitFor();
+    await page.locator('app-account .profile-card').waitFor();
   }
 }
 
@@ -185,9 +215,6 @@ export async function newProbePage(
     await setupPage.close();
   }
   const page = await context.newPage();
-  if (commercialAccess) {
-    await installCommercialAccessGuard(page);
-  }
   return { browser, context, page };
 }
 
@@ -230,8 +257,23 @@ export async function nodeCenter(page, nth = 0) {
   }, nth);
 }
 
-/** Mock-cloud sign-in from anywhere (signs out a prior session first). */
-export async function signInAs(page, username, password, { expect = 'profile' } = {}) {
+/** Positive synthetic adult admission uses the rendered choices and normal API.
+ * It never supplies optional cloud consent or promotes an unsupported minor. */
+export async function admitSyntheticAdult(page) {
+  if (!['localhost', '127.0.0.1'].includes(new URL(BASE).hostname)) throw new Error('local mock admission only');
+  const profile = page.locator('app-account .profile-card');
+  await page.locator('app-account .profile-card, app-account .privacy-panel').first().waitFor();
+  if (await profile.count()) return;
+  const form = page.locator('app-account .privacy-panel form');
+  await form.locator('input[name="privacy-age"][value="adult"]').check();
+  await form.locator('input[type="checkbox"]').check();
+  await form.locator('button[type="submit"]').click();
+  await profile.waitFor();
+}
+
+/** Mock-cloud sign-in from anywhere. Profile journeys include explicit adult
+ * admission; an admission/error/challenge journey stops before that decision. */
+export async function signInAs(page, username, password, { expect = 'profile', commercialAccess = true } = {}) {
   await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
   if (await page.locator('h1', { hasText: 'Tu cuenta' }).count()) {
     await page.locator('button', { hasText: 'Cerrar sesión' }).click();
@@ -244,8 +286,12 @@ export async function signInAs(page, username, password, { expect = 'profile' } 
   await page.locator('.auth-form button[type="submit"]').click();
   if (expect === 'challenge') return;
   if (expect === 'error') return;
-  await page.locator('h1', { hasText: 'Tu cuenta' }).waitFor();
-  await provisionSignedInAccess(page, { reload: true });
+  if (expect === 'admission') {
+    await page.locator('app-account .privacy-panel').waitFor();
+    return;
+  }
+  await admitSyntheticAdult(page);
+  if (commercialAccess) await provisionSignedInAccess(page, { reload: true });
 }
 
 /** Walk the two-screen check-in ritual via skip and land on /ahora. */

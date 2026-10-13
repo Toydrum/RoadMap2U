@@ -167,7 +167,8 @@ export class SyncService {
   /** Bumped by forgetEverything so an in-flight sync can't re-persist stale
    *  cursor/watermark over a reset. */
   private epoch = 0;
-  private initialized = false;
+  private initialization: Promise<void> | null = null;
+  private metadataLoaded = false;
   private accountClosureQuiesced = false;
   private readonly pendingMetaWrites = new Set<Promise<void>>();
   private readonly activeSyncPasses = new Set<Promise<boolean>>();
@@ -195,9 +196,11 @@ export class SyncService {
   }
 
   /** App initializer — meta reads only, zero network, fail-open. */
-  async init(): Promise<void> {
-    if (this.initialized) return;
-    this.initialized = true;
+  init(): Promise<void> {
+    return (this.initialization ??= this.initialize());
+  }
+
+  private async initialize(): Promise<void> {
     try {
       const [link, state] = await Promise.all([
         this.metaStorage.read(META_ACCOUNT_LINK),
@@ -217,6 +220,7 @@ export class SyncService {
           this.restoreMembership(membership);
         }
       }
+      this.metadataLoaded = true;
     } catch {
       /* memory-only session — sync stays off */
     }
@@ -269,6 +273,12 @@ export class SyncService {
     if (this.accountClosureQuiesced) return false;
     const user = this.auth.user();
     if (!user) return false;
+    await this.init();
+    if (!this.metadataLoaded || this.auth.user() !== user || this.accountClosureQuiesced) return false;
+    const linkedAccount = this.linkSignal()?.accountId;
+    // A new cloud consent does not authorize replacing another account's link.
+    // The user must first detach that link through the existing disconnect flow.
+    if (linkedAccount && linkedAccount !== user.userId) return false;
     let lease: CloudPrivacyLease;
     try {
       lease = await this.privacy.requireCloud(this.privacyLanguage());

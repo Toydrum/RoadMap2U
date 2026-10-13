@@ -109,7 +109,7 @@ try {
       (await page.locator('main').innerText()).includes('$1,100.84 MXN'),
   );
 
-  await signInAs(page, 'rocio', 'Bosque123');
+  await signInAs(page, 'rocio', 'Bosque123', { commercialAccess: false });
   const declaration = page.locator('app-privacy-panel input[name="privacy-age"][value="adult"]');
   if (await declaration.count()) {
     check(
