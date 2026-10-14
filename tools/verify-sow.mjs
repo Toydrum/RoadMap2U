@@ -1,6 +1,6 @@
 // Sembrar a manos llenas (0.0.41): multi-add with tab nesting, starter
 // saplings on the empty meadow, the one-time burst invitation.
-import { BASE, launchPage, newProbePage } from './lib/harness.mjs';
+import { BASE, launchPage, newProbePage, ok } from './lib/harness.mjs';
 const first = await launchPage({ width: 390, height: 844 });
 const browser = first.browser;
 
@@ -20,7 +20,33 @@ const browser = first.browser;
   await page.waitForTimeout(600);
   const plots = await page.locator('.plot').count();
   const branchLine = (await page.locator('.plot').first().textContent()).replace(/\s+/g, ' ');
-  console.log(`A starters: shown=${starters === 3} planted-tree=${plots === 1} card="${branchLine.trim().slice(0, 40)}" | OK=${starters === 3 && plots === 1 && branchLine.includes('3 ramas')}`);
+  const starterStructure = await page.evaluate(() => new Promise((resolve, reject) => {
+    const request = indexedDB.open('roadmap2u');
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction(['trees', 'nodes'], 'readonly');
+      let trees = [], nodes = [];
+      tx.objectStore('trees').getAll().onsuccess = event => { trees = event.target.result; };
+      tx.objectStore('nodes').getAll().onsuccess = event => { nodes = event.target.result; };
+      tx.oncomplete = () => {
+        db.close();
+        const tree = trees.find(tree => !tree.deletedAt && !tree.archivedAt);
+        const ownNodes = nodes.filter(node => node.treeId === tree?.id && !node.deletedAt);
+        resolve({
+          totalNodes: ownNodes.length,
+          heartCount: ownNodes.filter(node => node.id === tree?.heartId && node.parentId === null).length,
+          childCount: ownNodes.filter(node => node.parentId === tree?.heartId).length,
+        });
+      };
+      tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
+    };
+  }));
+  // The heart is the trunk; the starter offers two example branches. Preserve
+  // all three stored nodes while counting only those branches on its card.
+  ok('A starters', starters === 3 && plots === 1 && branchLine.includes('2 ramas') &&
+    starterStructure.totalNodes === 3 && starterStructure.heartCount === 1 && starterStructure.childCount === 2,
+    `shown=${starters === 3} planted-tree=${plots === 1} card="${branchLine.trim().slice(0, 40)}" structure=${JSON.stringify(starterStructure)}`);
 
   // Archive it back to empty, then "start blank" must hide starters for good.
   await page.locator('.plot').first().click();

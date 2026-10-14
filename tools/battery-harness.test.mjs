@@ -29,14 +29,14 @@ test('the harness provides one deterministic Premium lease for mutation probes',
   assert.equal(fixture.cache.summary.offlineValidUntil, now + 24 * 60 * 60 * 1000);
 });
 
-test('launchPage provisions commercial access unless a boundary probe opts out', () => {
+test('launchPage provisions access without intercepting mock authentication', () => {
   const harness = source('tools/lib/harness.mjs');
   assert.match(harness, /commercialAccess\s*=\s*true/);
   assert.match(harness, /provisionCommercialAccess/);
   assert.match(harness, /export async function newProbePage/);
   assert.match(harness, /return newProbePage\(browser/);
-  assert.match(harness, /rm2u\.mock\.idToken/);
-  assert.match(harness, /skip only the first token read/i);
+  assert.doesNotMatch(harness, /Storage\.prototype\.getItem\s*=/);
+  assert.doesNotMatch(harness, /skip only the first token read/i);
   const provisioner = harness.slice(
     harness.indexOf('export async function provisionCommercialAccess'),
     harness.indexOf('/** Give the identity'),
@@ -75,7 +75,6 @@ test('a virgin-state probe can provision access only after its migration asserti
 
   await provisionCommercialAccessForNextBoot(page);
   assert.deepEqual(calls, [
-    'guard',
     `goto:http://localhost:8826/account`,
     'wait:app-account',
     'write',

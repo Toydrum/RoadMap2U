@@ -151,7 +151,7 @@ export class SubscriptionPage {
       ? ''
       : this.i18n.fill(
           interval === 'month' ? this.i18n.t().billing.monthly : this.i18n.t().billing.yearly,
-          { amount: `$${amount / 100}` },
+          { amount: `$${new Intl.NumberFormat(this.i18n.lang() === 'es' ? 'es-MX' : 'en-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount / 100)}` },
         );
   }
   protected date(timestamp: number): string {

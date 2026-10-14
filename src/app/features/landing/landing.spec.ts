@@ -37,8 +37,8 @@ describe('commercial landing foundation', () => {
     expect(root.querySelector('.premium-plan a')?.getAttribute('href')).toBe(
       '/account/subscription',
     );
-    expect(root.querySelector('.premium-prices')?.textContent).toContain('$99 MXN');
-    expect(root.querySelector('.premium-prices')?.textContent).toContain('$949 MXN');
+    expect(root.querySelector('.premium-prices')?.textContent).toContain('$114.84 MXN');
+    expect(root.querySelector('.premium-prices')?.textContent).toContain('$1,100.84 MXN');
     expect(root.querySelector('.premium-plan')?.textContent).toContain(ES.billing.recurring);
   });
   it('keeps the individual offer closed when the public catalog is unavailable', async () => {
@@ -75,8 +75,8 @@ describe('commercial landing foundation', () => {
     expect(ES.landing.hero.microcopy).toBe(
       'Sin tarjeta · empieza con 2 árboles y 10 ramas por árbol',
     );
-    expect(ES.landing.plans.premium.monthly).toBe('$99 MXN al mes');
-    expect(ES.landing.plans.premium.yearly).toBe('$949 MXN al año · ahorra $239 · IVA incluido');
+    expect(ES.landing.plans.premium.monthly).toBe('$114.84 MXN al mes');
+    expect(ES.landing.plans.premium.yearly).toBe('$1,100.84 MXN al año · ahorra $277.24 · IVA incluido');
     expect(ES.landing.plans.premium.badge).toBe('Próximamente');
 
     expect(EN.landing.hero.eyebrow).toBe('A living map for your plans');

@@ -24,7 +24,7 @@ export class LandingPage {
   protected price(interval: 'month' | 'year'): string {
     const catalog = this.plans.individualCatalog();
     if (!catalog) return '';
-    const amount = `$${catalog.prices[interval].amountMinor / 100}`;
+    const amount = `$${new Intl.NumberFormat(this.lang() === 'es' ? 'es-MX' : 'en-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(catalog.prices[interval].amountMinor / 100)}`;
     return (
       interval === 'month' ? this.copy().billing.monthly : this.copy().billing.yearly
     ).replace('{amount}', amount);

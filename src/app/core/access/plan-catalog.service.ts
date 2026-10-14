@@ -2,6 +2,7 @@ import { Injectable, Injector, inject, signal } from '@angular/core';
 import { API_CLIENT } from '../api/api-client';
 import {
   PREPAYMENT_PLAN_CATALOG,
+  CURRENT_INDIVIDUAL_BILLING_CATALOG_VERSION,
   isIndividualBillingCatalog,
   type IndividualBillingCatalog,
   type PlanCatalog,
@@ -68,7 +69,7 @@ export class PlanCatalogService {
     const request = Promise.resolve()
       .then(() => this.readIndividual())
       .then((value) => {
-        if (!isIndividualBillingCatalog(value)) throw new Error('invalid individual catalog');
+        if (!isIndividualBillingCatalog(value) || value.catalogVersion !== CURRENT_INDIVIDUAL_BILLING_CATALOG_VERSION) throw new Error('invalid individual catalog');
         const catalog = structuredClone(value);
         this.individualCatalogState.set(catalog);
         return catalog;

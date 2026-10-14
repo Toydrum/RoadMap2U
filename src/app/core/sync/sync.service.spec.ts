@@ -1,4 +1,4 @@
-import { signal } from '@angular/core';
+import { signal, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { API_CLIENT, type ApiClient } from '../api/api-client';
@@ -10,6 +10,7 @@ import {
   type SyncRecord,
 } from '../api/contracts';
 import { AuthService } from '../auth/auth.service';
+import { META_ACCOUNT_LINK } from '../auth/auth-types';
 import { PrivacyService } from '../privacy.service';
 import { ADULT_PRIVACY_VERSIONS } from '../api/contracts';
 import { privacyDocument } from '../api/privacy-document';
@@ -83,7 +84,7 @@ class RepoDouble<T extends SyncBase> {
   }
 }
 
-function memoryConflictStorage(): SyncConflictStorage {
+function memoryMetadataStorage(): SyncConflictStorage {
   const rows = new Map<string, unknown>();
   return {
     read: async (key) => structuredClone(rows.get(key) ?? null),
@@ -112,6 +113,7 @@ function configure(input: {
   trees: RepoDouble<Tree>;
   nodes: RepoDouble<TreeNode>;
   privacy: PrivacyService;
+  authUser: WritableSignal<{ userId: string }>;
 } {
   const trees = new RepoDouble(input.trees);
   const nodes = new RepoDouble(input.nodes);
@@ -162,9 +164,9 @@ function configure(input: {
       { provide: SessionsRepo, useValue: empty },
       { provide: HarvestsRepo, useValue: empty },
       { provide: PreservesRepo, useValue: empty },
-      { provide: SYNC_CONFLICT_STORAGE, useValue: memoryConflictStorage() },
+      { provide: SYNC_CONFLICT_STORAGE, useValue: memoryMetadataStorage() },
       { provide: SYNC_CONFLICT_RUNTIME, useValue: { now: () => NOW } },
-      ...(input.metaStorage ? [{ provide: SYNC_META_STORAGE, useValue: input.metaStorage }] : []),
+      { provide: SYNC_META_STORAGE, useValue: input.metaStorage ?? memoryMetadataStorage() },
     ],
   });
   return {
@@ -173,6 +175,7 @@ function configure(input: {
     trees,
     nodes,
     privacy: TestBed.inject(PrivacyService),
+    authUser,
   };
 }
 
@@ -218,6 +221,97 @@ describe('commercial sync conflicts', () => {
     expect(meta.write).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
     expect(service.link()).toBeNull();
+  });
+
+  it('cannot replace a persisted link belonging to another account when connecting', async () => {
+    const foreign = { key: META_ACCOUNT_LINK, accountId: 'owner-b', linkedAt: NOW - 100, uploadedAt: NOW - 50 };
+    const push = vi.fn<ApiClient['pushSync']>(async (payload) => ({ applied: payloadRecords(payload).map((r) => r.record.id), rejected: [], serverRecords: [] }));
+    const pull = vi.fn<ApiClient['getSyncChanges']>(async () => ({ changes: [], cursor: 'cursor-1', more: false }));
+    const meta = { read: vi.fn(async (key: string) => key === META_ACCOUNT_LINK ? structuredClone(foreign) : undefined), write: vi.fn(async () => undefined) };
+    const { service, trees } = configure({ trees: [tree('tree-a')], pushSync: push, getSyncChanges: pull, metaStorage: meta });
+    const consent = vi.spyOn(TestBed.inject(API_CLIENT), 'getPrivacyStatus');
+
+    await expect(service.connect()).resolves.toBe(false);
+    expect(service.phase()).toBe('mismatch');
+    expect(service.link()).toEqual(foreign);
+    expect(meta.write).not.toHaveBeenCalled();
+    expect(consent).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect(pull).not.toHaveBeenCalled();
+    expect([...trees.byId().keys()]).toEqual(['tree-a']);
+  });
+
+  it('keeps cloud off when the persisted account link cannot be read', async () => {
+    const push = vi.fn<ApiClient['pushSync']>(async (payload) => ({ applied: payloadRecords(payload).map((r) => r.record.id), rejected: [], serverRecords: [] }));
+    const meta = {
+      read: vi.fn(async () => { throw new Error('metadata temporarily unavailable'); }),
+      write: vi.fn(async () => undefined),
+    };
+    const { service, trees } = configure({ trees: [tree('local-tree')], pushSync: push, metaStorage: meta });
+    const consent = vi.spyOn(TestBed.inject(API_CLIENT), 'getPrivacyStatus');
+
+    await expect(service.init()).resolves.toBeUndefined();
+    await expect(service.connect()).resolves.toBe(false);
+    expect(meta.write).not.toHaveBeenCalled();
+    expect(consent).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect([...trees.byId().keys()]).toEqual(['local-tree']);
+  });
+
+  it('waits for an in-flight persisted-link read before authorizing a connection', async () => {
+    const foreign = { key: META_ACCOUNT_LINK, accountId: 'owner-b', linkedAt: NOW - 100, uploadedAt: NOW - 50 };
+    let release!: (value: unknown) => void;
+    const push = vi.fn<ApiClient['pushSync']>(async (payload) => ({ applied: payloadRecords(payload).map((r) => r.record.id), rejected: [], serverRecords: [] }));
+    const meta = { read: vi.fn((key: string) => key === META_ACCOUNT_LINK ? new Promise<unknown>((done) => { release = done; }) : Promise.resolve(undefined)), write: vi.fn(async () => undefined) };
+    const { service } = configure({ trees: [tree('tree-a')], pushSync: push, metaStorage: meta });
+    const consent = vi.spyOn(TestBed.inject(API_CLIENT), 'getPrivacyStatus');
+    const initializing = service.init();
+    const connecting = service.connect();
+    await Promise.resolve();
+    const earlyConsentCalls = consent.mock.calls.length;
+    release(foreign);
+    await initializing;
+    const connected = await connecting;
+
+    expect(earlyConsentCalls).toBe(0);
+    expect(connected).toBe(false);
+    expect(service.link()).toEqual(foreign);
+    expect(meta.write).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect(meta.read).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not adopt a new signed-in identity while the initial account link is loading', async () => {
+    let release!: (value: unknown) => void;
+    const push = vi.fn<ApiClient['pushSync']>();
+    const meta = { read: vi.fn((key: string) => key === META_ACCOUNT_LINK ? new Promise<unknown>((done) => { release = done; }) : Promise.resolve(undefined)), write: vi.fn(async () => undefined) };
+    const { service, authUser } = configure({ pushSync: push, metaStorage: meta });
+    const consent = vi.spyOn(TestBed.inject(API_CLIENT), 'getPrivacyStatus');
+    const initializing = service.init();
+    const connecting = service.connect();
+    authUser.set({ userId: 'owner-b' });
+    release(undefined);
+    await initializing;
+
+    await expect(connecting).resolves.toBe(false);
+    expect(consent).not.toHaveBeenCalled();
+    expect(meta.write).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect(service.link()).toBeNull();
+  });
+
+  it('allows a new connection after the prior account link is explicitly disconnected', async () => {
+    const foreign = { key: META_ACCOUNT_LINK, accountId: 'owner-b', linkedAt: NOW - 100, uploadedAt: NOW - 50 };
+    const push = vi.fn<ApiClient['pushSync']>(async (payload) => ({ applied: payloadRecords(payload).map((r) => r.record.id), rejected: [], serverRecords: [] }));
+    const meta = { read: vi.fn(async (key: string) => key === META_ACCOUNT_LINK ? structuredClone(foreign) : undefined), write: vi.fn(async () => undefined) };
+    const { service } = configure({ trees: [tree('tree-a')], pushSync: push, metaStorage: meta });
+    await service.init();
+    await service.disconnect();
+    expect(service.link()?.accountId).toBeNull();
+
+    await expect(service.connect()).resolves.toBe(true);
+    expect(service.link()?.accountId).toBe('owner-a');
+    expect(push).toHaveBeenCalledOnce();
   });
 
   it('does not apply a delayed pull or advance its cursor after local withdrawal', async () => {

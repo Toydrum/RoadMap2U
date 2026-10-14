@@ -87,8 +87,8 @@ try {
   );
   check(
     'landing keeps both final MXN prices',
-    (await page.locator('.premium-prices').innerText()).includes('$99 MXN') &&
-      (await page.locator('.premium-prices').innerText()).includes('$949 MXN'),
+    (await page.locator('.premium-prices').innerText()).includes('$114.84 MXN') &&
+      (await page.locator('.premium-prices').innerText()).includes('$1,100.84 MXN'),
   );
   await page.goto(`${BASE}/account/subscription`, { waitUntil: 'networkidle' });
   check(
@@ -106,10 +106,10 @@ try {
   check(
     'commercial conditions remain explicitly draft',
     (await page.locator('main').innerText()).includes('draft') &&
-      (await page.locator('main').innerText()).includes('$949 MXN'),
+      (await page.locator('main').innerText()).includes('$1,100.84 MXN'),
   );
 
-  await signInAs(page, 'rocio', 'Bosque123');
+  await signInAs(page, 'rocio', 'Bosque123', { commercialAccess: false });
   const declaration = page.locator('app-privacy-panel input[name="privacy-age"][value="adult"]');
   if (await declaration.count()) {
     check(
