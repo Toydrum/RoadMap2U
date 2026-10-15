@@ -17,7 +17,13 @@ import {
   type AccessSummary,
   PREPAYMENT_PLAN_CATALOG,
   createFreeAccessSummary,
+  type BillingSimulation,
 } from '../api/contracts';
+import {
+  BILLING_SIMULATION_STAGE,
+  SIMULATION_ONLINE_MS,
+  currentBillingSimulation,
+} from '../api/billing-simulation';
 import { AuthService } from '../auth/auth.service';
 import { onAccountClosureQuiesce } from '../db/account-closure-fence';
 import { get, put } from '../db/idb';
@@ -59,6 +65,8 @@ export const ACCESS_CACHE = new InjectionToken<AccessCachePort>('ACCESS_CACHE', 
 
 export interface AccessRuntime {
   now(): number;
+  isOnline?(): boolean;
+  listenOffline?(callback: () => void): () => void;
   listenOnline(callback: () => void): () => void;
   scheduleEvery(callback: () => void, ms: number): () => void;
   scheduleOnce(callback: () => void, ms: number): () => void;
@@ -68,6 +76,12 @@ export const ACCESS_RUNTIME = new InjectionToken<AccessRuntime>('ACCESS_RUNTIME'
   providedIn: 'root',
   factory: () => ({
     now: Date.now,
+    isOnline: () => typeof navigator === 'undefined' || navigator.onLine,
+    listenOffline(callback: () => void): () => void {
+      if (typeof window === 'undefined') return () => undefined;
+      window.addEventListener('offline', callback);
+      return () => window.removeEventListener('offline', callback);
+    },
     listenOnline(callback: () => void): () => void {
       if (typeof window === 'undefined') return () => undefined;
       window.addEventListener('online', callback);
@@ -102,8 +116,12 @@ function isSource(value: unknown, now: number): value is AccessSource {
   if (!isObject(value)) return false;
   // Individual access never consumes household coverage, even if a malformed
   // response labels that coverage as sponsored or paid Premium.
-  if (value['householdId'] !== undefined || value['seatType'] !== undefined ||
-      (value['scope'] !== undefined && value['scope'] !== 'individual')) return false;
+  if (
+    value['householdId'] !== undefined ||
+    value['seatType'] !== undefined ||
+    (value['scope'] !== undefined && value['scope'] !== 'individual')
+  )
+    return false;
   if (
     value['kind'] === 'default' &&
     value['sourceId'] === 'default' &&
@@ -113,10 +131,13 @@ function isSource(value: unknown, now: number): value is AccessSource {
     return true;
   }
 
-  const individualPaid = value['kind'] === 'subscription' &&
-    value['scope'] === 'individual' && isTimestamp(value['validUntil']) &&
+  const individualPaid =
+    value['kind'] === 'subscription' &&
+    value['scope'] === 'individual' &&
+    isTimestamp(value['validUntil']) &&
     value['validUntil'] > now;
-  const sponsored = value['kind'] === 'sponsored' &&
+  const sponsored =
+    value['kind'] === 'sponsored' &&
     (value['validUntil'] === null ||
       (isTimestamp(value['validUntil']) && value['validUntil'] > now));
   return (
@@ -154,8 +175,24 @@ function hasCanonicalEntitlements(
   );
 }
 
-function normalizeSummary(value: unknown, now: number): AccessSummary {
+function normalizeSummary(
+  value: unknown,
+  now: number,
+  stage = 'local',
+  onlineRead = false,
+): AccessSummary {
   if (!isObject(value)) throw new Error('invalid access summary');
+  let simulation: BillingSimulation | undefined;
+  if (Object.hasOwn(value, 'simulation')) {
+    const candidate = value['simulation'];
+    if (
+      !onlineRead ||
+      !currentBillingSimulation(candidate, stage, now) ||
+      candidate.mode !== 'ready'
+    )
+      throw new Error('invalid temporal access summary');
+    simulation = candidate;
+  }
   const limits = value['limits'];
   const capabilities = value['capabilities'];
   const usage = value['usage'];
@@ -181,7 +218,14 @@ function normalizeSummary(value: unknown, now: number): AccessSummary {
     !Array.isArray(sources) ||
     sources.length < 1 ||
     sources.length > 100 ||
-    !sources.every((source) => isSource(source, now)) ||
+    !sources.every((source) =>
+      isSource(
+        source,
+        simulation && isObject(source) && source['kind'] === 'subscription'
+          ? simulation.frozenAt!
+          : now,
+      ),
+    ) ||
     !isObject(limits) ||
     !isLimit(limits['maxActiveTrees']) ||
     !isLimit(limits['maxVisibleBranchesPerTree']) ||
@@ -204,7 +248,9 @@ function normalizeSummary(value: unknown, now: number): AccessSummary {
 
   const sourceBoundary = sources.reduce<number>(
     (earliest, source) =>
-      source.validUntil === null ? earliest : Math.min(earliest, source.validUntil),
+      source.validUntil === null || (simulation && source.kind === 'subscription')
+        ? earliest
+        : Math.min(earliest, source.validUntil),
     Number.POSITIVE_INFINITY,
   );
   const leaseCeiling = Math.min(
@@ -213,7 +259,8 @@ function normalizeSummary(value: unknown, now: number): AccessSummary {
     sourceBoundary,
   );
   const boundedLease = Math.min(offlineValidUntil, leaseCeiling);
-  if (boundedLease <= now) throw new Error('stale access summary');
+  if (simulation ? offlineValidUntil > now || leaseCeiling <= now : boundedLease <= now)
+    throw new Error('stale access summary');
   const visibleBranchesByTree = Object.fromEntries(
     Object.entries(branches as Record<string, unknown>).map(([treeId, count]) => [
       treeId,
@@ -222,6 +269,7 @@ function normalizeSummary(value: unknown, now: number): AccessSummary {
   );
 
   return {
+    ...(simulation ? { simulation: { ...simulation } } : {}),
     effectivePlanKey: value['effectivePlanKey'],
     catalogVersion: value['catalogVersion'],
     status: 'active',
@@ -262,9 +310,15 @@ export class AccessService {
   private readonly auth = inject(AuthService);
   private readonly cache = inject(ACCESS_CACHE);
   private readonly runtime = inject(ACCESS_RUNTIME);
+  private readonly stage = inject(BILLING_SIMULATION_STAGE);
+  private readonly onlineSignal = signal(this.runtime.isOnline?.() !== false);
 
   private readonly nowSignal = signal(this.runtime.now());
-  private readonly cachedSignal = signal<{ userId: string; summary: AccessSummary } | null>(null);
+  private readonly cachedSignal = signal<{
+    userId: string;
+    summary: AccessSummary;
+    onlineValidUntil?: number;
+  } | null>(null);
   private readonly loadingSignal = signal(false);
   private readonly lastErrorSignal = signal<ApiErrorCode | null>(null);
   private inFlight: { userId: string; promise: Promise<AccessSummary> } | null = null;
@@ -285,7 +339,7 @@ export class AccessService {
     const now = this.nowSignal();
     const userId = this.auth.user()?.userId;
     const cached = this.cachedSignal();
-    if (userId && cached?.userId === userId && cached.summary.offlineValidUntil > now) {
+    if (userId && cached?.userId === userId && this.validUntil(cached) > now) {
       return cached.summary;
     }
     return createFreeAccessSummary(now);
@@ -297,7 +351,7 @@ export class AccessService {
     // the normal Free tree/branch limits still apply.
     if (!userId) return 'valid';
     const cached = this.cachedSignal();
-    return cached?.userId === userId && cached.summary.offlineValidUntil > this.nowSignal()
+    return cached?.userId === userId && this.validUntil(cached) > this.nowSignal()
       ? 'valid'
       : 'fallback';
   });
@@ -323,7 +377,18 @@ export class AccessService {
     if (!this.started) {
       this.started = true;
       this.cleanup.push(
-        this.runtime.listenOnline(() => void this.refresh()),
+        this.runtime.listenOnline(() => {
+          this.onlineSignal.set(true);
+          void this.refresh();
+        }),
+        this.runtime.listenOffline?.(() => {
+          this.onlineSignal.set(false);
+          if (this.cachedSignal()?.summary.simulation) {
+            this.cachedSignal.set(null);
+            this.stopLeaseTimer?.();
+            this.stopLeaseTimer = null;
+          }
+        }) ?? (() => undefined),
         this.runtime.scheduleEvery(() => void this.refresh(), ACCESS_REFRESH_MS),
       );
     }
@@ -426,9 +491,10 @@ export class AccessService {
       );
     });
     const request = Promise.race([this.api.getAccess(), deadline])
-      .then((summary) => this.accept(userId, summary, generation))
+      .then((summary) => this.accept(userId, summary, generation, true))
       .catch((error: unknown) => {
         if (generation === this.generation && this.auth.user()?.userId === userId) {
+          if (this.cachedSignal()?.summary.simulation) this.cachedSignal.set(null);
           this.lastErrorSignal.set(error instanceof ApiError ? error.code : 'unknown');
         }
         return this.access();
@@ -466,15 +532,40 @@ export class AccessService {
     userId: string,
     value: unknown,
     generation = this.generation,
+    onlineRead = false,
   ): Promise<AccessSummary> {
     if (generation !== this.generation || this.auth.user()?.userId !== userId) {
       return this.access();
     }
-    const summary = normalizeSummary(value, this.nowSignal());
+    this.tick();
+    let summary: AccessSummary;
+    try {
+      summary = normalizeSummary(
+        value,
+        this.nowSignal(),
+        this.stage,
+        onlineRead && this.onlineSignal() && this.runtime.isOnline?.() !== false,
+      );
+    } catch (error) {
+      if (isObject(value) && Object.hasOwn(value, 'simulation')) {
+        this.cachedSignal.set(null);
+        this.stopLeaseTimer?.();
+        this.stopLeaseTimer = null;
+        await this.writeCache(userId, createFreeAccessSummary(this.nowSignal()));
+      }
+      throw error;
+    }
     if (generation !== this.generation || this.auth.user()?.userId !== userId) {
       return this.access();
     }
     this.setCached(userId, summary);
+    await this.writeCache(
+      userId,
+      summary.simulation ? createFreeAccessSummary(this.nowSignal()) : summary,
+    );
+    return summary;
+  }
+  private async writeCache(userId: string, summary: AccessSummary): Promise<void> {
     try {
       const write = this.cache.write(userId, summary);
       this.pendingCacheWrites.add(write);
@@ -486,7 +577,6 @@ export class AccessService {
     } catch {
       // IndexedDB can be unavailable; the bounded memory lease remains valid.
     }
-    return summary;
   }
 
   private tick(): void {
@@ -494,7 +584,21 @@ export class AccessService {
   }
 
   private setCached(userId: string, summary: AccessSummary): void {
-    this.cachedSignal.set({ userId, summary });
+    const onlineValidUntil = summary.simulation
+      ? Math.min(
+          summary.simulation.observedAt + SIMULATION_ONLINE_MS,
+          summary.simulation.evidenceValidUntil!,
+          summary.nextRecomputeAt ?? Infinity,
+          ...summary.activeSources
+            .filter((s) => s.kind !== 'subscription')
+            .map((s) => s.validUntil ?? Infinity),
+        )
+      : undefined;
+    this.cachedSignal.set({
+      userId,
+      summary,
+      ...(onlineValidUntil === undefined ? {} : { onlineValidUntil }),
+    });
     this.stopLeaseTimer?.();
     const expectedRevision = summary.revision;
     this.stopLeaseTimer = this.runtime.scheduleOnce(
@@ -505,13 +609,20 @@ export class AccessService {
         if (
           current?.userId === userId &&
           current.summary.revision === expectedRevision &&
-          current.summary.offlineValidUntil <= this.nowSignal()
+          this.validUntil(current) <= this.nowSignal()
         ) {
           void this.refresh();
         }
       },
-      Math.max(0, summary.offlineValidUntil - this.nowSignal()),
+      Math.max(0, (onlineValidUntil ?? summary.offlineValidUntil) - this.nowSignal()),
     );
+  }
+  private validUntil(cached: { summary: AccessSummary; onlineValidUntil?: number }): number {
+    return cached.summary.simulation
+      ? this.onlineSignal() && this.runtime.isOnline?.() !== false
+        ? (cached.onlineValidUntil ?? 0)
+        : 0
+      : cached.summary.offlineValidUntil;
   }
 
   private beginRequest(): void {
