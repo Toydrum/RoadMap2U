@@ -18,6 +18,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { PrivacyService } from '../../core/privacy.service';
 import { SubscriptionPage } from './subscription-page';
+import { BILLING_SIMULATION_STAGE } from '../../core/api/billing-simulation';
 
 describe('individual subscription page', () => {
   beforeEach(() => TestBed.resetTestingModule());
@@ -26,6 +27,7 @@ describe('individual subscription page', () => {
     enabled = true,
     returnFrom: string | null = null,
     termsHash = CLOSED_INDIVIDUAL_BILLING_CATALOG.terms.hashes.es,
+    stage = 'local',
   ) {
     const current: IndividualBillingSummary = {
       contractVersion: 1,
@@ -65,6 +67,7 @@ describe('individual subscription page', () => {
     await TestBed.configureTestingModule({
       imports: [SubscriptionPage],
       providers: [
+        { provide: BILLING_SIMULATION_STAGE, useValue: stage },
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -125,6 +128,52 @@ describe('individual subscription page', () => {
       'volver=%2Faccount%2Fsubscription',
     );
     expect(root.querySelector('.billing-checkout')).toBeNull();
+  });
+  it('labels a synthetic DEV financial date in Spanish and English without provider identifiers', async () => {
+    const now = Date.now(),
+      simulation = {
+        stage: 'dev' as const,
+        mode: 'ready' as const,
+        frozenAt: now - 86400000,
+        clockRevision: 2,
+        observedAt: now,
+        evidenceValidUntil: now + 30000,
+      };
+    const { root, fixture } = await adult(
+      { simulation },
+      true,
+      null,
+      CLOSED_INDIVIDUAL_BILLING_CATALOG.terms.hashes.es,
+      'dev',
+    );
+    expect(root.querySelector('.billing-simulation')?.textContent).toContain('Ensayo');
+    expect(root.querySelector('.billing-simulation')?.textContent).toContain('fecha financiera');
+    await TestBed.inject(I18nService).set('en');
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(root.querySelector('.billing-simulation')?.textContent).toContain('Simulation');
+    });
+    expect(root.querySelector('.billing-simulation')?.textContent).toContain('financial date');
+    expect(root.querySelector('.billing-simulation')?.textContent).not.toMatch(/clock_|cus_|acct_/);
+  });
+  it('shows unavailable synthetic evidence without inventing a financial date', async () => {
+    const now = Date.now(),
+      simulation = {
+        stage: 'test' as const,
+        mode: 'unavailable' as const,
+        frozenAt: null,
+        clockRevision: 2,
+        observedAt: now,
+        evidenceValidUntil: null,
+      };
+    const { root } = await adult(
+      { state: 'payment_review', processing: 'review', simulation },
+      true,
+      null,
+      CLOSED_INDIVIDUAL_BILLING_CATALOG.terms.hashes.es,
+      'test',
+    );
+    expect(root.querySelector('.billing-simulation')?.textContent).toContain('esperamos');
   });
   it('requires separate recurring-terms and Mexico choices without optional cloud consent', async () => {
     const { root, fixture } = await adult();

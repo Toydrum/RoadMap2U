@@ -10,6 +10,7 @@ import {
 import { AuthService } from '../auth/auth.service';
 import { AccessService } from '../access/access.service';
 import { API_CLIENT } from './api-client';
+import { BILLING_SIMULATION_STAGE, currentBillingSimulation } from './billing-simulation';
 import {
   onAccountClosureQuiesce,
   captureAccountClosureReadEpoch,
@@ -53,6 +54,7 @@ export class IndividualBillingService {
   private readonly auth = inject(AuthService);
   private readonly access = inject(AccessService);
   private readonly runtime = inject(BILLING_RUNTIME);
+  private readonly stage = inject(BILLING_SIMULATION_STAGE);
   private readonly navigate = inject(BILLING_NAVIGATION);
   private readonly summaryState = signal<IndividualBillingSummary | null>(null);
   private readonly errorState = signal<ApiErrorCode | null>(null);
@@ -144,6 +146,11 @@ export class IndividualBillingService {
       this.bounded(this.api.getIndividualBillingSummary()).then((value) => {
         if (!this.current(actor, generation)) return;
         if (!isIndividualBillingSummary(value)) throw new ApiError('unknown');
+        if (
+          value.simulation &&
+          !currentBillingSimulation(value.simulation, this.stage, this.runtime.now())
+        )
+          throw new ApiError('unknown');
         if (value.revision < (this.summary()?.revision ?? 0)) return;
         // A terminal reservation is a server fact. A read that began while its POST
         // was still in flight cannot retire that request, even if it finishes later.
@@ -159,10 +166,12 @@ export class IndividualBillingService {
       .then((results) => {
         if (!this.current(actor, generation)) return;
         const financial = results[0];
-        if (financial.status === 'rejected')
+        if (financial.status === 'rejected') {
+          if (this.summary()?.simulation) this.summaryState.set(null);
           this.errorState.set(
             financial.reason instanceof ApiError ? financial.reason.code : 'unknown',
           );
+        }
       })
       .finally(() => {
         if (this.refreshRequest === request) this.refreshRequest = null;
@@ -189,14 +198,25 @@ export class IndividualBillingService {
       await this.refresh();
       if (poll !== this.pollGeneration || this.confirmation() !== 'checking') return;
       const summary = this.summary();
-      const paidAccess = this.access
-        .access()
-        .activeSources.some(
+      const access = this.access.access(),
+        simulation = summary?.simulation;
+      const sameClock = simulation
+        ? access.simulation &&
+          simulation.mode === 'ready' &&
+          access.simulation.mode === 'ready' &&
+          currentBillingSimulation(simulation, this.stage, this.runtime.now()) &&
+          currentBillingSimulation(access.simulation, this.stage, this.runtime.now()) &&
+          simulation.clockRevision === access.simulation.clockRevision &&
+          simulation.frozenAt === access.simulation.frozenAt
+        : !access.simulation;
+      const paidAccess =
+        sameClock &&
+        access.activeSources.some(
           (source) =>
             source.kind === 'subscription' &&
             source.scope === 'individual' &&
             source.validUntil !== null &&
-            source.validUntil > this.runtime.now(),
+            source.validUntil > (simulation?.frozenAt ?? this.runtime.now()),
         );
       const resolved =
         !this.error() &&

@@ -55,6 +55,20 @@
         <p class="billing-pending">{{ i18n.t().billing.pending }}</p>
       }
       @if (bill.summary(); as summary) {
+        @if (summary.simulation; as simulation) {
+          <p class="billing-simulation">
+            {{
+              simulation.mode === 'ready'
+                ? i18n.fill(i18n.t().billing.simulationReady, {
+                    stage: simulation.stage.toUpperCase(),
+                    date: date(simulation.frozenAt!),
+                  })
+                : i18n.fill(i18n.t().billing.simulationUnavailable, {
+                    stage: simulation.stage.toUpperCase(),
+                  })
+            }}
+          </p>
+        }
         <p>{{ stateText(summary.state) }}</p>
         @if (summary.paidThrough !== null) {
           <p>{{ i18n.fill(i18n.t().billing.paidThrough, { date: date(summary.paidThrough!) }) }}</p>
