@@ -161,7 +161,14 @@ export class IndividualBillingService {
         this.summaryState.set(structuredClone(value));
         this.errorState.set(null);
       }),
-      this.bounded(this.access.refresh()),
+      // The account route can open without ProductInitializer. Hydrate its
+      // existing lease and reconnect listeners before requesting fresh access.
+      this.bounded(
+        this.access.start().then(() => {
+          if (this.current(actor, generation)) return this.access.refresh();
+          return undefined;
+        }),
+      ),
     ])
       .then((results) => {
         if (!this.current(actor, generation)) return;

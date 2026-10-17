@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
+import vm from 'node:vm';
 
 const root = process.cwd();
 const source = (relativePath) => readFileSync(join(root, relativePath), 'utf8');
@@ -105,4 +106,48 @@ test('the public-shell probe can reuse an already reachable battery server', asy
 
   assert.equal(listened, false);
   assert.equal(close, null);
+});
+
+function individualFixturePage({ instance = 'current', type = 'adult', url = 'http://localhost:8826/account' } = {}) {
+  const deletes = [], stores = [];
+  const owner = { userId: 'synthetic-buyer', accountInstanceId: instance, accountType: type };
+  const token = 'synthetic.' + Buffer.from(JSON.stringify({ sub: owner.userId, accountInstanceId: 'current' })).toString('base64') + '.mock';
+  const page = {
+    url: () => url,
+    evaluate: async fn => vm.runInNewContext('(' + fn.toString() + ')()', {
+      atob: value => Buffer.from(value, 'base64').toString(),
+      localStorage: { getItem: key => { assert.equal(key, 'rm2u.mock.idToken'); return token; } },
+      indexedDB: { open: name => {
+        assert.equal(name, 'roadmap2u-mockcloud'); const request = {};
+        queueMicrotask(() => { request.result = { close() {}, transaction(names, mode) {
+          assert.equal(mode, 'readwrite'); assert.deepEqual(Array.from(names), ['users', 'coverages']);
+          const tx = { objectStore(store) {
+            stores.push(store);
+            return { get(key) { assert.equal(store, 'users'); assert.equal(key, owner.userId); const read = {}; queueMicrotask(() => { read.result = owner; read.onsuccess(); }); return read; },
+              delete(key) { assert.equal(store, 'coverages'); deletes.push([store,key]); queueMicrotask(() => tx.oncomplete()); } };
+          }, abort() { queueMicrotask(() => tx.onabort()); } }; return tx;
+        } }; request.onsuccess(); }); return request;
+      } },
+    }),
+  };
+  return { page, deletes, stores };
+}
+test('individual fixture removes only its own synthetic legacy coverage and leaves financial stores untouched', async () => {
+  const { isolateIndividualBillingFixture } = await import('./lib/individual-probe-fixture.mjs');
+  const f = individualFixturePage(); await isolateIndividualBillingFixture(f.page);
+  assert.deepEqual(f.deletes, [['coverages', 'synthetic-buyer']]); assert.deepEqual(f.stores, ['users', 'coverages']);
+});
+test('individual fixture rejects another incarnation before deleting a coverage', async () => {
+  const { isolateIndividualBillingFixture } = await import('./lib/individual-probe-fixture.mjs');
+  const f = individualFixturePage({ instance: 'retired' });
+  await assert.rejects(() => isolateIndividualBillingFixture(f.page), /CURRENT_SYNTHETIC_ADULT_REQUIRED/); assert.equal(f.deletes.length,0);
+});
+test('individual fixture rejects a minor before deleting a coverage', async () => {
+  const { isolateIndividualBillingFixture } = await import('./lib/individual-probe-fixture.mjs');
+  const f = individualFixturePage({ type: 'minor' });
+  await assert.rejects(() => isolateIndividualBillingFixture(f.page), /CURRENT_SYNTHETIC_ADULT_REQUIRED/); assert.equal(f.deletes.length,0);
+});
+test('individual fixture rejects a nonlocal origin without evaluating browser storage', async () => {
+  const { isolateIndividualBillingFixture } = await import('./lib/individual-probe-fixture.mjs'); let calls=0;
+  await assert.rejects(() => isolateIndividualBillingFixture({url:()=> 'https://dev.roadmap2u.com/account',evaluate:async()=>{calls++;}}), /LOCAL_INDIVIDUAL_FIXTURE_REQUIRED/); assert.equal(calls,0);
 });

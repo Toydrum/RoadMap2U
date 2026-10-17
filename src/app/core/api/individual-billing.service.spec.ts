@@ -62,6 +62,7 @@ function setup() {
   };
   const access = {
     access: signal(createFreeAccessSummary()),
+    start: vi.fn(async () => undefined),
     refresh: vi.fn(async () => createFreeAccessSummary()),
   };
   const navigation = vi.fn();

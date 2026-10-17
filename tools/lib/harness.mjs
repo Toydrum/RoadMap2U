@@ -4,6 +4,7 @@
 // stop drifting from the app (the 0.0.75 «Más detalles» fold broke four
 // scripts that each carried their own copy).
 import { chromium } from 'playwright-core';
+export { isolateIndividualBillingFixture } from './individual-probe-fixture.mjs';
 
 export const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
 

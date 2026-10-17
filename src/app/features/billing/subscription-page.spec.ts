@@ -83,6 +83,7 @@ describe('individual subscription page', () => {
           provide: AccessService,
           useValue: {
             access: signal(createFreeAccessSummary()),
+            start: vi.fn(async () => undefined),
             refresh: vi.fn(async () => createFreeAccessSummary()),
           },
         },
