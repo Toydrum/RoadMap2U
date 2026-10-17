@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { BASE, launchPage, ok, signInAs } from './lib/harness.mjs';
+import { BASE, isolateIndividualBillingFixture, launchPage, ok, signInAs } from './lib/harness.mjs';
 
 // Closed-sale browser rehearsal: explicit synthetic provider facts in the mock
 // cloud. These are never obtained from Checkout/Portal return query parameters.
@@ -110,6 +110,7 @@ try {
   );
 
   await signInAs(page, 'rocio', 'Bosque123', { commercialAccess: false });
+  await isolateIndividualBillingFixture(page);
   const declaration = page.locator('app-privacy-panel input[name="privacy-age"][value="adult"]');
   if (await declaration.count()) {
     check(

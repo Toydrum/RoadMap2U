@@ -2,7 +2,7 @@
 // session hydration with zero network, and the sacred rule — auth never
 // touches local forest data.
 import assert from 'node:assert/strict';
-import { BASE, admitSyntheticAdult, launchPage, newProbePage, provisionSignedInAccess, signInAs, waitForAuthIdentityCleared } from './lib/harness.mjs';
+import { BASE, admitSyntheticAdult, isolateIndividualBillingFixture, launchPage, newProbePage, provisionSignedInAccess, signInAs, waitForAuthIdentityCleared } from './lib/harness.mjs';
 const { browser, page } = await launchPage({ width: 1280, height: 800 }, { commercialAccess: false });
 
 const pageErrors = [];
@@ -252,6 +252,9 @@ try {
     };
   }), provider.key);
   assert.deepEqual(afterReview, review);
+  // This tests an individual review response, without the separate legacy
+  // family seed producing a malformed fallback instead of canonical Free.
+  await isolateIndividualBillingFixture(probe.page);
   await probe.page.goto(BASE + '/account/subscription', { waitUntil: 'networkidle' });
   await probe.page.locator('.billing-access').filter({ hasText: 'Free' }).waitFor();
   console.log('I shared login preserves explicit payment review and normal Free access | OK=true');

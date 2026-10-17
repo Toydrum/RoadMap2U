@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
+import vm from 'node:vm';
 
 const root = process.cwd();
 const source = (relativePath) => readFileSync(join(root, relativePath), 'utf8');
@@ -105,4 +106,163 @@ test('the public-shell probe can reuse an already reachable battery server', asy
 
   assert.equal(listened, false);
   assert.equal(close, null);
+});
+
+function individualFixturePage({ instance = 'current', type = 'adult', url = 'http://localhost:8826/account' } = {}) {
+  const deletes = [], stores = [];
+  const owner = { userId: 'synthetic-buyer', accountInstanceId: instance, accountType: type };
+  const token = 'synthetic.' + Buffer.from(JSON.stringify({ sub: owner.userId, accountInstanceId: 'current' })).toString('base64') + '.mock';
+  const page = {
+    url: () => url,
+    evaluate: async fn => vm.runInNewContext('(' + fn.toString() + ')()', {
+      atob: value => Buffer.from(value, 'base64').toString(),
+      localStorage: { getItem: key => { assert.equal(key, 'rm2u.mock.idToken'); return token; } },
+      indexedDB: { open: name => {
+        assert.equal(name, 'roadmap2u-mockcloud'); const request = {};
+        queueMicrotask(() => { request.result = { close() {}, transaction(names, mode) {
+          assert.equal(mode, 'readwrite'); assert.deepEqual(Array.from(names), ['users', 'coverages']);
+          const tx = { objectStore(store) {
+            stores.push(store);
+            return { get(key) { assert.equal(store, 'users'); assert.equal(key, owner.userId); const read = {}; queueMicrotask(() => { read.result = owner; read.onsuccess(); }); return read; },
+              delete(key) { assert.equal(store, 'coverages'); deletes.push([store,key]); queueMicrotask(() => tx.oncomplete()); } };
+          }, abort() { queueMicrotask(() => tx.onabort()); } }; return tx;
+        } }; request.onsuccess(); }); return request;
+      } },
+    }),
+  };
+  return { page, deletes, stores };
+}
+test('individual fixture removes only its own synthetic legacy coverage and leaves financial stores untouched', async () => {
+  const { isolateIndividualBillingFixture } = await import('./lib/individual-probe-fixture.mjs');
+  const f = individualFixturePage(); await isolateIndividualBillingFixture(f.page);
+  assert.deepEqual(f.deletes, [['coverages', 'synthetic-buyer']]); assert.deepEqual(f.stores, ['users', 'coverages']);
+});
+test('individual fixture rejects another incarnation before deleting a coverage', async () => {
+  const { isolateIndividualBillingFixture } = await import('./lib/individual-probe-fixture.mjs');
+  const f = individualFixturePage({ instance: 'retired' });
+  await assert.rejects(() => isolateIndividualBillingFixture(f.page), /CURRENT_SYNTHETIC_ADULT_REQUIRED/); assert.equal(f.deletes.length,0);
+});
+test('individual fixture rejects a minor before deleting a coverage', async () => {
+  const { isolateIndividualBillingFixture } = await import('./lib/individual-probe-fixture.mjs');
+  const f = individualFixturePage({ type: 'minor' });
+  await assert.rejects(() => isolateIndividualBillingFixture(f.page), /CURRENT_SYNTHETIC_ADULT_REQUIRED/); assert.equal(f.deletes.length,0);
+});
+test('individual fixture rejects a nonlocal origin without evaluating browser storage', async () => {
+  const { isolateIndividualBillingFixture } = await import('./lib/individual-probe-fixture.mjs'); let calls=0;
+  await assert.rejects(() => isolateIndividualBillingFixture({url:()=> 'https://dev.roadmap2u.com/account',evaluate:async()=>{calls++;}}), /LOCAL_INDIVIDUAL_FIXTURE_REQUIRED/); assert.equal(calls,0);
+});
+
+function retiringIdentityPage({
+  clearAfter = Infinity,
+  openError = false,
+  readError = false,
+  missingMeta = false,
+} = {}) {
+  const facts = { opens: 0, reads: 0, closes: 0 };
+  const evaluate = async (fn) =>
+    vm.runInNewContext('(' + fn.toString() + ')()', {
+      indexedDB: {
+        open(name) {
+          assert.equal(name, 'roadmap2u');
+          facts.opens++;
+          const request = {};
+          queueMicrotask(() => {
+            if (openError) {
+              request.onerror();
+              return;
+            }
+            request.result = {
+              close() {
+                facts.closes++;
+              },
+              objectStoreNames: { contains: (name) => name === 'meta' && !missingMeta },
+              transaction(name, mode) {
+                assert.equal(name, 'meta');
+                assert.equal(mode, 'readonly');
+                return {
+                  objectStore(name) {
+                    assert.equal(name, 'meta');
+                    return {
+                      get(key) {
+                        assert.equal(key, 'auth.identity');
+                        facts.reads++;
+                        const read = {};
+                        queueMicrotask(() => {
+                          if (readError) {
+                            read.onerror();
+                            return;
+                          }
+                          read.result =
+                            facts.reads >= clearAfter
+                              ? undefined
+                              : { key, user: { userId: 'retiring-synthetic-user' } };
+                          read.onsuccess();
+                        });
+                        return read;
+                      },
+                    };
+                  },
+                };
+              },
+            };
+            request.onsuccess();
+          });
+          return request;
+        },
+      },
+    });
+  // Reproduce the observed browser contract: an asynchronous callback can
+  // resolve false once; that is not proof that the stored identity is gone.
+  return { facts, page: { evaluate, waitForFunction: evaluate } };
+}
+
+test('durable sign-out never completes while the stored identity remains', async () => {
+  const { waitForAuthIdentityCleared } = await import('./lib/harness.mjs');
+  const fixture = retiringIdentityPage();
+  await assert.rejects(
+    () => waitForAuthIdentityCleared(fixture.page, 50),
+    /AUTH_IDENTITY_NOT_CLEARED/,
+  );
+  assert.ok(fixture.facts.reads >= 1);
+});
+
+test('durable sign-out waits through false reads until identity cleanup completes', async () => {
+  const { waitForAuthIdentityCleared } = await import('./lib/harness.mjs');
+  const fixture = retiringIdentityPage({ clearAfter: 3 });
+  await waitForAuthIdentityCleared(fixture.page, 500);
+  assert.equal(fixture.facts.reads, 3);
+  assert.equal(fixture.facts.closes, fixture.facts.opens);
+});
+
+for (const failure of ['openError', 'readError'])
+  test('unreadable identity storage cannot pass sign-out: ' + failure, async () => {
+    const { waitForAuthIdentityCleared } = await import('./lib/harness.mjs');
+    const fixture = retiringIdentityPage({ [failure]: true });
+    await assert.rejects(
+      () => waitForAuthIdentityCleared(fixture.page, 100),
+      /AUTH_IDENTITY_STORAGE_UNAVAILABLE/,
+    );
+    assert.equal(fixture.facts.opens, 1);
+  });
+
+test('a readable database without an identity store is already clear', async () => {
+  const { waitForAuthIdentityCleared } = await import('./lib/harness.mjs');
+  const fixture = retiringIdentityPage({ missingMeta: true });
+  await waitForAuthIdentityCleared(fixture.page, 100);
+  assert.equal(fixture.facts.opens, 1);
+  assert.equal(fixture.facts.reads, 0);
+  assert.equal(fixture.facts.closes, 1);
+});
+
+test('a stalled browser read still stops at the sign-out deadline', { timeout: 500 }, async () => {
+  const { waitForAuthIdentityCleared } = await import('./lib/harness.mjs');
+  let reads = 0;
+  const page = {
+    evaluate() {
+      reads++;
+      return new Promise(() => {});
+    },
+  };
+  await assert.rejects(() => waitForAuthIdentityCleared(page, 30), /AUTH_IDENTITY_NOT_CLEARED/);
+  assert.equal(reads, 1);
 });

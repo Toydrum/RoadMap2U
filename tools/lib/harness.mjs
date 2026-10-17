@@ -4,6 +4,7 @@
 // stop drifting from the app (the 0.0.75 «Más detalles» fold broke four
 // scripts that each carried their own copy).
 import { chromium } from 'playwright-core';
+export { isolateIndividualBillingFixture } from './individual-probe-fixture.mjs';
 
 export const BASE = 'http://localhost:' + (process.env.RM_PORT ?? '8826');
 
@@ -172,33 +173,59 @@ export async function provisionSignedInAccess(page, { reload = false } = {}) {
  * IndexedDB delete finish. Cross-route probes must wait for the durable state,
  * otherwise the next document can legitimately hydrate the retiring user. */
 export async function waitForAuthIdentityCleared(page, timeout = 5000) {
-  await page.waitForFunction(
-    () =>
-      new Promise((resolve) => {
-        const request = indexedDB.open('roadmap2u');
-        request.onerror = () => resolve(false);
-        request.onsuccess = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains('meta')) {
-            db.close();
-            resolve(true);
-            return;
-          }
-          const read = db.transaction('meta', 'readonly').objectStore('meta').get('auth.identity');
-          read.onsuccess = () => {
-            const cleared = !read.result?.user;
-            db.close();
-            resolve(cleared);
-          };
-          read.onerror = () => {
-            db.close();
-            resolve(false);
-          };
-        };
-      }),
-    undefined,
-    { timeout },
-  );
+  if (!Number.isFinite(timeout) || timeout <= 0) throw Error('AUTH_IDENTITY_WAIT_INVALID');
+  const deadline = performance.now() + timeout;
+  for (;;) {
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) throw Error('AUTH_IDENTITY_NOT_CLEARED');
+    let timer;
+    let cleared;
+    try {
+      cleared = await Promise.race([
+        page
+          .evaluate(
+            () =>
+              new Promise((resolve, reject) => {
+                const request = indexedDB.open('roadmap2u');
+                request.onerror = () => reject(Error('AUTH_IDENTITY_STORAGE_UNAVAILABLE'));
+                request.onsuccess = () => {
+                  const db = request.result;
+                  if (!db.objectStoreNames.contains('meta')) {
+                    db.close();
+                    resolve(true);
+                    return;
+                  }
+                  const read = db
+                    .transaction('meta', 'readonly')
+                    .objectStore('meta')
+                    .get('auth.identity');
+                  read.onsuccess = () => {
+                    const absent = !read.result?.user;
+                    db.close();
+                    resolve(absent);
+                  };
+                  read.onerror = () => {
+                    db.close();
+                    reject(Error('AUTH_IDENTITY_STORAGE_UNAVAILABLE'));
+                  };
+                };
+              }),
+          )
+          .catch(() => {
+            throw Error('AUTH_IDENTITY_STORAGE_UNAVAILABLE');
+          }),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(Error('AUTH_IDENTITY_NOT_CLEARED')), remaining);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (cleared === true) return;
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(25, Math.max(0, deadline - performance.now()))),
+    );
+  }
 }
 
 /** New isolated browser context + page, with the same commercial fixture used
