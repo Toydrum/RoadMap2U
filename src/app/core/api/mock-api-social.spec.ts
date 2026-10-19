@@ -185,7 +185,7 @@ describe('MockApi social v2', () => {
       code: 'ADULT_MINOR_FRIENDSHIP_FORBIDDEN',
     });
     await expect(apiFor(minorA).createFriendRequest('MINORB1')).rejects.toMatchObject({
-      code: 'CONSENT_INCOMPLETE',
+      code: 'ACCOUNT_TYPE_INCOMPATIBLE',
     });
 
     memory.seed('friendRequests', 'legacy-minor-request', {
