@@ -200,6 +200,66 @@ describe('individual subscription page', () => {
     expect(root.querySelector('.billing-checkout')).toBeNull();
     expect(root.textContent).toContain(ES.billing.purchasesClosed);
   });
+  it.each([
+    {
+      lang: 'es' as const,
+      label: 'Solicitar factura',
+      fields: [
+        'RFC',
+        'nombre o razón social',
+        'código postal fiscal',
+        'régimen fiscal',
+        'uso del CFDI',
+        'forma de pago',
+        'correo para recibir XML y PDF',
+      ],
+    },
+    {
+      lang: 'en' as const,
+      label: 'Request an invoice',
+      fields: [
+        'RFC',
+        'registered name or business name',
+        'tax postcode',
+        'tax regime',
+        'CFDI use',
+        'payment method',
+        'email for XML and PDF delivery',
+      ],
+    },
+  ])(
+    'keeps the invoice email and all required tax details available in $lang',
+    async ({ lang, label, fields }) => {
+      const { root, fixture, api } = await adult({ state: 'expired', canCheckout: false }, false);
+      await TestBed.inject(I18nService).set(lang);
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(root.querySelector('.billing-invoice')?.textContent?.trim()).toBe(label);
+      });
+      const link = root.querySelector('.billing-invoice') as HTMLAnchorElement;
+      expect(link.getAttribute('href')).toBe('mailto:jescricdy1@gmail.com');
+      const support = root.querySelector('.billing-support')?.textContent ?? '';
+      expect(support).toContain('jescricdy1@gmail.com');
+      for (const field of fields) expect(support).toContain(field);
+      expect(root.querySelector('.billing-checkout')).toBeNull();
+      expect(api.createIndividualCheckout).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    { lang: 'es' as const, label: 'Solicitar factura', annual: 'factura anual' },
+    { lang: 'en' as const, label: 'Request an invoice', annual: 'annual invoice' },
+  ])(
+    'explains that the annual purchase receives an annual invoice in $lang',
+    async ({ lang, label, annual }) => {
+      const { root, fixture } = await adult({}, false);
+      await TestBed.inject(I18nService).set(lang);
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(root.querySelector('.billing-invoice')?.textContent?.trim()).toBe(label);
+      });
+      expect(root.querySelector('.billing-support')?.textContent).toContain(annual);
+    },
+  );
   it('hides purchases outside the admitted cohort and keeps Portal independent of admission', async () => {
     const { root, api } = await adult({
       state: 'expired',
