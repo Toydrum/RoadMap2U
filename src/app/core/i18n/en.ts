@@ -1167,6 +1167,7 @@ export const EN: Dict = {
     pending: "Confirmation is in progress. I do not need to pay again; my summary and access will be checked.",
     waiting: "Confirmation is still pending. I can check again or ask for help without starting another payment.",
     support: "I ask for help",
+    invoiceRequest: "Request an invoice",
     supportHint: "Support, payment clarification and refunds: overseer@roadmap2u.com. CFDI requests: jescricdy1@gmail.com; I provide my RFC, registered name or business name, tax postcode, tax regime, CFDI use and email for XML and PDF delivery. A Stripe receipt is not a CFDI.",
     paidThrough: "My paid period ends on {date}.",
     nextRenewal: "My next renewal is expected on {date}.",

@@ -1170,6 +1170,7 @@ export const ES = {
     pending: "La confirmación está en proceso. No necesito volver a pagar; consultaré el resumen y mi acceso.",
     waiting: "La confirmación sigue pendiente. Puedo consultar de nuevo o pedir ayuda sin iniciar otro pago.",
     support: "Pido ayuda",
+    invoiceRequest: "Solicitar factura",
     supportHint: "Soporte, aclaraciones y devoluciones: overseer@roadmap2u.com. Para solicitar CFDI: jescricdy1@gmail.com; indico RFC, nombre o razón social, código postal fiscal, régimen fiscal, uso del CFDI y correo para recibir XML y PDF. El comprobante de Stripe no es un CFDI.",
     paidThrough: "Mi periodo pagado termina el {date}.",
     nextRenewal: "Mi próxima renovación está prevista para el {date}.",
