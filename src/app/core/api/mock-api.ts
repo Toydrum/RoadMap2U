@@ -1614,31 +1614,39 @@ export class MockApi implements ApiClient {
 
   async createFriendRequest(rawCode: string): Promise<FriendRequestView> {
     await simLatency('api.createFriendRequest');
+    return this.createDirectAdultFriendRequest(rawCode);
+  }
+
+  private async createDirectAdultFriendRequest(rawCode: string): Promise<FriendRequestView> {
+    // The backend reserves every lookup once, before reading a bearer code.
+    // Keep this separate from target locking, and bind both phases to the
+    // same account incarnation even if the auth provider switches sessions.
+    const reservation = await this.withAccountMutation(async (caller) => {
+      this.requireSocial(caller);
+      if (caller.accountType !== 'adult') throw new ApiError('ACCOUNT_TYPE_INCOMPATIBLE');
+      const code = this.normalizeCode(rawCode);
+      const bucket = Math.floor(Date.now() / 3_600_000);
+      const rateKey = `rate:${caller.userId}:${bucket}`;
+      const attempts = (await mockGet<{ key: string; value: number }>('kv', rateKey))?.value ?? 0;
+      if (attempts >= LIMITS.codeAttemptsPerHour) throw new ApiError('RATE_LIMITED');
+      await mockNextSeq(rateKey);
+      return {
+        code,
+        caller: { sub: caller.userId, accountInstanceId: caller.accountInstanceId! },
+      };
+    });
+    const { code } = reservation;
     return this.withAccountMutation(
       async (caller) => {
         this.requireSocial(caller);
-        const code = rawCode?.trim().toUpperCase().replace(/-/g, '');
-        if (!code) throw new ApiError('VALIDATION', 'code required');
-
-        // Code-guessing brake: only BAD redemptions count (contract law — five
-        // valid requests in an hour must never lock out the sixth).
-        const bucket = Math.floor(Date.now() / 3_600_000);
-        const rateKey = `rate:${caller.userId}:${bucket}`;
-        const attempts = (await mockGet<{ key: string; value: number }>('kv', rateKey))?.value ?? 0;
-        if (attempts >= LIMITS.codeAttemptsPerHour) throw new ApiError('RATE_LIMITED');
-        const badAttempt = async (errorCode: ApiErrorCode, message?: string): Promise<never> => {
-          await mockNextSeq(rateKey);
-          throw new ApiError(errorCode, message);
-        };
-
         const grant = await mockGet<MockCodeRow>('codes', code);
-        if (!grant || grant.kind !== 'friend') return badAttempt('CODE_INVALID');
-        if (grant.expiresAt <= Date.now()) return badAttempt('CODE_EXPIRED');
+        if (!grant || grant.kind !== 'friend') throw new ApiError('CODE_INVALID');
+        if (grant.expiresAt <= Date.now()) throw new ApiError('CODE_EXPIRED');
         if (grant.userId === caller.userId)
           throw new ApiError('VALIDATION', 'that is your own code');
 
         const target = await mockGet<MockUserRow>('users', grant.userId);
-        if (!target || !target.socialEnabled) return badAttempt('CODE_INVALID');
+        if (!target || !target.socialEnabled) throw new ApiError('CODE_INVALID');
         const friendshipClass = friendshipClassForAccounts(caller.accountType, target.accountType);
         if (friendshipClass !== 'adult_adult') throw new ApiError('CONSENT_INCOMPLETE');
         if (await this.friendshipBetween(caller.userId, grant.userId)) {
@@ -1681,7 +1689,10 @@ export class MockApi implements ApiClient {
           expiresAt: request.expiresAt,
         };
       },
-      () => this.friendCodeParticipantIds(rawCode),
+      () => this.friendCodeParticipantIds(code),
+      undefined,
+      false,
+      reservation.caller,
     );
   }
 
@@ -1772,19 +1783,7 @@ export class MockApi implements ApiClient {
   // ── social v2 ─────────────────────────────────────────────────────────────
   async createAdultFriendRequest(req: CreateAdultFriendRequestRequest): Promise<FriendRequestView> {
     await simLatency('api.createAdultFriendRequest');
-    const caller = await this.caller();
-    this.requireSocial(caller);
-    const grant = await mockGet<MockCodeRow>('codes', this.normalizeCode(req.code));
-    const target =
-      grant?.kind === 'friend' ? await mockGet<MockUserRow>('users', grant.userId) : null;
-    if (!target || grant!.expiresAt <= Date.now()) throw new ApiError('CODE_INVALID');
-    if (friendshipClassForAccounts(caller.accountType, target.accountType) !== 'adult_adult') {
-      throw new ApiError('ADULT_MINOR_FRIENDSHIP_FORBIDDEN');
-    }
-    const request = await this.createFriendRequest(req.code);
-    const row = await mockGet<MockFriendRequestRow>('friendRequests', request.requestId);
-    if (row) await mockPut('friendRequests', { ...row, friendshipClass: 'adult_adult' });
-    return request;
+    return this.createDirectAdultFriendRequest(req?.code);
   }
 
   async acceptAdultFriendRequest(requestId: string): Promise<FriendView> {
@@ -2352,6 +2351,7 @@ export class MockApi implements ApiClient {
   // ── internals ─────────────────────────────────────────────────────────────
 
   private normalizeCode(rawCode: string): string {
+    if (typeof rawCode !== 'string') throw new ApiError('VALIDATION', 'code required');
     const code = rawCode?.trim().toUpperCase().replace(/-/g, '') ?? '';
     if (!code) throw new ApiError('VALIDATION');
     return code;
@@ -2923,8 +2923,16 @@ export class MockApi implements ApiClient {
     participantIds: () => Promise<readonly string[]> = async () => [],
     lockOnlyIds: () => Promise<readonly string[]> = async () => [],
     ownPrivateOperation = false,
+    expectedCaller?: MockCallerIdentity,
   ): Promise<T> {
     const identity = await this.callerIdentity();
+    if (
+      expectedCaller &&
+      (identity.sub !== expectedCaller.sub ||
+        identity.accountInstanceId !== expectedCaller.accountInstanceId)
+    ) {
+      throw new ApiError('UNAUTHENTICATED');
+    }
     await this.callerForIdentity(identity);
     const normalize = (ids: readonly string[]) => [...new Set(ids)].sort();
     const initialParticipants = normalize(await participantIds());

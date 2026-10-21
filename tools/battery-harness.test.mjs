@@ -35,7 +35,6 @@ test('launchPage provisions access without intercepting mock authentication', ()
   assert.match(harness, /commercialAccess\s*=\s*true/);
   assert.match(harness, /provisionCommercialAccess/);
   assert.match(harness, /export async function newProbePage/);
-  assert.match(harness, /return newProbePage\(browser/);
   assert.doesNotMatch(harness, /Storage\.prototype\.getItem\s*=/);
   assert.doesNotMatch(harness, /skip only the first token read/i);
   const provisioner = harness.slice(
@@ -265,4 +264,132 @@ test('a stalled browser read still stops at the sign-out deadline', { timeout: 5
   };
   await assert.rejects(() => waitForAuthIdentityCleared(page, 30), /AUTH_IDENTITY_NOT_CLEARED/);
   assert.equal(reads, 1);
+});
+
+function probeBrowserFixture({ setupError } = {}) {
+  const events = [];
+  const pages = [];
+  let contextOptions;
+  const context = {
+    async newPage() {
+      const number = pages.length + 1;
+      events.push(`page:${number}`);
+      const page = {
+        async goto(url) {
+          events.push(`goto:${number}:${url}`);
+          if (setupError) throw setupError;
+        },
+        locator(selector) {
+          return { async waitFor() { events.push(`wait:${number}:${selector}`); } };
+        },
+        async evaluate() { events.push(`write:${number}`); },
+        async close() { events.push(`page-close:${number}`); },
+      };
+      pages.push(page);
+      return page;
+    },
+    async close() { events.push('context-close'); },
+  };
+  const browser = {
+    async newContext(options) {
+      contextOptions = options;
+      events.push('context');
+      return context;
+    },
+    async close() { events.push('browser-close'); },
+  };
+  return { browser, context, events, pages, contextOptions: () => contextOptions };
+}
+
+test('context preparation is awaited before the default setup page and actual probe page', async () => {
+  const { newProbePage } = await import('./lib/harness.mjs');
+  const f = probeBrowserFixture();
+  let release;
+  const barrier = new Promise(resolve => { release = resolve; });
+  const loading = newProbePage(f.browser, { width: 321, height: 654 }, {
+    contextOptions: { serviceWorkers: 'block' },
+    async prepareContext(context) {
+      assert.equal(context, f.context);
+      f.events.push('prepare-start');
+      await barrier;
+      f.events.push('prepare-end');
+    },
+  });
+  let result;
+  try {
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(f.events, ['context', 'prepare-start']);
+    assert.equal(f.pages.length, 0);
+  } finally {
+    release();
+    result = await loading;
+  }
+  assert.equal(result.browser, f.browser);
+  assert.equal(result.context, f.context);
+  assert.equal(result.page, f.pages[1]);
+  assert.deepEqual(f.contextOptions(), {
+    viewport: { width: 321, height: 654 }, serviceWorkers: 'block',
+  });
+  assert.deepEqual(f.events, [
+    'context', 'prepare-start', 'prepare-end', 'page:1',
+    'goto:1:http://localhost:8826/account', 'wait:1:app-account', 'write:1',
+    'page-close:1', 'page:2',
+  ]);
+});
+
+test('context preparation also precedes the only page when commercial setup is disabled', async () => {
+  const { newProbePage } = await import('./lib/harness.mjs');
+  const f = probeBrowserFixture();
+  const result = await newProbePage(f.browser, undefined, {
+    commercialAccess: false,
+    async prepareContext(context) {
+      assert.equal(context, f.context);
+      await Promise.resolve();
+      f.events.push('prepared');
+    },
+  });
+  assert.deepEqual(f.events, ['context', 'prepared', 'page:1']);
+  assert.equal(result.page, f.pages[0]);
+  assert.deepEqual(f.contextOptions(), { viewport: { width: 900, height: 800 } });
+});
+
+test('failed asynchronous context preparation closes its context without creating a page', async () => {
+  const { newProbePage } = await import('./lib/harness.mjs');
+  const f = probeBrowserFixture();
+  const failure = Error('synthetic preparation failed');
+  await assert.rejects(() => newProbePage(f.browser, undefined, {
+    async prepareContext() { await Promise.resolve(); throw failure; },
+  }), error => error === failure);
+  assert.deepEqual(f.events, ['context', 'context-close']);
+  assert.equal(f.pages.length, 0);
+});
+
+test('launch failure closes the owned browser after the failed context is closed', async () => {
+  const { chromium } = await import('playwright-core');
+  const { launchPage } = await import('./lib/harness.mjs');
+  const originalLaunch = chromium.launch;
+  const f = probeBrowserFixture();
+  const failure = Error('synthetic context gate failed');
+  let launchOptions;
+  chromium.launch = async options => { launchOptions = options; return f.browser; };
+  try {
+    await assert.rejects(() => launchPage(undefined, {
+      async prepareContext() { await Promise.resolve(); throw failure; },
+    }), error => error === failure);
+    assert.deepEqual(launchOptions, { channel: 'msedge', headless: true });
+    assert.deepEqual(f.events, ['context', 'context-close', 'browser-close']);
+  } finally {
+    chromium.launch = originalLaunch;
+  }
+});
+
+test('failed commercial setup closes the context rather than leaving its setup page alive', async () => {
+  const { newProbePage } = await import('./lib/harness.mjs');
+  const failure = Error('synthetic setup navigation failed');
+  const f = probeBrowserFixture({ setupError: failure });
+  await assert.rejects(() => newProbePage(f.browser), error => error === failure);
+  assert.deepEqual(f.events, [
+    'context', 'page:1', 'goto:1:http://localhost:8826/account', 'context-close',
+  ]);
+  assert.equal(f.pages.length, 1);
 });

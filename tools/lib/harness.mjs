@@ -233,22 +233,33 @@ export async function waitForAuthIdentityCleared(page, timeout = 5000) {
 export async function newProbePage(
   browser,
   viewport = { width: 900, height: 800 },
-  { commercialAccess = true, contextOptions = {} } = {},
+  { commercialAccess = true, contextOptions = {}, prepareContext } = {},
 ) {
   const context = await browser.newContext({ viewport, ...contextOptions });
-  if (commercialAccess) {
-    const setupPage = await context.newPage();
-    await provisionCommercialAccess(setupPage);
-    await setupPage.close();
+  try {
+    if (prepareContext !== undefined) await prepareContext(context);
+    if (commercialAccess) {
+      const setupPage = await context.newPage();
+      await provisionCommercialAccess(setupPage);
+      await setupPage.close();
+    }
+    const page = await context.newPage();
+    return { browser, context, page };
+  } catch (error) {
+    await context.close().catch(() => {});
+    throw error;
   }
-  const page = await context.newPage();
-  return { browser, context, page };
 }
 
 /** Standard browser + page. Desktop viewport unless overridden. */
 export async function launchPage(viewport = { width: 900, height: 800 }, options = {}) {
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
-  return newProbePage(browser, viewport, options);
+  try {
+    return await newProbePage(browser, viewport, options);
+  } catch (error) {
+    await browser.close().catch(() => {});
+    throw error;
+  }
 }
 
 let failed = false;
