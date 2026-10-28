@@ -4,13 +4,14 @@ import { MockApiMemoryDb } from './mock-api-test-memory.spec-helper';
 import { ADULT_PRIVACY_VERSIONS, CLOSED_INDIVIDUAL_BILLING_CATALOG, type IndividualCheckoutRequest, type PrivacyConsentCommand } from './contracts';
 import { privacyDocument } from './privacy-document';
 import type { AuthProvider } from '../auth/auth-provider';
+import { MockAuthProvider, parseMockToken } from '../auth/mock-auth.provider';
 import type { MockUserRow } from './mock-cloud';
 
 const memory = new MockApiMemoryDb();
 Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: memory.indexedDb });
 let owner: MockUserRow; let api: MockApi; let verified: boolean;
 const evidenceKey = () => `billing.individual.evidence:${owner.userId}:${owner.accountInstanceId}`;
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { localStorage.removeItem('rm2u.mock.idToken'); vi.restoreAllMocks(); });
 function payment(paidThrough = Date.now() + 86400000) {
   memory.seed('kv', evidenceKey(), { key: evidenceKey(), value: { source: 'test_seed', accountId: owner.userId, accountInstanceId: owner.accountInstanceId, invoiceId: 'synthetic-invoice-1', interval: 'month', paidThrough, cancelAtPeriodEnd: false, revision: 2 } });
 }
@@ -114,5 +115,88 @@ describe('individual mock billing lifecycle', () => {
     const row = memory.rows<{ key: string; value: Record<string, unknown> }>('kv').find((item) => item.key === evidenceKey())!;
     row.value['accountInstanceId'] = 'old-instance';
     await expect(accept()).rejects.toMatchObject({ code: 'CAPABILITY_REQUIRED' });
+  });
+});
+
+
+async function realSignedInBuyer(username: string) {
+  const person: MockUserRow = { ...owner, userId: username, username, accountInstanceId: `${username}-instance` };
+  memory.seed('users', person.userId, person);
+  memory.seed('credentials', username, {
+    username, userId: person.userId, password: 'SecureTest123!', pendingConfirm: false, mustChangePassword: false,
+  });
+  const auth = new MockAuthProvider();
+  expect((await auth.signIn(username, 'SecureTest123!')).kind).toBe('done');
+  expect(parseMockToken((await auth.idToken())!)?.email_verified).toBe(true);
+  const actualApi = new MockApi(auth, {
+    individualPaymentsEnabled: true, adultPrivacyMode: 'enforce', privateAdolescentMode: 'enforce',
+  });
+  const doc = await privacyDocument('es');
+  await actualApi.changePrivacyConsent({ ...ADULT_PRIVACY_VERSIONS, action: 'declare_adult',
+    commandId: `${username}-adult`, expectedRevision: 0, language: 'es', documentHash: doc.hash,
+    declareAdult: true, acceptTerms: true });
+  return { auth, actualApi, person };
+}
+
+describe('individual checkout with the real mock auth provider', () => {
+  it('settles a real-auth checkout without reacquiring its account lock and preserves paid-access separation', async () => {
+    const { actualApi, person } = await realSignedInBuyer('checkout_real');
+    expect(await actualApi.getPrivacyStatus()).toMatchObject({ adultDeclared: true, cloudConsent: 'absent' });
+    expect(await actualApi.getIndividualBillingSummary()).toMatchObject({ state: 'none', revision: 0 });
+    const privacyBefore = structuredClone(memory.rows<{ key: string }>('kv')
+      .filter(row => row.key.startsWith(`privacy:${person.userId}:${person.accountInstanceId}`)));
+    const request = { ...checkout(), commandId: 'checkout-real-auth' };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const outcome = await Promise.race([
+        actualApi.createIndividualCheckout(request).then(value => ({ settled: true, value })),
+        new Promise(resolve => { timer = setTimeout(() => resolve({ settled: false, reason: 'REAL_AUTH_CHECKOUT_LOCK_TIMEOUT' }), 500); }),
+      ]);
+      expect(outcome, 'a verified real mock-auth buyer must not deadlock before the durable checkout command')
+        .toMatchObject({ settled: true, value: { outcome: 'redirect', commandId: request.commandId } });
+    } finally {
+      clearTimeout(timer);
+    }
+    expect(memory.rows<{ key: string }>('kv').filter(row =>
+      row.key === `billing.individual.command:${person.userId}:${person.accountInstanceId}:${request.commandId}`)).toHaveLength(1);
+    expect(await actualApi.getIndividualBillingSummary()).toMatchObject({ state: 'checkout_pending', canCheckout: false });
+    expect((await actualApi.getAccess()).effectivePlanKey).toBe('free');
+    expect(memory.rows<{ key: string }>('kv').filter(row =>
+      row.key.startsWith(`privacy:${person.userId}:${person.accountInstanceId}`))).toEqual(privacyBefore);
+  });
+
+  it('rejects an account switch between the captured token and mutation admission', async () => {
+    const { auth, actualApi, person } = await realSignedInBuyer('checkout_switch');
+    const other = { ...person, userId: 'checkout_other', username: 'checkout_other', accountInstanceId: 'other-instance' };
+    memory.seed('users', other.userId, other);
+    memory.seed('credentials', other.username, { username: other.username, userId: other.userId,
+      password: 'SecureTest123!', pendingConfirm: false, mustChangePassword: false });
+    const originalRead = auth.idToken.bind(auth);
+    let reads = 0;
+    vi.spyOn(auth, 'idToken').mockImplementation(async options => {
+      const token = await originalRead(options);
+      if (++reads === 1) expect((await new MockAuthProvider().signIn(other.username, 'SecureTest123!')).kind).toBe('done');
+      return token;
+    });
+    await expect(actualApi.createIndividualCheckout({ ...checkout(), commandId: 'checkout-switch' }))
+      .rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    expect(memory.rows<{ key: string }>('kv').filter(row => row.key.startsWith('billing.individual.command:'))).toHaveLength(0);
+  });
+
+  it('retains the account-incarnation fence when the current identity is replaced after token capture', async () => {
+    const { auth, actualApi, person } = await realSignedInBuyer('checkout_instance');
+    const originalRead = auth.idToken.bind(auth);
+    let reads = 0;
+    vi.spyOn(auth, 'idToken').mockImplementation(async options => {
+      const token = await originalRead(options);
+      if (++reads === 1) {
+        memory.seed('users', person.userId, { ...person, accountInstanceId: 'replaced-instance' });
+        expect((await new MockAuthProvider().signIn(person.username, 'SecureTest123!')).kind).toBe('done');
+      }
+      return token;
+    });
+    await expect(actualApi.createIndividualCheckout({ ...checkout(), commandId: 'checkout-replaced-instance' }))
+      .rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    expect(memory.rows<{ key: string }>('kv').filter(row => row.key.startsWith('billing.individual.command:'))).toHaveLength(0);
   });
 });
