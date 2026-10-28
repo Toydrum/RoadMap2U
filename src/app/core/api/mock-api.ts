@@ -2061,14 +2061,16 @@ export class MockApi implements ApiClient {
   }
   async createIndividualCheckout(req: IndividualCheckoutRequest): Promise<IndividualBillingCommandResult> {
     if (!isIndividualCheckoutRequest(req)) throw new ApiError('VALIDATION');
+    const token = await this.auth.idToken();
+    const identity = this.identityFromToken(token);
     return this.withAccountMutation(async (caller) => {
       if (caller.accountType !== 'adult') throw new ApiError('BILLING_BUYER_INELIGIBLE');
-      const token = await this.auth.idToken();
       if (!token || parseMockToken(token)?.email_verified !== true) throw new ApiError('EMAIL_VERIFICATION_REQUIRED');
       if (!(await this.privacy.status(caller)).adultDeclared) throw new ApiError('ADULT_DECLARATION_REQUIRED');
       return this.individualBilling.command(caller, req, 'checkout');
-    }, async () => [], async () => [], true);
+    }, async () => [], async () => [], true, identity);
   }
+
   async createIndividualPortalSession(req: IndividualPortalRequest): Promise<IndividualBillingCommandResult> {
     if (!isIndividualPortalRequest(req)) throw new ApiError('VALIDATION');
     return this.withAccountMutation(async (caller) => {
