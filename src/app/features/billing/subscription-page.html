@@ -84,7 +84,7 @@
             {{ i18n.fill(i18n.t().billing.nextRenewal, { date: date(summary.nextRenewalAt!) }) }}
           </p>
         }
-        @if (summary.canOpenPortal && canonicalAdult()) {
+        @if (summary.canOpenPortal && standardOwnAccount()) {
           <button
             type="button"
             class="btn billing-portal"
@@ -120,7 +120,7 @@
         <p>{{ i18n.t().billing.recurring }}</p>
         @if (!offer.purchasesEnabled) {
           <p class="billing-closed">{{ i18n.t().billing.purchasesClosed }}</p>
-        } @else if (adultAdmissionPending()) {
+        } @else if (accountAdmissionPending()) {
           <p role="status">{{ i18n.t().billing.loading }}</p>
         } @else if (!eligibleBuyer()) {
           <p>{{ i18n.t().billing.adultOnly }}</p>

@@ -104,5 +104,33 @@
     "requiresDeclaredNameAndRelationship": true,
     "verifiesCivilIdentityOrParentageDocuments": false,
     "requiresManualOperatorForRoutineSignup": false
+  },
+  "commonAccountPublicationApproved": true,
+  "commonAccountPublicationApproval": {
+    "basis": "responsible_owner",
+    "approvedBy": "Héctor Coronado",
+    "approvedOn": "2026-10-29",
+    "designApprovalReference": "2ec91643",
+    "productionAuthorizationReference": "owner-2026-10-29-conditional-tests-review",
+    "versions": {
+      "privacy": "common-privacy-2026-10-29-v1",
+      "terms": "common-terms-2026-10-29-v1",
+      "cloudConsent": "common-cloud-consent-2026-10-29-v1"
+    },
+    "documentHashes": {
+      "es": "26db238e9ad07dc9e024d89ea467aa5ba9f4f26a9e8d7d87491814601aa8f365",
+      "en": "2e50b36ead25a9e7da7e5698cfdb21ba7912b357678e0c1833a39f79dbb8615c"
+    },
+    "conditions": [
+      "all_required_tests_pass",
+      "review_complete"
+    ],
+    "scope": "common_account_free_and_individual_premium",
+    "historicalProcedures": "Existing retention and rights procedures are preserved; no new common-account physical rehearsal is claimed."
+  },
+  "commonAccountVerification": {
+    "testsPassed": true,
+    "reviewComplete": true,
+    "evidence": "docs/reviews/common-account-launch-2026-10-29.md"
   }
 }

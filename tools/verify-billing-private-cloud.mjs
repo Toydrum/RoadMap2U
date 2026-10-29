@@ -1,7 +1,8 @@
+import { provisionLegacyPrivateFixture } from './lib/legacy-private-fixture.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { BASE, launchPage, ok, waitForAuthIdentityCleared } from './lib/harness.mjs';
+import { BASE, launchPage, ok, waitForAuthIdentityCleared, signInAs } from './lib/harness.mjs';
 
 const origin = new URL(BASE);
 assert.ok(['localhost', '127.0.0.1'].includes(origin.hostname), 'local mock rehearsal only');
@@ -65,41 +66,15 @@ async function db(database, store, operation, data) {
 const cloud = (store, operation, data) => db('roadmap2u-mockcloud', store, operation, data);
 const local = (store, operation, data) => db('roadmap2u', store, operation, data);
 const panel = () => page.locator('app-privacy-panel');
-async function signup(username, invitation) {
-  await page.goto(BASE + '/account', { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: 'Quiero una llave nueva', exact: true }).click();
-  const form = page.locator('.auth-form');
-  await form.locator('input[name="signup-age"]').first().waitFor();
-  check(
-    'age and consent start unchecked: ' + username,
-    (await form.locator('input[type="checkbox"]:checked,input[type="radio"]:checked').count()) ===
-      0,
-  );
-  await form.locator('input[autocomplete="username"]').fill(username);
-  await form.locator('input[type="email"]').fill(username + '@example.invalid');
-  for (const password of await form.locator('input[type="password"]').all())
-    await password.fill('LocalProbe123!');
-  await form
-    .locator('input[name="signup-age"]')
-    .nth(invitation ? 1 : 0)
-    .check();
-  if (invitation) {
-    await form.locator('input[maxlength="64"]').fill(invitation);
-    await form.locator('input[type="checkbox"]').first().check();
-  }
-  await form.locator('input[type="checkbox"]').last().check();
-  await form.locator('button[type="submit"]').click();
-  await page.locator('input[autocomplete="one-time-code"]').fill('123456');
-  await page.getByRole('button', { name: 'Confirmar', exact: true }).click();
-  await page.getByRole('heading', { name: 'Tu cuenta', exact: true }).waitFor();
-}
 async function settings() {
   await page.goto(BASE + '/settings', { waitUntil: 'networkidle' });
   await panel().getByRole('button', { name: 'Conectar mi bosque', exact: true }).waitFor();
 }
 try {
-  await signup('bill_parent');
-  const parent = await cloud('users', 'get', 'u-bill_parent');
+  await page.goto(BASE + '/account', { waitUntil: 'networkidle' });
+  const fixture = await provisionLegacyPrivateFixture(page, { prefix: 'bill' });
+  await signInAs(page, fixture.parent.username, fixture.password, { commercialAccess: false });
+  const parent = fixture.parent;
   const evidenceKey = `billing.individual.evidence:${parent.userId}:${parent.accountInstanceId}`;
   const paid = {
     source: 'test_seed',
@@ -126,35 +101,17 @@ try {
     'adult capacity has no sponsored or family coverage fixture',
     !(await cloud('coverages', 'get', parent.userId)),
   );
+  check('pre-existing private authorization retains the exact historical responsible account',
+    fixture.invitation.state === 'accepted' &&
+    fixture.invitation.authorizationMethod === 'account_attestation' &&
+    fixture.invitation.guardianId === parent.userId);
   await page.goto(BASE + '/account', { waitUntil: 'networkidle' });
-  await panel()
-    .locator('summary')
-    .filter({ hasText: 'Autorizo una cuenta adolescente privada' })
-    .click();
-  const form = panel().locator('form');
-  await form.locator('input[name="guardian-name"]').fill('María Pérez');
-  await form.locator('select[name="guardian-relationship"]').selectOption('parent');
-  await form.locator('input[type="text"]').last().fill('bill_teen');
-  await form.locator('input[type="date"]').fill('2029-10-11');
-  for (const box of await form.locator('input[type="checkbox"]').all()) await box.check();
-  await form.locator('button[type="submit"]').click();
-  await panel().getByText('Autorizada: puede aceptarse', { exact: true }).waitFor();
-  const invitation = (await cloud('kv', 'all')).find(
-    (row) =>
-      row.key.startsWith('private-adolescent-invitation:') &&
-      row.value.guardianId === parent.userId,
-  );
-  check(
-    'paid adult can authorize the exact named private adolescent',
-    invitation?.value.state === 'authorized' &&
-      invitation.value.authorizationMethod === 'account_attestation',
-  );
   await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
   await waitForAuthIdentityCleared(page);
-  await signup('bill_teen', invitation.value.invitationId);
-  const teen = await cloud('users', 'get', 'u-bill_teen');
+  await signInAs(page, fixture.teen.username, fixture.password, { commercialAccess: false });
+  const teen = fixture.teen;
   check(
-    'real invitation acceptance isolates a private minor',
+    'existing private account retains its isolated minor profile',
     teen.accountType === 'minor' &&
       teen.privacyMode === 'adolescent_private' &&
       teen.socialEnabled === false,
@@ -184,7 +141,7 @@ try {
     !(await dialog.locator('input[type="checkbox"]').isChecked()),
   );
   await dialog.locator('input[type="checkbox"]').check();
-  await dialog.getByRole('button', { name: 'Autorizo y conecto mi bosque', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Autorizar y conectar mi bosque', exact: true }).click();
   await dialog.waitFor({ state: 'detached' });
   await panel().getByText('Mi autorización de nube está vigente.', { exact: true }).waitFor();
   const privacyKey = `privacy:${encodeURIComponent(teen.userId)}:${encodeURIComponent(teen.accountInstanceId)}`;
@@ -246,6 +203,7 @@ try {
     JSON.stringify(
       {
         scope: 'local_mock_only',
+        fixture: 'pre_existing_legacy_accounts_in_fresh_local_mock_only',
         paidSource: 'explicit individual test_seed; exact adult account instance',
         checks,
         errors,

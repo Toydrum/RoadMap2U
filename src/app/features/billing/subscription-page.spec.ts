@@ -59,11 +59,13 @@ describe('individual subscription page', () => {
     const privacyStatus = signal<{
       scope: 'adult' | 'adolescent_private';
       adultDeclared: boolean;
+      accountAdmission?: 'absent' | 'standard';
       cloudConsent?: 'absent';
       canUseCloud?: false;
     } | null>({
       scope: 'adult',
       adultDeclared: true,
+      accountAdmission: 'standard',
       cloudConsent: 'absent',
       canUseCloud: false,
     });
@@ -376,6 +378,12 @@ describe('individual subscription page', () => {
         hash: (await billingDocument('en')).hash,
       },
     });
+  });
+  it('lets a standard account buy without declaring adulthood or granting cloud', async () => {
+    const { root, fixture, privacyStatus } = await adult();
+    privacyStatus.set({ scope: 'adult', adultDeclared: false, accountAdmission: 'standard', cloudConsent: 'absent', canUseCloud: false });
+    fixture.detectChanges();
+    expect(root.querySelector('.billing-checkout')).not.toBeNull();
   });
   it('keeps a minor outside the individual purchase form', async () => {
     const { root, fixture, user } = await adult();

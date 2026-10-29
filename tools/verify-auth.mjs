@@ -2,7 +2,7 @@
 // session hydration with zero network, and the sacred rule — auth never
 // touches local forest data.
 import assert from 'node:assert/strict';
-import { BASE, admitSyntheticAdult, isolateIndividualBillingFixture, launchPage, newProbePage, provisionSignedInAccess, signInAs, waitForAuthIdentityCleared } from './lib/harness.mjs';
+import { BASE, admitSyntheticStandard, isolateIndividualBillingFixture, launchPage, newProbePage, provisionSignedInAccess, signInAs, waitForAuthIdentityCleared } from './lib/harness.mjs';
 const { browser, page } = await launchPage({ width: 1280, height: 800 }, { commercialAccess: false });
 
 const pageErrors = [];
@@ -52,19 +52,20 @@ const treesBefore = (await idbGet('trees')).length;
 // A — sign in as the demo parent; local forest untouched, identity cached.
 await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
 await stage('Una llave para tu bosque').waitFor({ timeout: 5000 });
-await page.locator('button', { hasText: 'Ya tengo mi llave' }).click();
+await page.locator('button', { hasText: 'Iniciar sesión' }).click();
 await stage('Entrar a mi cuenta').waitFor();
 await signIn('rocio', 'Bosque123');
 await page.locator('app-account .privacy-panel').waitFor();
-assert.equal(await page.locator('.profile-card').count(), 0, 'sign-in alone does not complete adult admission');
-await admitSyntheticAdult(page);
+assert.equal(await page.locator('.profile-card').count(), 0, 'sign-in alone does not complete common terms admission');
+await admitSyntheticStandard(page);
 const whoA = await page.locator('.who-name').textContent();
 const treesAfterA = (await idbGet('trees')).length;
 const identityA = await idbGet('meta', 'auth.identity');
 const adultA = await idbGet('users', identityA.user.userId, 'roadmap2u-mockcloud');
 const privacyKeyA = 'privacy:' + encodeURIComponent(adultA.userId) + ':' + encodeURIComponent(adultA.accountInstanceId);
 const consentA = (await idbGet('kv', privacyKeyA, 'roadmap2u-mockcloud'))?.value;
-assert.equal(consentA?.adultDeclared, true);
+assert.equal(consentA?.adultDeclared, false);
+assert.ok(consentA?.accountTermsAcceptedAt);
 assert.equal(consentA?.cloudConsent, 'absent', 'the admission transaction does not include optional cloud consent');
 const okA = whoA?.trim() === 'Rocío' && treesAfterA === treesBefore && !!identityA?.user;
 console.log(
@@ -75,7 +76,7 @@ console.log(
 await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(400);
 const chipText = await page.locator('.account-chip').textContent();
-assert.equal(await page.locator('.nube button', { hasText: 'Conectar mi bosque' }).isDisabled(), true, 'adult admission does not grant optional cloud consent');
+assert.equal(await page.locator('.nube button', { hasText: 'Conectar mi bosque' }).isDisabled(), true, 'common admission does not grant optional cloud consent');
 console.log(`G1 settings card signed-in: "${chipText?.trim().slice(0, 24)}" | OK=${chipText?.includes('Rocío')}`);
 
 // E — a fresh boot hydrates the session from meta with ZERO network.
@@ -107,13 +108,23 @@ console.log(`F sign-out: identity-user=${identityF?.user ?? 'null'} trees=${tree
 
 // G2 — Settings card back to the guest invitation.
 await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(400);
-const guestCta = await page.locator('a', { hasText: 'Abrir mi cuenta' }).count();
-console.log(`G2 settings card guest: cta=${guestCta} | OK=${guestCta === 1}`);
+await page.locator('.account-overview a[href*="intent=signIn"]').waitFor();
+const guestDoors = await page.locator('.account-overview .account-actions a').evaluateAll(
+  links => links.map(link => ({ text: link.textContent.trim(), href: link.getAttribute('href') })),
+);
+const expectedDoors = [['signIn', 'Entrar'], ['create', 'Crear mi cuenta']];
+const guestCta = guestDoors.length === 2 && expectedDoors.every(([intent, label]) =>
+  guestDoors.some(door => {
+    const target = new URL(door.href, BASE);
+    return door.text === label && target.pathname === '/account' &&
+      target.searchParams.get('intent') === intent && target.searchParams.get('volver') === '/settings';
+  }),
+) && (await page.locator('.account-chip').count()) === 0;
+console.log(`G2 settings card guest: doors=${guestDoors.length} sign-in/create return to Settings | OK=${guestCta}`);
 
 // C — wrong password renders calm copy, no unhandled rejection, still guest.
 await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
-await page.locator('button', { hasText: 'Ya tengo mi llave' }).click();
+await page.locator('button', { hasText: 'Iniciar sesión' }).click();
 await stage('Entrar a mi cuenta').waitFor();
 await signIn('rocio', 'Incorrecta9');
 await page.locator('.error-line').waitFor({ timeout: 5000 });
@@ -125,7 +136,7 @@ console.log(`C wrong password: copy=${!!errText} guest=${!identityC?.user} | OK=
 // B — sign-up with the always-123456 code lands signed in.
 await page.locator('button', { hasText: 'Volver' }).click();
 await stage('Una llave para tu bosque').waitFor();
-await page.locator('button', { hasText: 'Quiero una llave nueva' }).click();
+await page.locator('button', { hasText: 'Crear cuenta' }).click();
 await stage('Crear mi cuenta').waitFor();
 await page.fill('.auth-form input[autocomplete="username"]', 'brisa');
 // displayName severed from signup (0.0.108) — the field is gone.
@@ -135,9 +146,7 @@ await pwFields.nth(0).fill('Bosque123');
 await pwFields.nth(1).fill('Bosque123');
 await page.locator('.auth-form button[type=submit]').click();
 await page.locator('.error-line').waitFor();
-assert.equal(await idbGet('users', 'u-brisa', 'roadmap2u-mockcloud'), null, 'signup without an age decision creates no account');
-await page.locator('.auth-form .age-choice input[type=radio]').first().check();
-await page.locator('.auth-form button[type=submit]').click();
+assert.equal(await page.locator('.auth-form input[type=radio]').count(), 0, 'standard signup has no age decision');
 assert.equal(await idbGet('users', 'u-brisa', 'roadmap2u-mockcloud'), null, 'signup without terms acceptance creates no account');
 await page.locator('.auth-form input[type=checkbox]').check();
 await page.locator('.auth-form button[type=submit]').click();
@@ -148,7 +157,8 @@ await page.locator('.profile-card').waitFor({ timeout: 8000 });
 const whoB = await page.locator('.who-name').textContent();
 const adultB = await idbGet('users', 'u-brisa', 'roadmap2u-mockcloud');
 const consentB = (await idbGet('kv', 'privacy:' + encodeURIComponent(adultB.userId) + ':' + encodeURIComponent(adultB.accountInstanceId), 'roadmap2u-mockcloud'))?.value;
-assert.equal(consentB?.adultDeclared, true);
+assert.equal(consentB?.adultDeclared, false);
+assert.ok(consentB?.accountTermsAcceptedAt);
 assert.equal(consentB?.cloudConsent, 'absent');
 // 0.0.108: no displayName at signup — the profile falls back to the username.
 console.log(`B sign-up + code: who=${whoB?.trim()} | OK=${whoB?.trim() === 'brisa'}`);
@@ -157,7 +167,7 @@ await stage('Una llave para tu bosque').waitFor();
 await waitForAuthIdentityCleared(page);
 
 // D — the child's first login: temp password → own password → clean re-entry.
-await page.locator('button', { hasText: 'Ya tengo mi llave' }).click();
+await page.locator('button', { hasText: 'Iniciar sesión' }).click();
 await stage('Entrar a mi cuenta').waitFor();
 await signIn('nico', 'Semilla1!');
 await stage('Estrena tu contraseña').waitFor({ timeout: 5000 });
@@ -173,7 +183,7 @@ assert.equal(await page.locator('.privacy-panel input[value=adult]').count(), 0,
 await page.locator('button', { hasText: 'Cerrar sesión' }).click();
 await stage('Una llave para tu bosque').waitFor();
 await waitForAuthIdentityCleared(page);
-await page.locator('button', { hasText: 'Ya tengo mi llave' }).click();
+await page.locator('button', { hasText: 'Iniciar sesión' }).click();
 await signIn('nico', 'Brotes2026');
 await page.locator('app-account .privacy-panel').waitFor({ timeout: 8000 });
 const minorReentry = await idbGet('meta', 'auth.identity');

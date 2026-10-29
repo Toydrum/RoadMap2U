@@ -20,7 +20,7 @@
             {{
               privacy.status()?.scope === 'adolescent_private' || user.accountType === 'minor'
                 ? i18n.t().account.roleMinor
-                : i18n.t().account.roleAdult
+                : i18n.t().account.roleAccount
             }}
           </span>
         </a>
@@ -34,7 +34,7 @@
             [queryParams]="{ returnUrl: '/settings' }"
             >{{ i18n.t().settings.accountOpen }}</a
           >
-          @if (user.accountType === 'adult' && !privacy.status()?.privateOnly) {
+          @if (user.accountType === 'adult' && privacy.status()?.scope === 'adult' && !privacy.status()?.privateOnly) {
             <a
               class="btn btn-soft account-redeem"
               routerLink="/account"

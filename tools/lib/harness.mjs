@@ -295,21 +295,21 @@ export async function nodeCenter(page, nth = 0) {
   }, nth);
 }
 
-/** Positive synthetic adult admission uses the rendered choices and normal API.
- * It never supplies optional cloud consent or promotes an unsupported minor. */
-export async function admitSyntheticAdult(page) {
+/** Synthetic common admission uses the rendered terms and normal local API.
+ * It supplies neither age evidence nor optional cloud consent. */
+export async function admitSyntheticStandard(page) {
   if (!['localhost', '127.0.0.1'].includes(new URL(BASE).hostname)) throw new Error('local mock admission only');
   const profile = page.locator('app-account .profile-card');
-  await page.locator('app-account .profile-card, app-account .privacy-panel').first().waitFor();
-  if (await profile.count()) return;
-  const form = page.locator('app-account .privacy-panel form');
-  await form.locator('input[name="privacy-age"][value="adult"]').check();
-  await form.locator('input[type="checkbox"]').check();
-  await form.locator('button[type="submit"]').click();
+  await page.locator('app-account .privacy-panel[aria-busy="false"]').waitFor();
+  const form = page.locator('app-account .account-terms-form');
+  if (await form.count()) {
+    await form.locator('input[type="checkbox"]').check();
+    await form.locator('button[type="submit"]').click();
+  }
   await profile.waitFor();
 }
 
-/** Mock-cloud sign-in from anywhere. Profile journeys include explicit adult
+/** Mock-cloud sign-in from anywhere. Profile journeys include explicit common
  * admission; an admission/error/challenge journey stops before that decision. */
 export async function signInAs(page, username, password, { expect = 'profile', commercialAccess = true } = {}) {
   await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
@@ -318,7 +318,7 @@ export async function signInAs(page, username, password, { expect = 'profile', c
     await page.locator('h1', { hasText: 'Una llave' }).waitFor();
     await waitForAuthIdentityCleared(page);
   }
-  await page.locator('button', { hasText: 'Ya tengo mi llave' }).click();
+  await page.locator('button', { hasText: 'Iniciar sesión' }).click();
   await page.fill('.auth-form input[autocomplete="username"]', username);
   await page.fill('.auth-form input[type="password"]', password);
   await page.locator('.auth-form button[type="submit"]').click();
@@ -328,7 +328,7 @@ export async function signInAs(page, username, password, { expect = 'profile', c
     await page.locator('app-account .privacy-panel').waitFor();
     return;
   }
-  await admitSyntheticAdult(page);
+  await admitSyntheticStandard(page);
   if (commercialAccess) await provisionSignedInAccess(page, { reload: true });
 }
 

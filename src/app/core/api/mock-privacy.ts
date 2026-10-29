@@ -1,5 +1,6 @@
 import {
   ADULT_PRIVACY_VERSIONS,
+  COMMON_ACCOUNT_VERSIONS,
   ApiError,
   type PrivacyStatus,
   type PrivacyConsentCommand,
@@ -12,6 +13,7 @@ import {
 import { USERNAME_PATTERN } from '../auth/auth-types';
 import {
   privacyDocument,
+  commonAccountDocument,
   privacyCalendarDate,
   validAdolescentMajorityDate,
 } from './privacy-document';
@@ -26,6 +28,10 @@ import {
   type MockCoverageRow,
 } from './mock-cloud';
 interface State extends PrivacyStatus {
+  accountTermsAcceptedAt?: number;
+  accountTermsLanguage?: 'es' | 'en';
+  accountTermsDocumentHash?: string;
+  cloudDocumentFamily?: 'common';
   declarationLanguage?: 'es' | 'en';
   declarationHash?: string;
   cloudLanguage?: 'es' | 'en';
@@ -132,16 +138,21 @@ export class MockAdultPrivacy {
       'termsVersion',
       'cloudConsentVersion',
       'documentHash',
+      ...(command.documentFamily === undefined ? [] : ['documentFamily']),
       ...extra,
     ];
-    const document = await privacyDocument(command.language);
+    const common = command.documentFamily === 'common';
+    if (common && !['accept_account_terms', 'grant_cloud', 'revoke_cloud', 'erase_cloud'].includes((command as PrivacyConsentCommand).action))
+      throw new ApiError('VALIDATION');
+    const document = await (common ? commonAccountDocument : privacyDocument)(command.language);
     if (
       Object.keys(command).length !== keys.length ||
       Object.keys(command).some((key) => !keys.includes(key)) ||
       !/^[A-Za-z0-9][A-Za-z0-9:._/-]{0,127}$/.test(command.commandId) ||
       !Number.isSafeInteger(command.expectedRevision) ||
       command.expectedRevision < 0 ||
-      Object.entries(ADULT_PRIVACY_VERSIONS).some(
+      (command.documentFamily !== undefined && !['common', 'legacy'].includes(command.documentFamily)) ||
+      Object.entries(common ? COMMON_ACCOUNT_VERSIONS : ADULT_PRIVACY_VERSIONS).some(
         ([key, value]) => (command as unknown as Record<string, unknown>)[key] !== value,
       ) ||
       command.documentHash !== document.hash
@@ -192,6 +203,10 @@ export class MockAdultPrivacy {
       user.accountType === 'adult' &&
       !!item?.declarationLanguage &&
       item.declarationHash === (await privacyDocument(item.declarationLanguage)).hash;
+    const accountTermsAccepted = user.accountType === 'adult' && !user.privacyMode &&
+      !!item?.accountTermsAcceptedAt && !!item.accountTermsLanguage &&
+      item.accountTermsDocumentHash === (await commonAccountDocument(item.accountTermsLanguage)).hash;
+    const standard = !user.privacyMode && (declared || accountTermsAccepted);
     let guardianCurrent =
       adolescent &&
       item?.guardianConsent === 'granted' &&
@@ -210,10 +225,10 @@ export class MockAdultPrivacy {
       item.adolescentHash === (await privacyDocument(item.adolescentLanguage)).hash;
     const current =
       !!item?.cloudLanguage &&
-      item.cloudHash === (await privacyDocument(item.cloudLanguage)).hash &&
+      item.cloudHash === (await (item.cloudDocumentFamily === 'common' ? commonAccountDocument : privacyDocument)(item.cloudLanguage)).hash &&
       (!adolescent || adolescentUnderstood);
     const cloudConsent =
-      item?.cloudConsent === 'granted' && (!(declared || guardianCurrent) || !current)
+      item?.cloudConsent === 'granted' && (!(standard || declared || guardianCurrent) || !current)
         ? 'version_review_required'
         : (item?.cloudConsent ?? 'absent');
     const erasure = item?.erasure ?? 'none';
@@ -237,10 +252,14 @@ export class MockAdultPrivacy {
       enforcement: this.mode,
       revision: item?.revision ?? 0,
       adultDeclared: declared,
+      accountAdmission: standard ? 'standard' : 'absent',
+      accountTermsAccepted,
+      commonVersions: COMMON_ACCOUNT_VERSIONS,
+      commonDocumentHash: (await commonAccountDocument(language)).hash,
       cloudConsent,
       erasure,
       canUseCloud:
-        (declared ||
+        (standard || declared ||
           (guardianCurrent &&
             this.adolescentMode === 'enforce' &&
             cloudCoverage?.state === 'active')) &&
@@ -273,6 +292,8 @@ export class MockAdultPrivacy {
       'action',
       ...(command.action === 'declare_adult'
         ? ['declareAdult', 'acceptTerms']
+        : command.action === 'accept_account_terms'
+          ? ['acceptTerms']
         : command.action === 'grant_cloud'
           ? ['accepted']
           : command.action === 'accept_adolescent'
@@ -281,7 +302,9 @@ export class MockAdultPrivacy {
     ]);
     if (command.action === 'accept_adolescent') return this.accept(user, command);
     if (
-      !['declare_adult', 'grant_cloud', 'revoke_cloud', 'erase_cloud'].includes(command.action) ||
+      !['accept_account_terms', 'declare_adult', 'grant_cloud', 'revoke_cloud', 'erase_cloud'].includes(command.action) ||
+      (command.action === 'accept_account_terms' && (command.documentFamily !== 'common' || command.acceptTerms !== true)) ||
+      (command.documentFamily === 'common' && ['declare_adult', 'accept_adolescent'].includes(command.action)) ||
       (command.action === 'declare_adult' &&
         (command.declareAdult !== true || command.acceptTerms !== true)) ||
       (command.action === 'grant_cloud' && command.accepted !== true)
@@ -292,6 +315,9 @@ export class MockAdultPrivacy {
       async () => {
         user = await this.active(user);
         const old = await this.state(user);
+        if (command.action === 'accept_account_terms' && (user.accountType !== 'adult' || user.privacyMode))
+          throw new ApiError('FORBIDDEN');
+        if (command.documentFamily === 'common' && user.privacyMode) throw new ApiError('FORBIDDEN');
         const adolescent = this.privateAdmission(user, old);
         const due =
           user.privacyMode === 'adolescent_private' &&
@@ -323,8 +349,9 @@ export class MockAdultPrivacy {
           current.revision >= Number.MAX_SAFE_INTEGER
         )
           throw new ApiError('PRIVACY_REVISION_CONFLICT');
-        if (command.action === 'grant_cloud' && !adolescent && !current.adultDeclared)
-          throw new ApiError('ADULT_DECLARATION_REQUIRED');
+        if (command.action === 'grant_cloud' && !adolescent &&
+          (command.documentFamily === 'common' ? current.accountAdmission !== 'standard' : !current.adultDeclared))
+          throw new ApiError(command.documentFamily === 'common' ? 'ACCOUNT_TERMS_REQUIRED' : 'ADULT_DECLARATION_REQUIRED');
         if (
           command.action === 'grant_cloud' &&
           adolescent &&
@@ -342,6 +369,11 @@ export class MockAdultPrivacy {
           revision: current.revision + 1,
           updatedAt: now,
         };
+        if (command.action === 'accept_account_terms') Object.assign(next, {
+          accountTermsAcceptedAt: now,
+          accountTermsLanguage: command.language,
+          accountTermsDocumentHash: document.hash,
+        });
         if (command.action === 'declare_adult') {
           Object.assign(next, {
             adultDeclared: true,
@@ -358,6 +390,7 @@ export class MockAdultPrivacy {
             cloudConsent: 'granted',
             cloudLanguage: command.language,
             cloudHash: document.hash,
+            cloudDocumentFamily: command.documentFamily === 'common' ? 'common' : undefined,
           });
         if (command.action === 'revoke_cloud' || command.action === 'erase_cloud')
           next.cloudConsent = 'revoked';
@@ -532,6 +565,7 @@ export class MockAdultPrivacy {
         return this.status(user, command.language);
       }
       const old = await this.state(user);
+      if (old?.accountTermsAcceptedAt !== undefined) throw new ApiError('FORBIDDEN');
       if (this.privateAdmission(user, old)) {
         if (
           old!.invitationId !== command.invitationId ||
@@ -757,19 +791,33 @@ export class MockAdultPrivacy {
       return this.status(adolescent, command.language);
     });
   }
+  /** Ordinary self-service uses terms admission, never family/social authority. */
+  async admitOwn(user: MockUserRow): Promise<void> {
+    user = await this.active(user);
+    const state = await this.state(user);
+    if (this.privateAdmission(user, state)) return;
+    if (user.accountType === 'adult' && user.privacyMode && (await this.status(user)).adultDeclared) return;
+    if (user.accountType !== 'adult' || user.privacyMode) throw new ApiError('FORBIDDEN');
+    if (this.mode === 'off' && state?.accountTermsAcceptedAt === undefined) return;
+    if ((await this.status(user)).accountAdmission !== 'standard') throw new ApiError('ACCOUNT_TERMS_REQUIRED');
+  }
   async admit(user: MockUserRow): Promise<void> {
+    const state = await this.state(user);
+    if (state?.accountTermsAcceptedAt !== undefined && !(await this.status(user)).adultDeclared)
+      throw new ApiError('FORBIDDEN');
     if (this.mode === 'off') return;
     if (this.privateAdmission(user, await this.state(user))) return;
     if (user.accountType !== 'adult') throw new ApiError('FORBIDDEN');
     if (!(await this.status(user)).adultDeclared) throw new ApiError('ADULT_DECLARATION_REQUIRED');
   }
   async requireCloud(user: MockUserRow): Promise<State | undefined> {
+    user = await this.active(user);
     const state = await this.state(user);
     if (this.mode === 'off' && !state) return undefined;
     const current = await this.status(user);
     if (current.scope === 'unsupported') throw new ApiError('FORBIDDEN');
-    if (current.scope === 'adult' && !current.adultDeclared)
-      throw new ApiError('ADULT_DECLARATION_REQUIRED');
+    if (current.scope === 'adult' && !current.adultDeclared && current.accountAdmission !== 'standard')
+      throw new ApiError(state?.accountTermsAcceptedAt !== undefined ? 'ACCOUNT_TERMS_REQUIRED' : 'ADULT_DECLARATION_REQUIRED');
     if (!['none', 'completed'].includes(current.erasure))
       throw new ApiError('PRIVACY_ERASURE_PENDING');
     if (

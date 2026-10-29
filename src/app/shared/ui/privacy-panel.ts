@@ -14,8 +14,8 @@ import { PrivacyService } from '../../core/privacy.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ApiError, type PrivateAdolescentInvitation } from '../../core/api/contracts';
-import { privacyDocument } from '../../core/api/privacy-document';
-import { inputValue } from './dom';
+import { privacyDocument, commonAccountDocument } from '../../core/api/privacy-document';
+import { inputValue, inputEl } from './dom';
 import { ConfirmSheet } from './confirm-sheet';
 
 /** Account/privacy metadata only; forest sync is an explicit output handled by Settings. */
@@ -23,11 +23,11 @@ import { ConfirmSheet } from './confirm-sheet';
   selector: 'app-privacy-panel',
   imports: [RouterLink, ConfirmSheet],
   template: `
-    <section class="card privacy-panel" aria-labelledby="privacy-title">
+    <section class="card privacy-panel" aria-labelledby="privacy-title" [attr.aria-busy]="!privacy.status() || busy()">
       <h2 id="privacy-title">{{ i18n.t().privacy.title }}</h2>
       <p>
-        <a routerLink="/privacy">{{ i18n.t().privacy.readNotice }}</a> ·
-        <a routerLink="/terms">{{ i18n.t().privacy.readTerms }}</a>
+        <a routerLink="/privacy" [queryParams]="{ lang: i18n.lang() }">{{ i18n.t().privacy.readNotice }}</a> ·
+        <a routerLink="/terms" [queryParams]="{ lang: i18n.lang() }">{{ i18n.t().privacy.readTerms }}</a>
       </p>
       @if (error()) {
         <p role="alert">{{ error() }}</p>
@@ -48,7 +48,23 @@ import { ConfirmSheet } from './confirm-sheet';
         @if (status.scope === 'unsupported') {
           <p>{{ i18n.t().privacy.rightsBody }}</p>
         }
-        @if (needsAdmission() && status.scope !== 'unsupported') {
+        @if (needsAdmission() && standardOwnAccount()) {
+          <form class="account-terms-form" (submit)="$event.preventDefault(); admitStandard()">
+            <p>{{ i18n.t().privacy.accountBody }}</p>
+            <details>
+              <summary>{{ i18n.t().privacy.readTerms }}</summary>
+              @for (section of commonDocument()?.terms?.sections ?? []; track section.title) {
+                <h3>{{ section.title }}</h3>
+                @for (paragraph of section.paragraphs; track $index) { <p>{{ paragraph }}</p> }
+              }
+            </details>
+            <label class="choice"><input type="checkbox" [checked]="terms()"
+              (change)="terms.set(checked($event))" />{{ commonDocument()?.declaration?.terms }}</label>
+            <button type="submit" class="btn btn-primary"
+              [disabled]="busy() || !commonDocument() || !terms()">{{ i18n.t().privacy.accountConfirm }}</button>
+          </form>
+        }
+        @if (needsAdmission() && !standardOwnAccount() && status.scope !== 'unsupported') {
           <form (submit)="$event.preventDefault(); admit()">
             <p>{{ i18n.t().privacy.adultBody }}</p>
             <fieldset>
@@ -318,17 +334,17 @@ import { ConfirmSheet } from './confirm-sheet';
       <app-confirm-sheet
         icon="☁️"
         [title]="i18n.t().privacy.cloudTitle"
-        [body]="document()?.cloud?.body ?? ''"
+        [body]="cloudDocument()?.body ?? ''"
         [confirmLabel]="i18n.t().privacy.authorize"
         [cancelLabel]="i18n.t().privacy.stayLocal"
-        [confirmDisabled]="busy() || !cloudAccepts() || !document()"
+        [confirmDisabled]="busy() || !cloudAccepts() || !cloudDocument()"
         (cancelled)="closeSheet()"
         (confirmed)="grantCloud()"
       >
-        <p>{{ document()?.cloud?.sensitive }}</p>
+        <p>{{ cloudDocument()?.sensitive }}</p>
         <details>
           <summary>{{ i18n.t().privacy.readNotice }}</summary>
-          @for (section of document()?.notice?.sections ?? []; track section.title) {
+          @for (section of cloudNotice()?.sections ?? []; track section.title) {
             <h3>{{ section.title }}</h3>
             @for (paragraph of section.paragraphs; track $index) {
               <p>{{ paragraph }}</p>
@@ -340,7 +356,7 @@ import { ConfirmSheet } from './confirm-sheet';
             type="checkbox"
             [checked]="cloudAccepts()"
             (change)="cloudAccepts.set($any($event.target).checked)"
-          />{{ document()?.cloud?.authorization }}</label
+          />{{ cloudDocument()?.authorization }}</label
         >
       </app-confirm-sheet>
     }
@@ -465,6 +481,17 @@ export class PrivacyPanel {
   protected readonly document = signal<
     Awaited<ReturnType<typeof privacyDocument>>['document'] | null
   >(null);
+  protected readonly commonDocument = signal<Awaited<ReturnType<typeof commonAccountDocument>>['document'] | null>(null);
+  protected readonly standardOwnAccount = computed(() => {
+    const state = this.privacy.status();
+    return state?.scope === 'adult' && !state.privateOnly;
+  });
+  protected readonly cloudDocument = computed(() =>
+    this.standardOwnAccount() ? this.commonDocument()?.cloud : this.document()?.cloud,
+  );
+  protected readonly cloudNotice = computed(() =>
+    this.standardOwnAccount() ? this.commonDocument()?.notice : this.document()?.notice,
+  );
   protected readonly age = signal<'adult' | 'adolescent' | null>(null);
   protected readonly terms = signal(false);
   protected readonly understood = signal(false);
@@ -486,7 +513,7 @@ export class PrivacyPanel {
     return (
       !!state &&
       (state.scope === 'adult'
-        ? !state.adultDeclared
+        ? this.standardOwnAccount() ? state.accountAdmission !== 'standard' : !state.adultDeclared
         : state.scope !== 'adolescent_private' || !state.adolescentUnderstood)
     );
   });
@@ -507,9 +534,13 @@ export class PrivacyPanel {
       this.majorityAt.set('');
       this.age.set(null);
       this.document.set(null);
+      this.commonDocument.set(null);
       this.invitations.set([]);
       void privacyDocument(language).then((value) => {
         if (!this.disposed && this.i18n.lang() === language) this.document.set(value.document);
+      });
+      void commonAccountDocument(language).then((value) => {
+        if (!this.disposed && this.i18n.lang() === language) this.commonDocument.set(value.document);
       });
       if (owner && !this.auth.sessionStale()) untracked(() => void this.refresh());
     });
@@ -567,6 +598,17 @@ export class PrivacyPanel {
       default:
         return this.i18n.t().privacy.absent;
     }
+  }
+  protected checked(event: Event): boolean {
+    return (inputEl(event) as HTMLInputElement).checked;
+  }
+  protected admitStandard() {
+    return this.run(async () => {
+      if (!this.standardOwnAccount() || !this.commonDocument()) throw new ApiError('VALIDATION');
+      await this.privacy.acceptAccountTerms(this.i18n.lang(), this.terms());
+      this.terms.set(false);
+      this.admitted.emit();
+    });
   }
   protected openCloud() {
     this.cloudAccepts.set(false);

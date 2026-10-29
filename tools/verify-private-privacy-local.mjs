@@ -1,7 +1,8 @@
+import { provisionLegacyPrivateFixture } from './lib/legacy-private-fixture.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { launchPage, BASE, ok, waitForAuthIdentityCleared } from './lib/harness.mjs';
+import { launchPage, BASE, ok, waitForAuthIdentityCleared, signInAs } from './lib/harness.mjs';
 const origin = new URL(BASE);
 assert.ok(['localhost', '127.0.0.1'].includes(origin.hostname), 'local mock probe only');
 const output = resolve('output/playwright/private-privacy-2026-10-07');
@@ -72,65 +73,18 @@ async function settings() {
   await page.goto(BASE + '/settings', { waitUntil: 'networkidle' });
   await panel().getByRole('button', { name: 'Conectar mi bosque', exact: true }).waitFor();
 }
-async function signup(username, invitation) {
-  await page.goto(BASE + '/account', { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: 'Quiero una llave nueva', exact: true }).click();
-  const form = page.locator('.auth-form');
-  await form.locator('input[name="signup-age"]').first().waitFor();
-  check(
-    'signup starts without age or consent selected: ' + username,
-    (await form.locator('input[type="checkbox"]:checked,input[type="radio"]:checked').count()) ===
-      0,
-  );
-  await form.locator('input[autocomplete="username"]').fill(username);
-  await form.locator('input[type="email"]').fill(username + '@example.invalid');
-  for (const password of await form.locator('input[type="password"]').all())
-    await password.fill('LocalProbe123!');
-  if (!invitation) {
-    await form.locator('input[name="signup-age"]').first().check();
-    await page.waitForFunction(
-      () =>
-        !document.querySelector('.auth-form input[type="checkbox"]:checked') &&
-        !document.querySelector('.auth-form input[maxlength="64"]'),
-    );
-    await form.locator('input[type="checkbox"]').last().check();
-    await form.locator('input[name="signup-age"]').last().check();
-    await page.waitForFunction(
-      () => !document.querySelector('.auth-form input[type="checkbox"]:checked'),
-    );
-    check(
-      'changing age clears prior terms',
-      (await form.locator('input[type="checkbox"]:checked').count()) === 0,
-    );
-    await form.locator('input[name="signup-age"]').first().check();
-    await form.locator('button[type="submit"]').click();
-    await page.locator('.error-line').waitFor();
-    check(
-      'unchecked terms do not create an account',
-      !(await cloud('credentials', 'get', username)),
-    );
-  } else {
-    await form.locator('input[name="signup-age"]').last().check();
-    await form.locator('input[maxlength="64"]').fill(invitation);
-    await form.locator('input[type="checkbox"]').first().check();
-  }
-  await form.locator('input[type="checkbox"]').last().check();
-  await page.screenshot({ path: resolve(output, username + '-signup.png'), fullPage: true });
-  await form.locator('button[type="submit"]').click();
-  await page.locator('input[autocomplete="one-time-code"]').fill('123456');
-  await page.getByRole('button', { name: 'Confirmar', exact: true }).click();
-  await page.getByRole('heading', { name: 'Tu cuenta', exact: true }).waitFor();
-}
 async function signout() {
   await page.goto(BASE + '/account', { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
   await waitForAuthIdentityCleared(page);
 }
 try {
-  await signup('privacy_parent');
-  const parent = await cloud('users', 'get', 'u-privacy_parent');
+  await page.goto(BASE + '/account', { waitUntil: 'networkidle' });
+  const fixture = await provisionLegacyPrivateFixture(page, { prefix: 'privacy' });
+  await signInAs(page, fixture.parent.username, fixture.password, { commercialAccess: false });
+  const parent = fixture.parent;
   check(
-    'adult signup records terms separately from cloud',
+    'existing legacy admission preserves historical terms separately from cloud',
     (await cloud('kv', 'all')).some(
       (row) =>
         row.key.startsWith('privacy:') &&
@@ -178,7 +132,7 @@ try {
   check(
     'unchecked cloud cannot be confirmed',
     await dialog
-      .getByRole('button', { name: 'Autorizo y conecto mi bosque', exact: true })
+      .getByRole('button', { name: 'Autorizar y conectar mi bosque', exact: true })
       .isDisabled(),
   );
   await page.keyboard.press('Escape');
@@ -196,7 +150,7 @@ try {
   await connect.click();
   await dialog.waitFor();
   await dialog.locator('input[type="checkbox"]').check();
-  await dialog.getByRole('button', { name: 'Autorizo y conecto mi bosque', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Autorizar y conectar mi bosque', exact: true }).click();
   await dialog.waitFor({ state: 'detached' });
   await panel().getByText('Mi autorización de nube está vigente.', { exact: true }).waitFor();
   const access = (await local('meta', 'get', 'commercial.access:' + parent.userId))?.summary;
@@ -207,57 +161,31 @@ try {
       (await cloud('records', 'all')).every((row) => row.ownerId !== parent.userId),
   );
   await panel()
-    .getByRole('button', { name: 'Retiro mi autorización de nube', exact: true })
+    .getByRole('button', { name: 'Retirar mi autorización de nube', exact: true })
     .click();
-  await dialog.getByRole('button', { name: 'Retiro mi autorización', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Retirar mi autorización', exact: true }).click();
   await dialog.waitFor({ state: 'detached' });
   check(
     'withdrawal preserves local forest and note',
     JSON.stringify(await local('trees', 'get', tree.id)) === JSON.stringify(tree) &&
       JSON.stringify(await local('checkins', 'get', checkin.id)) === JSON.stringify(checkin),
   );
-  await panel()
-    .locator('summary')
-    .filter({ hasText: 'Autorizo una cuenta adolescente privada' })
-    .click();
-  const guardianForm = panel().locator('form');
   const parentPremium = {
-    coverageId: parent.userId,
-    accountId: parent.userId,
-    householdId: 'local-parent-premium-fixture',
-    seatType: null,
-    state: 'active',
-    source: 'test_seed',
-    validUntil: Date.now() + 86_400_000,
-    createdAt: Date.now(),
+    coverageId: parent.userId, accountId: parent.userId,
+    householdId: 'local-parent-premium-fixture', seatType: null,
+    state: 'active', source: 'test_seed', validUntil: Date.now() + 86_400_000, createdAt: Date.now(),
   };
   await cloud('coverages', 'put', parentPremium);
-  await guardianForm.locator('input[name="guardian-name"]').fill('María Pérez');
-  await guardianForm.locator('select[name="guardian-relationship"]').selectOption('parent');
-  await guardianForm.locator('input[type="text"]').last().fill('privacy_teen');
-  await guardianForm.locator('input[type="date"]').fill('2029-10-07');
-  for (const box of await guardianForm.locator('input[type="checkbox"]').all()) await box.check();
-  await guardianForm.locator('button[type="submit"]').click();
-  await panel().getByText('Autorizada: puede aceptarse', { exact: true }).waitFor();
-  const invitation = (await cloud('kv', 'all')).find((row) =>
-    row.key.startsWith('private-adolescent-invitation:'),
-  );
-  check(
-    'exact authenticated declaration is authorized without an operator or content permission',
-    invitation.value.state === 'authorized' &&
-      invitation.value.authorizationMethod === 'account_attestation' &&
-      !invitation.value.representationVerifiedAt &&
-      !invitation.value.verificationCaseId &&
-      invitation.value.recipientUsername === 'privacy_teen' &&
-      invitation.value.guardianId === parent.userId &&
-      !(await cloud('guardianLinks', 'all')).some((link) => link.guardianId === parent.userId),
-  );
-  await panel().screenshot({ path: resolve(output, 'guardian-metadata.png') });
+  check('pre-existing private authorization remains exact and grants no content permission',
+    fixture.invitation.state === 'accepted' &&
+    fixture.invitation.authorizationMethod === 'account_attestation' &&
+    fixture.invitation.recipientUsername === fixture.teen.username &&
+    !(await cloud('guardianLinks', 'all')).some((link) => link.guardianId === parent.userId));
   await signout();
-  await signup('privacy_teen', invitation.value.invitationId);
-  const teen = await cloud('users', 'get', 'u-privacy_teen');
+  await signInAs(page, fixture.teen.username, fixture.password, { commercialAccess: false });
+  const teen = fixture.teen;
   check(
-    'teen signup converts technical profile to isolated minor',
+    'existing private account retains its isolated minor profile',
     teen.accountType === 'minor' &&
       teen.privacyMode === 'adolescent_private' &&
       teen.socialEnabled === false,
@@ -265,7 +193,7 @@ try {
   check(
     'private teen account hides paid key and adult self-closure',
     (await page.locator('app-access-key-form').count()) === 0 &&
-      (await page.getByRole('button', { name: 'Cerrar mi cuenta', exact: true }).count()) === 0,
+      (await page.getByRole('button', { name: 'Borrar mi cuenta', exact: true }).count()) === 0,
   );
   await settings();
   await cloud('coverages', 'put', { ...parentPremium, state: 'revoked' });
@@ -348,12 +276,12 @@ try {
     'responsible Premium revocation disables cloud while export stays available',
     (await panel().getByRole('button', { name: 'Connect my forest', exact: true }).isDisabled()) &&
       (await panel()
-        .getByRole('button', { name: 'I download my remote data', exact: true })
+        .getByRole('button', { name: 'Download my remote data', exact: true })
         .isEnabled()),
   );
   const [exportFile] = await Promise.all([
     page.waitForEvent('download'),
-    panel().getByRole('button', { name: 'I download my remote data', exact: true }).click(),
+    panel().getByRole('button', { name: 'Download my remote data', exact: true }).click(),
   ]);
   await exportFile.saveAs(resolve(output, 'private-own-export.json'));
   check(
@@ -362,9 +290,9 @@ try {
   );
   await page.getByRole('button', { name: 'Español', exact: true }).click();
   await panel()
-    .getByRole('button', { name: 'Solicito cancelar mi bosque de la nube', exact: true })
+    .getByRole('button', { name: 'Solicitar cancelación del bosque remoto', exact: true })
     .click();
-  await dialog.getByRole('button', { name: 'Solicito la cancelación remota', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Solicitar cancelación remota', exact: true }).click();
   await dialog.waitFor({ state: 'detached' });
   await panel()
     .getByText(/^Se verificó la supresión/)
@@ -388,7 +316,8 @@ try {
     JSON.stringify(
       {
         scope: 'local_mock_only',
-        date: '2026-10-07',
+        date: new Date().toISOString().slice(0, 10),
+        fixture: 'pre_existing_legacy_accounts_in_fresh_local_mock_only',
         authorizationMethod: 'account_attestation',
         verifiesCivilDocuments: false,
         operatorCalls: 0,

@@ -12,6 +12,9 @@ const root = join(here, '..');
 const generator = join(here, 'generate-config.mjs');
 const contractFiles = [
   ['api/contracts.ts', join(root, 'src/app/core/api/contracts.ts')],
+  ['api/historical-privacy-documents.ts', join(root, 'src/app/core/api/historical-privacy-documents.ts')],
+  ['api/common-account-documents.ts', join(root, 'src/app/core/api/common-account-documents.ts')],
+  ['api/subscription-terms-documents.ts', join(root, 'src/app/core/api/subscription-terms-documents.ts')],
   ['db/schema.ts', join(root, 'src/app/core/db/schema.ts')],
   ['auth/auth-types.ts', join(root, 'src/app/core/auth/auth-types.ts')],
   ['i18n/es.ts', join(root, 'src/app/core/i18n/es.ts')],
@@ -212,7 +215,7 @@ test('rejects a backend contract hash that differs from the frontend contract', 
 
 test('rejects a contract hash that omits the ES/EN shared dictionaries', () => {
   const incompleteHash = createHash('sha256');
-  for (const [relativePath, source] of contractFiles.slice(0, 3)) {
+  for (const [relativePath, source] of contractFiles.filter(([path]) => !path.startsWith('i18n/'))) {
     incompleteHash.update(relativePath, 'utf8');
     incompleteHash.update('\0');
     incompleteHash.update(readFileSync(source, 'utf8').replaceAll('\r\n', '\n'), 'utf8');
@@ -228,4 +231,15 @@ test('rejects a contract hash that omits the ES/EN shared dictionaries', () => {
   } finally {
     run.cleanup();
   }
+});
+test('rejects the previous contract hash that omits immutable decision documents', () => {
+  const hash = createHash('sha256');
+  for (const [relativePath, source] of contractFiles.filter(([path]) => !path.includes('-documents.ts'))) {
+    hash.update(relativePath, 'utf8'); hash.update('\0');
+    hash.update(readFileSync(source, 'utf8').replaceAll('\r\n', '\n'), 'utf8'); hash.update('\0');
+  }
+  const env = validEnvironment(); env.ROADMAP2U_CONTRACT_HASH = hash.digest('hex');
+  const run = runGenerator(env);
+  try { assert.notEqual(run.status, 0); assert.match(run.stderr, /contract hash mismatch/i); }
+  finally { run.cleanup(); }
 });
