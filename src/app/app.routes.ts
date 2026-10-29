@@ -1,5 +1,4 @@
 import { Routes } from '@angular/router';
-import { ES } from './core/i18n/es';
 
 /**
  * Public-first route table. The product route module is a lazy fallback after
@@ -11,7 +10,6 @@ export const routes: Routes = [
     path: '',
     pathMatch: 'full',
     loadComponent: () => import('./features/landing/landing').then((m) => m.LandingPage),
-    title: ES.landing.seo.title,
   },
   {
     path: 'privacy',
