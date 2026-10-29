@@ -311,7 +311,9 @@ Si los enciendes, de vez en cuando la app te hace una **pregunta suave**: *"¿D�
 
 ## Cuenta 🗝
 
-La sección **Cuenta** es la puerta a **una llave para tu bosque**. La cuenta, la autorización de nube y las funciones familiares son decisiones separadas.
+**Cuenta es el primer bloque de Ajustes**. Muestra tu identidad y el acceso confirmado: Free, Premium por suscripción o Premium patrocinado. **Ver mi cuenta**, **Ver mi suscripción** y **Canjear llave Premium** llevan directamente a las pantallas existentes. Cuenta y Suscripción permiten **Volver a Ajustes**.
+
+Una llave Premium patrocinada no es un código de amistad: se canjea una sola vez y su acceso puede tener fecha o ser sin vencimiento. Si tienes patrocinio y suscripción a la vez, se muestran por separado; la suscripción se sigue gestionando en el Portal. Una consulta fallida no confirma que tu cuenta haya pasado a Free.
 
 - En **modo ensayo** puedes crear una cuenta y entrar, pero la "nube" es de práctica y vive dentro de tu propio dispositivo. La versión conectada a AWS utiliza servicios remotos; el modo indicado por la app identifica cuál estás usando.
 - Entrar o salir de tu cuenta **jamás toca tus árboles**: tu bosque local sigue intacto, exactamente donde estaba.
@@ -322,21 +324,7 @@ El MVP preparado permite cuentas de **12 a 17 años** por invitación al nombre 
 
 Su bosque permanece privado frente a otras personas, incluido el adulto que autorizó la cuenta. No tiene amistades, visitas ni conexiones con otros bosques. Para sincronizar necesita su propia autorización de nube y Premium vigente del responsable; mantiene los límites Free y no recibe Premium personal por aceptar la invitación. Si esa cobertura termina, conserva su cuenta y sus datos locales, y puede descargar sus datos remotos o retirar su autorización de nube.
 
-Esta modalidad está separada de las funciones familiares que se describen a continuación. **Las funciones familiares se conservan implementadas, con sus controles cerrados para este MVP.**
-
-### La familia 🤝
-
-Con sesión iniciada, en Ajustes aparece la sección **Familia**:
-
-- **Responsable principal de la cuenta**: administra el hogar y será quien pague la suscripción. Cada integrante conserva su propio inicio de sesión. El hogar admite hasta dos lugares para menores y uno para un **responsable adicional autorizado**; los lugares disponibles no equivalen a cobertura de pago.
-- **Crear cuenta de peque**: el responsable principal elige su usuario — sin correo —, declara México y la fecha en que cumplirá 18 años, y confirma por separado su responsabilidad y el consentimiento de privacidad versionado. Esta declaración no es una verificación legal. La contraseña temporal se muestra al terminar; al primer inicio se pide una nueva. Recuperarla, cambiar el nombre, exportar y borrar la cuenta son acciones reservadas al responsable principal; antes del borrado se descarga un respaldo.
-- **Responsable adicional autorizado**: ve exactamente qué menores puede acompañar. Su alcance no incluye pagos, contraseñas ni bajas. Si termina su cobertura, no conserva esas facultades por seguir apareciendo en la familia.
-- **Transferir la responsabilidad** requiere una propuesta del responsable principal y la aceptación explícita del responsable adicional destinatario, con autenticación reciente. Proponerla no cambia inmediatamente los roles.
-- **Solicitudes y avisos**: la bandeja muestra solo los que corresponden a tu propia cuenta, incluidos estados pendientes, aceptados o vencidos. Un error al consultarla no significa que no haya solicitudes. En este bloque la pantalla permite aceptar transferencias; los controles para emitir y resolver invitaciones o vinculaciones de menores siguen pendientes de integración. Ya no se ofrecen los antiguos códigos de vinculación directa.
-- **Quien es cuidado siempre lo sabe**: la sección nombra a sus responsables y muestra el alcance de supervisión. La familia no crea amistades automáticas; sentimientos, check-ins y clima permanecen privados. Una amistad entre adultos no abre el bosque del responsable adicional ni el de los menores: cada amistad adulta es independiente.
-- Perder cobertura no borra cuentas, datos ni responsabilidad principal. Una fuente individual o patrocinada vigente puede conservar Premium. Las cuentas menores no pueden liberarse de supervisión con un simple botón.
-
-La implementación Household v2 se conserva con sus controles cerrados para este MVP. Las ofertas familiares de pago siguen su plan posterior; este alta adolescente privada no concede familia ni supervisión del bosque.
+Las decisiones de privacidad y las autorizaciones existentes se conservan. Las funciones familiares y sociales no se ofrecen en este lanzamiento.
 
 ### Mi bosque en la nube ☁️
 
@@ -344,30 +332,16 @@ Con sesión iniciada, **Mi privacidad** permite elegir la autorización de nube 
 
 Desde Privacidad puedes retirar tu autorización, descargar tus datos remotos propios o solicitar cancelar el bosque remoto sin comprar Premium. Retirar la autorización conserva los datos locales; solicitar cancelación remota es una acción distinta y no elimina tus copias locales o descargadas.
 
-- **Conectar** hace las dos direcciones: sube lo que este dispositivo tiene y baja lo que tu cuenta ya guarde (por ejemplo, ramas que tu familia plantó cuidando tu jardín).
+- **Conectar** hace las dos direcciones: sube lo que este dispositivo tiene y baja lo que tu cuenta ya guarde.
 - **Desconectar** solo suelta el enlace — tu bosque local no se toca.
 - Si el dispositivo quedó enlazado a **otra cuenta**, la app te lo dice y pausa la sincronización hasta que decidas.
 - Sin conexión no pasa nada malo: se sincroniza cuando vuelva.
 
 > 🧪 En el **modo ensayo** actual la "nube" vive en tu propio dispositivo (es de práctica). Ojo: conectar con una cuenta demo también **baja su bosque de ejemplo** y se mezcla con el tuyo — pruébalo sabiendo eso, o exporta tu copia antes. Con AWS real, conectar en un segundo dispositivo traerá tu bosque de verdad.
 
-### Amistades 👥
+## Ayuda y actualizaciones
 
-Para cuentas con la capacidad de **amigos y visitas** habilitada, la sección **Amistades** funciona así. Las cuentas adolescentes privadas no tienen esta capacidad; cumplir 18 años tampoco la abre automáticamente.
-
-- **Tu código de amistad** es la única puerta: no hay búsqueda de personas ni perfiles públicos. Compártelo fuera de la app con quien tú elijas (vale 7 días, y puedes cambiarlo cuando quieras).
-- Quien canjea un código **envía una solicitud** — la amistad solo nace cuando la otra persona la **acepta**. Decir «Ahora no» es **silencioso**: la solicitud simplemente se desvanece, sin avisos ni vergüenzas.
-- Una amistad te deja **visitar su bosque** (y a esa persona el tuyo): solo mirar — sin notitas, ni fechas, ni clima, y sin poder mover nada.
-- **Soltar** una amistad también es silencioso, y los bosques quedan como están.
-- En las cuentas de peques, su familia ve **la misma lista de amistades** que el peque (transparencia total) y puede soltar vínculos — nunca iniciarlos por su cuenta.
-
-### Entrar a su bosque 🌳 (el jardín a cuatro manos)
-
-Desde la hojita de cada peque, **«Entrar a su bosque»** te lleva a su jardín para ayudarle a organizarlo: ves sus árboles, entras a cualquiera, y ahí tienes las mismas herramientas de siempre — plantar ramitas, sembrar varias a la vez, cambiar estados, ramificar, ordenar pasitos, la tablita completa.
-
-- **Todo lo que hagas ahí vive en SU bosque**, nunca en el tuyo: tus árboles no se enteran.
-- Su cielo se queda **neutral**: su clima interno es suyo. Y las sesiones de enfoque no se ofrecen en jardín ajeno — acompañar no es cronometrar.
-- La visibilidad es **mutua**: quien es cuidado también puede asomarse a tu bosque (solo mirar, sin mover nada, y sin tus notitas ni fechas).
+Los accesos a la guía y **Reportar un problema** están al final de Ajustes. **Buscar actualización ahora** sigue disponible. **Ayuda avanzada → Recuperar la aplicación** vuelve a descargar la aplicación y su caché sin borrar árboles, notas ni ajustes. Las herramientas de nube demo sólo existen en modo local, dentro del apartado de desarrollo cerrado por defecto. No son controles de tu cuenta real.
 
 ## Tus datos
 
@@ -386,8 +360,7 @@ Aquí viven los árboles que guardaste fuera de la vista (con el botón 🗃 en 
 # 10. Tu privacidad
 
 - **Tu bosque vive en tu dispositivo** y nada viaja sin ti. Hoy nadie —ni siquiera quien hizo la app— puede ver tus metas, tus climas ni tus notas.
-- **Estamos preparando cuentas** para familias y amistades: cuando conectes la tuya, tu bosque podrá respaldarse y abrirse **solo a quien tú elijas** — y la app siempre te dirá quién puede verlo. Tus sentimientos, check-ins y notitas seguirán siendo solo tuyos. Sin anuncios, sin rastreo, nunca.
-- Mientras tanto, **tus datos no viajan solos entre dispositivos**: si quieres pasar tu bosque del teléfono a la computadora, usa *Exportar* en uno e *Importar* en el otro.
+- **La cuenta y la nube son decisiones separadas**: tus datos locales permanecen al iniciar o cerrar sesión. La sincronización entre dispositivos necesita tu autorización y la capacidad correspondiente; no abre el bosque a otras personas. Sin anuncios ni rastreo.
 - Consejo de cuidado: **exporta tu copia de vez en cuando**, especialmente en iPhone/iPad (el sistema puede limpiar datos de sitios poco visitados si la app no está instalada).
 
 ---
@@ -420,15 +393,15 @@ Desde **Cuenta** o **Ajustes → Mi suscripción** consulto la oferta vigente, m
 
 Premium individual es para mi propia cuenta adulta con correo confirmado, en México: **$114.84 MXN cada mes o $1,100.84 MXN cada año**, precio final con impuestos incluidos y las mismas capacidades. La renovación es automática. Leo las condiciones recurrentes y marco por separado mi aceptación y mi residencia en México antes de salir al Checkout de Stripe. Puedo cancelar la renovación en el Portal y conservar el periodo pagado. No hay prueba gratuita, cupones, cambios de modalidad durante la suscripción ni días de gracia.
 
-Al volver de Stripe, la app consulta el resumen y el acceso durante un máximo de un minuto. La dirección de retorno nunca concede Premium. Si la confirmación sigue pendiente, **Consulto de nuevo** o **Pido ayuda**, sin iniciar otro pago. El Portal permite gestionar tarjeta, recibos y cancelación de renovación. Soporte atiende aclaraciones y devoluciones en **overseer@roadmap2u.com**. Solicito CFDI en **jescricdy1@gmail.com** con RFC, nombre o razón social, código postal fiscal, régimen fiscal, uso del CFDI, forma de pago y correo para recibir XML y PDF; para mi compra anual solicito una factura anual por el importe cobrado. El recibo de Stripe no es un CFDI. Una devolución total retira el periodo afectado, una parcial conserva el acceso y una disputa suspende el periodo afectado y detiene renovaciones.
+Al volver de Stripe, la app consulta el resumen y el acceso durante un máximo de un minuto. La dirección de retorno nunca concede Premium. Si la confirmación sigue pendiente, **Actualizar estado** o **Pedir ayuda**, sin iniciar otro pago. El Portal permite gestionar tarjeta, recibos y cancelación de renovación. Soporte atiende aclaraciones y devoluciones en **overseer@roadmap2u.com**. Solicito CFDI en **jescricdy1@gmail.com** con RFC, nombre o razón social, código postal fiscal, régimen fiscal, uso del CFDI, forma de pago y correo para recibir XML y PDF; para mi compra anual solicito una factura anual por el importe cobrado. El recibo de Stripe no es un CFDI. Una devolución total retira el periodo afectado, una parcial conserva el acceso y una disputa suspende el periodo afectado y detiene renovaciones.
 
-Terminar Premium conserva mi bosque local y otros patrocinios vigentes. La compra no sustituye mis decisiones de privacidad, no concede Premium al adolescente y no habilita funciones familiares. Cerrar la cuenta detiene renovaciones y no solicita automáticamente una devolución. Las [condiciones comerciales](condiciones-suscripcion-borrador.md) son un borrador pendiente de aprobación comercial y fiscal antes de cobros reales.
+Terminar Premium conserva mi bosque local y otros patrocinios vigentes. La compra no sustituye mis decisiones de privacidad, no concede Premium al adolescente y no habilita funciones familiares. Cerrar la cuenta detiene renovaciones y no solicita automáticamente una devolución. Las condiciones finales están disponibles en **Leer las condiciones**, versión `individual-subscription-2026-10-28-v1`. La disponibilidad de compras se consulta en la página; publicar las condiciones no abre compras automáticamente.
 
 ## My individual subscription
 
 From **Account** or **Settings → My subscription** I check the current offer, paid period and Portal. Individual Premium is for my own adult account with confirmed email in Mexico: **$114.84 MXN monthly or $1,100.84 MXN yearly**, final price including taxes, with the same capabilities. Renewal is automatic; I separately accept the recurring conditions and confirm Mexico before Checkout. I cancel renewal in the Portal and keep my paid period. There are no trials, coupons, interval changes during a subscription or grace days.
 
-After returning from Stripe, the app checks summary and access for at most one minute. A return URL never grants Premium. If confirmation remains pending, I check again or ask for help without paying again. The Portal remains available for an existing subscription after expiry or when purchases are closed. My local forest and other current sponsored grants remain; privacy is separate and adolescents receive neither personal Premium nor family functions. Support handles refunds and questions at **overseer@roadmap2u.com**. I request a CFDI at **jescricdy1@gmail.com** with my RFC, registered name or business name, tax postcode, tax regime, CFDI use, payment method and email for XML and PDF delivery; for my annual purchase I request an annual invoice for the amount charged. A Stripe receipt is not a CFDI. The commercial terms remain a draft awaiting commercial and fiscal approval before live charges.
+After returning from Stripe, the app checks summary and access for at most one minute. A return URL never grants Premium. If confirmation remains pending, I check again or ask for help without paying again. The Portal remains available for an existing subscription after expiry or when purchases are closed. My local forest and other current sponsored grants remain; privacy is separate and adolescents receive neither personal Premium nor family functions. Support handles refunds and questions at **overseer@roadmap2u.com**. I request a CFDI at **jescricdy1@gmail.com** with my RFC, registered name or business name, tax postcode, tax regime, CFDI use, payment method and email for XML and PDF delivery; for my annual purchase I request an annual invoice for the amount charged. A Stripe receipt is not a CFDI. The final terms are available under **Read the terms**, version `individual-subscription-2026-10-28-v1`. Publishing the terms does not automatically enable purchases.
 
 ---
 

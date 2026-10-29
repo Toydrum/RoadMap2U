@@ -1,50 +1,83 @@
 <div class="container page">
   <h1>{{ i18n.t().settings.title }}</h1>
 
-  <a class="card block guide-link" routerLink="/guide">
-    <img src="icons/logo.svg" alt="" width="44" height="44" />
-    <span class="guide-text">
-      <strong>{{ i18n.t().guide.settingsLink }}</strong>
-      <span class="hint">{{ i18n.t().guide.settingsHint }}</span>
-    </span>
-    <span class="arrow" aria-hidden="true">→</span>
-  </a>
-
-  <a class="card block guide-link" routerLink="/trail">
-    <span class="trail-mark" aria-hidden="true">🐾</span>
-    <span class="guide-text">
-      <strong>{{ i18n.t().trail.settingsLink }}</strong>
-      <span class="hint">{{ i18n.t().trail.settingsHint }}</span>
-    </span>
-    <span class="arrow" aria-hidden="true">→</span>
-  </a>
-
-  <a class="card block guide-link" routerLink="/almanaque">
-    <span class="trail-mark" aria-hidden="true">🌾</span>
-    <span class="guide-text">
-      <strong>{{ i18n.t().almanaque.settingsLink }}</strong>
-      <span class="hint">{{ i18n.t().almanaque.settingsHint }}</span>
-    </span>
-    <span class="arrow" aria-hidden="true">→</span>
-  </a>
-
-  <a class="card block guide-link" routerLink="/cosecha">
-    <span class="trail-mark" aria-hidden="true">🫙</span>
-    <span class="guide-text">
-      <strong>{{ i18n.t().cosecha.settingsLink }}</strong>
-      <span class="hint">{{ i18n.t().cosecha.settingsHint }}</span>
-    </span>
-    <span class="arrow" aria-hidden="true">→</span>
-  </a>
-
-  <a class="card block guide-link" [href]="bugReportUrl" target="_blank" rel="noopener">
-    <span class="trail-mark" aria-hidden="true">✍</span>
-    <span class="guide-text">
-      <strong>{{ i18n.t().settings.reportBugTitle }}</strong>
-      <span class="hint">{{ i18n.t().settings.reportBugHint }}</span>
-    </span>
-    <span class="arrow" aria-hidden="true">→</span>
-  </a>
+  <!-- Account -->
+  <section class="card block account-overview">
+    <h2>{{ i18n.t().settings.account }}</h2>
+    @if (isMock) {
+      <p class="hint local-preview">{{ i18n.t().accountStatus.localPreview }}</p>
+    }
+    @if (auth.user(); as user) {
+      <div class="row">
+        <span class="label">{{ i18n.t().settings.accountSignedInAs }}</span>
+        <a
+          class="chip opt account-chip"
+          routerLink="/account"
+          [queryParams]="{ returnUrl: '/settings' }"
+        >
+          🗝 {{ user.displayName || user.username }}
+          <span class="account-role">
+            {{
+              privacy.status()?.scope === 'adolescent_private' || user.accountType === 'minor'
+                ? i18n.t().account.roleMinor
+                : i18n.t().account.roleAdult
+            }}
+          </span>
+        </a>
+      </div>
+      @if (!closure.receipt()) {
+        <app-account-access-summary />
+        <div class="account-actions">
+          <a
+            class="btn btn-soft account-open"
+            routerLink="/account"
+            [queryParams]="{ returnUrl: '/settings' }"
+            >{{ i18n.t().settings.accountOpen }}</a
+          >
+          @if (user.accountType === 'adult' && !privacy.status()?.privateOnly) {
+            <a
+              class="btn btn-soft account-redeem"
+              routerLink="/account"
+              [queryParams]="{ intent: 'redeem', returnUrl: '/settings' }"
+              >{{ i18n.t().access.key.title }}</a
+            >
+          }
+        </div>
+      }
+      @if (closure.receipt(); as receipt) {
+        <div class="account-closure-status" role="status" aria-live="polite">
+          <strong>{{ i18n.t().account.closureStatusTitle }}</strong>
+          <span>{{ closureStateText(receipt.state) }}</span>
+          <a class="btn btn-soft" routerLink="/account">
+            {{ i18n.t().settings.accountClosureResume }}
+          </a>
+        </div>
+      }
+      @if (
+        user.accountType === 'adult' && privacy.status()?.scope === 'adult' && !closure.receipt()
+      ) {
+        <a class="btn btn-soft billing-account-link" routerLink="/account/subscription">{{
+          i18n.t().billing.accountLink
+        }}</a>
+        <p class="hint">{{ i18n.t().billing.settingsHint }}</p>
+      }
+    } @else {
+      <p class="hint">{{ i18n.t().settings.accountGuestHint }}</p>
+      <div class="account-actions">
+        <a
+          class="btn btn-soft"
+          routerLink="/account"
+          [queryParams]="{ intent: 'signIn', volver: '/settings' }"
+          >{{ i18n.t().account.signInCta }}</a
+        ><a
+          class="btn btn-soft"
+          routerLink="/account"
+          [queryParams]="{ intent: 'create', volver: '/settings' }"
+          >{{ i18n.t().account.createCta }}</a
+        >
+      </div>
+    }
+  </section>
 
   <!-- Appearance -->
   <section class="card block">
@@ -271,56 +304,6 @@
     }
   </section>
 
-  <!-- Account -->
-  <section class="card block">
-    <h2>{{ i18n.t().settings.account }}</h2>
-    @if (auth.user(); as user) {
-      <div class="row">
-        <span class="label">{{ i18n.t().settings.accountSignedInAs }}</span>
-        <a class="chip opt account-chip" routerLink="/account">
-          🗝 {{ user.displayName || user.username }}
-          <span class="account-role">
-            {{
-              privacy.status()?.scope === 'adolescent_private' || user.accountType === 'minor'
-                ? i18n.t().account.roleMinor
-                : i18n.t().account.roleAdult
-            }}
-          </span>
-        </a>
-      </div>
-      @if (closure.receipt(); as receipt) {
-        <div class="account-closure-status" role="status" aria-live="polite">
-          <strong>{{ i18n.t().account.closureStatusTitle }}</strong>
-          <span>{{ closureStateText(receipt.state) }}</span>
-          <a class="btn btn-soft" routerLink="/account">
-            {{ i18n.t().settings.accountClosureResume }}
-          </a>
-        </div>
-      }
-      @if (user.accountType === 'adult' && privacy.status()?.scope === 'adult' && !closure.receipt()) {
-        <a class="btn btn-soft billing-account-link" routerLink="/account/subscription">{{ i18n.t().billing.accountLink }}</a>
-        <p class="hint">{{ i18n.t().billing.settingsHint }}</p>
-      }
-    } @else {
-      <p class="hint">{{ i18n.t().settings.accountGuestHint }}</p>
-      <a class="btn btn-soft" routerLink="/account">🗝 {{ i18n.t().settings.accountOpen }}</a>
-    }
-    @if (isMock) {
-      <div class="row mock-row">
-        <span class="label">{{ i18n.t().settings.mockResetHint }}</span>
-        <button type="button" class="chip opt" (click)="askMockReset()">
-          🧪 {{ i18n.t().settings.mockReset }}
-        </button>
-      </div>
-    }
-  </section>
-
-  <!-- Familia (signed-in only) -->
-  @if (auth.user() && privacy.status()?.adultDeclared && !privacy.status()?.privateOnly) {
-    <app-familia-card />
-    <app-amigos-card />
-  }
-
   <!-- Cloud sync (signed-in only) -->
   @if (auth.user()) {
     <app-privacy-panel [showCloud]="true" (cloudAuthorized)="doConnect()" />
@@ -431,6 +414,36 @@
     }
   </section>
 
+  <section class="settings-help" aria-labelledby="settings-help-title">
+    <h2 id="settings-help-title">{{ i18n.t().accountStatus.help }}</h2>
+    <a class="card block guide-link" routerLink="/guide">
+      <img src="icons/logo.svg" alt="" width="44" height="44" />
+      <span class="guide-text">
+        <strong>{{ i18n.t().guide.settingsLink }}</strong>
+        <span class="hint">{{ i18n.t().guide.settingsHint }}</span>
+      </span>
+      <span class="arrow" aria-hidden="true">→</span>
+    </a>
+
+    <a class="card block guide-link" routerLink="/trail">
+      <span class="trail-mark" aria-hidden="true">🐾</span>
+      <span class="guide-text">
+        <strong>{{ i18n.t().trail.settingsLink }}</strong>
+        <span class="hint">{{ i18n.t().trail.settingsHint }}</span>
+      </span>
+      <span class="arrow" aria-hidden="true">→</span>
+    </a>
+
+    <a class="card block guide-link" [href]="bugReportUrl" target="_blank" rel="noopener">
+      <span class="trail-mark" aria-hidden="true">✍</span>
+      <span class="guide-text">
+        <strong>{{ i18n.t().settings.reportBugTitle }}</strong>
+        <span class="hint">{{ i18n.t().settings.reportBugHint }}</span>
+      </span>
+      <span class="arrow" aria-hidden="true">→</span>
+    </a>
+  </section>
+
   <!-- Updates: never wonder which version you're on again -->
   <section class="card block">
     <h2>{{ i18n.t().settings.updatesTitle }}</h2>
@@ -447,6 +460,10 @@
         </button>
       </div>
     </div>
+  </section>
+
+  <details class="card block advanced-help">
+    <summary>{{ i18n.t().accountStatus.advancedHelp }}</summary>
     <div class="row">
       <span class="label">{{ i18n.t().settings.repairHint }}</span>
       <div class="opts">
@@ -455,10 +472,20 @@
         </button>
       </div>
     </div>
-  </section>
+    @if (isMock) {
+      <details class="local-tools">
+        <summary>{{ i18n.t().accountStatus.localTools }}</summary>
+        <div class="row mock-row">
+          <span class="label">{{ i18n.t().settings.mockResetHint }}</span>
+          <button type="button" class="chip opt" (click)="askMockReset()">
+            🧪 {{ i18n.t().settings.mockReset }}
+          </button>
+        </div>
+      </details>
+    }
+  </details>
 
   <p class="about">{{ i18n.t().settings.aboutText }}</p>
-  <p class="version">{{ version }}</p>
 
   @if (deleting(); as tree) {
     <app-confirm-sheet

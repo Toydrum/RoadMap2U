@@ -67,6 +67,14 @@ describe('individual subscription page', () => {
       cloudConsent: 'absent',
       canUseCloud: false,
     });
+    const accessState = {
+      access: signal(createFreeAccessSummary()),
+      leaseState: signal<'valid' | 'fallback'>('valid'),
+      loading: signal(false),
+      lastError: signal<string | null>(null),
+      start: vi.fn(async () => undefined),
+      refresh: vi.fn(async () => createFreeAccessSummary()),
+    };
     await TestBed.configureTestingModule({
       imports: [SubscriptionPage],
       providers: [
@@ -84,11 +92,7 @@ describe('individual subscription page', () => {
         { provide: API_CLIENT, useValue: api },
         {
           provide: AccessService,
-          useValue: {
-            access: signal(createFreeAccessSummary()),
-            start: vi.fn(async () => undefined),
-            refresh: vi.fn(async () => createFreeAccessSummary()),
-          },
+          useValue: accessState,
         },
         {
           provide: PUBLIC_INDIVIDUAL_CATALOG,
@@ -118,8 +122,44 @@ describe('individual subscription page', () => {
         (fixture.nativeElement as HTMLElement).querySelector('details p')?.textContent,
       ).toContain('$114.84 MXN');
     });
-    return { fixture, root: fixture.nativeElement as HTMLElement, api, user, privacyStatus };
+    return {
+      fixture,
+      root: fixture.nativeElement as HTMLElement,
+      api,
+      user,
+      privacyStatus,
+      accessState,
+    };
   }
+  it('does not present a fallback as confirmed Free after an access read fails', async () => {
+    const { fixture, root, accessState } = await adult();
+    accessState.leaseState.set('fallback');
+    accessState.lastError.set('offline');
+    fixture.detectChanges();
+    expect(root.textContent).not.toContain(ES.accountStatus.free);
+    expect(root.textContent).toContain('No se pudo confirmar tu acceso');
+  });
+  it('identifies permanent sponsorship separately from a paid subscription', async () => {
+    const { fixture, root, accessState } = await adult({ state: 'active', canOpenPortal: true });
+    accessState.access.set({
+      ...createFreeAccessSummary(),
+      effectivePlanKey: 'premium',
+      activeSources: [
+        { kind: 'sponsored', sourceId: 'demo-sponsor', planKey: 'premium', validUntil: null },
+        {
+          kind: 'subscription',
+          sourceId: 'demo-subscription',
+          scope: 'individual',
+          planKey: 'premium',
+          validUntil: Date.now() + 86400000,
+        },
+      ],
+    });
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Premium patrocinado · sin vencimiento');
+    expect(root.textContent).toContain('Premium por suscripción');
+    expect(root.querySelector('.billing-portal')).not.toBeNull();
+  });
   it('gives a guest a calm sign-in door back to this subscription route', async () => {
     await TestBed.configureTestingModule({
       imports: [SubscriptionPage],
@@ -284,7 +324,7 @@ describe('individual subscription page', () => {
     expect(api.getIndividualBillingSummary).toHaveBeenCalled();
     expect(api.createIndividualCheckout).not.toHaveBeenCalled();
     expect(root.textContent).toContain(ES.billing.returnNotice);
-    expect(root.textContent).toContain(ES.billing.accessFree);
+    expect(root.textContent).toContain(ES.accountStatus.free);
     expect(root.querySelector('.billing-checkout')).toBeNull();
   });
   it.each([

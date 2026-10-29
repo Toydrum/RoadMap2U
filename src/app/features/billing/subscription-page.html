@@ -1,6 +1,9 @@
 <main class="container billing-page" id="billing-main">
   <header>
     <a routerLink="/account">← {{ i18n.t().billing.accountBack }}</a>
+    <a class="billing-settings-back" routerLink="/settings">{{
+      i18n.t().accountStatus.backSettings
+    }}</a>
     <div class="billing-languages" role="group" [attr.aria-label]="i18n.t().landing.nav.language">
       <button
         type="button"
@@ -92,14 +95,7 @@
           </button>
         }
       }
-      <p class="billing-access">
-        {{
-          access()?.effectivePlanKey === 'premium'
-            ? i18n.t().billing.accessPremium
-            : i18n.t().billing.accessFree
-        }}
-      </p>
-      <p class="hint">{{ i18n.t().billing.sponsor }}</p>
+      <app-account-access-summary class="billing-access" />
       @if (errorText()) {
         <p class="billing-error" role="alert">{{ errorText() }}</p>
       }

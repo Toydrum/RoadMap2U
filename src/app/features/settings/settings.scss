@@ -117,6 +117,30 @@
   }
 }
 
+.account-actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-block: 0.75rem;
+}
+
+.advanced-help summary,
+.local-tools summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+}
+
+.local-tools {
+  margin-top: 1rem;
+}
+
+.settings-help {
+  margin-block: 1.5rem;
+}
+
 .account-closure-status {
   display: grid;
   gap: 0.45rem;

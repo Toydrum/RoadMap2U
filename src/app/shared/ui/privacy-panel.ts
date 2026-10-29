@@ -186,83 +186,85 @@ import { ConfirmSheet } from './confirm-sheet';
         }
         @if (status.scope === 'adult' && status.adultDeclared) {
           <details>
-            <summary>{{ i18n.t().privacy.guardianTitle }}</summary>
-            <p>{{ document()?.adolescent?.explanation }}</p>
-            <form (submit)="$event.preventDefault(); invite()">
-              <p>{{ i18n.t().privacy.automaticAuthorization }}</p>
-              <label class="field"
-                ><span>{{ i18n.t().privacy.guardianName }}</span>
-                <input
-                  type="text"
-                  name="guardian-name"
-                  autocomplete="name"
-                  maxlength="160"
-                  [value]="guardianName()"
-                  (input)="guardianName.set(inputValue($event)); resetGuardianChoices()"
-                />
-              </label>
-              <label class="field"
-                ><span>{{ i18n.t().privacy.guardianRelationship }}</span>
-                <select
-                  name="guardian-relationship"
-                  [value]="guardianRelationship()"
-                  (change)="chooseGuardianRelationship(inputValue($event))"
+            <summary>{{ i18n.t().privacy.manageInvitations }}</summary>
+            @if (showInvitations()) {
+              <p>{{ document()?.adolescent?.explanation }}</p>
+              <form (submit)="$event.preventDefault(); invite()">
+                <p>{{ i18n.t().privacy.automaticAuthorization }}</p>
+                <label class="field"
+                  ><span>{{ i18n.t().privacy.guardianName }}</span>
+                  <input
+                    type="text"
+                    name="guardian-name"
+                    autocomplete="name"
+                    maxlength="160"
+                    [value]="guardianName()"
+                    (input)="guardianName.set(inputValue($event)); resetGuardianChoices()"
+                  />
+                </label>
+                <label class="field"
+                  ><span>{{ i18n.t().privacy.guardianRelationship }}</span>
+                  <select
+                    name="guardian-relationship"
+                    [value]="guardianRelationship()"
+                    (change)="chooseGuardianRelationship(inputValue($event))"
+                  >
+                    <option value="">{{ i18n.t().privacy.chooseRelationship }}</option>
+                    <option value="parent">{{ i18n.t().privacy.parentRelationship }}</option>
+                    <option value="legal_guardian">
+                      {{ i18n.t().privacy.legalGuardianRelationship }}
+                    </option>
+                  </select>
+                </label>
+                <label class="field"
+                  ><span>{{ i18n.t().privacy.recipientUsername }}</span
+                  ><input
+                    type="text"
+                    autocapitalize="none"
+                    autocomplete="off"
+                    [value]="recipient()"
+                    (input)="
+                      recipient.set(inputValue($event).trim().toLowerCase()); resetGuardianChoices()
+                    "
+                /></label>
+                <label class="field"
+                  ><span>{{ i18n.t().privacy.majorityDate }}</span
+                  ><input
+                    type="date"
+                    [value]="majorityAt()"
+                    (input)="majorityAt.set(inputValue($event)); resetGuardianChoices()"
+                /></label>
+                <label class="choice"
+                  ><input
+                    type="checkbox"
+                    [checked]="represents()"
+                    (change)="represents.set($any($event.target).checked)"
+                  />{{ document()?.adolescent?.representation }}</label
                 >
-                  <option value="">{{ i18n.t().privacy.chooseRelationship }}</option>
-                  <option value="parent">{{ i18n.t().privacy.parentRelationship }}</option>
-                  <option value="legal_guardian">
-                    {{ i18n.t().privacy.legalGuardianRelationship }}
-                  </option>
-                </select>
-              </label>
-              <label class="field"
-                ><span>{{ i18n.t().privacy.recipientUsername }}</span
-                ><input
-                  type="text"
-                  autocapitalize="none"
-                  autocomplete="off"
-                  [value]="recipient()"
-                  (input)="
-                    recipient.set(inputValue($event).trim().toLowerCase()); resetGuardianChoices()
+                <label class="choice"
+                  ><input
+                    type="checkbox"
+                    [checked]="guardianAccepts()"
+                    (change)="guardianAccepts.set($any($event.target).checked)"
+                  />{{ document()?.adolescent?.authorization }}</label
+                >
+                <button
+                  type="submit"
+                  class="btn btn-soft"
+                  [disabled]="
+                    busy() ||
+                    !represents() ||
+                    !guardianAccepts() ||
+                    !recipient() ||
+                    !majorityAt() ||
+                    !guardianName().trim() ||
+                    !guardianRelationship()
                   "
-              /></label>
-              <label class="field"
-                ><span>{{ i18n.t().privacy.majorityDate }}</span
-                ><input
-                  type="date"
-                  [value]="majorityAt()"
-                  (input)="majorityAt.set(inputValue($event)); resetGuardianChoices()"
-              /></label>
-              <label class="choice"
-                ><input
-                  type="checkbox"
-                  [checked]="represents()"
-                  (change)="represents.set($any($event.target).checked)"
-                />{{ document()?.adolescent?.representation }}</label
-              >
-              <label class="choice"
-                ><input
-                  type="checkbox"
-                  [checked]="guardianAccepts()"
-                  (change)="guardianAccepts.set($any($event.target).checked)"
-                />{{ document()?.adolescent?.authorization }}</label
-              >
-              <button
-                type="submit"
-                class="btn btn-soft"
-                [disabled]="
-                  busy() ||
-                  !represents() ||
-                  !guardianAccepts() ||
-                  !recipient() ||
-                  !majorityAt() ||
-                  !guardianName().trim() ||
-                  !guardianRelationship()
-                "
-              >
-                {{ i18n.t().privacy.requestInvitation }}
-              </button>
-            </form>
+                >
+                  {{ i18n.t().privacy.requestInvitation }}
+                </button>
+              </form>
+            }
             <button
               type="button"
               class="btn btn-soft"
@@ -455,6 +457,8 @@ export class PrivacyPanel {
   protected readonly i18n = inject(I18nService);
   private readonly auth = inject(AuthService);
   readonly showCloud = input(false);
+  /** New guardian invitations are not offered in the individual launch. */
+  readonly showInvitations = input(false);
   readonly admitted = output<void>();
   readonly cloudAuthorized = output<void>();
   protected readonly inputValue = inputValue;
