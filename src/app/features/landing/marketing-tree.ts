@@ -18,6 +18,23 @@ import {
 
 export type MarketingTreeVariant = 'hero' | 'sap' | 'branch' | 'grown' | 'demo';
 
+export interface MarketingDemoLabels {
+  goal: string;
+  vocabulary: string;
+  listening: string;
+  speaking: string;
+  reading: string;
+  description: string;
+}
+
+interface MarketingLabelAnchor {
+  key: Exclude<keyof MarketingDemoLabels, 'description'>;
+  x: number;
+  y: number;
+  labelX: number;
+  labelY: number;
+}
+
 interface MarketingLimb {
   id: string;
   d: string;
@@ -32,6 +49,7 @@ interface MarketingPoint {
 
 export interface MarketingTreeModel {
   transform: string;
+  labelAnchors: MarketingLabelAnchor[];
   trunks: string[];
   flare: string[];
   limbs: MarketingLimb[];
@@ -140,8 +158,31 @@ export function marketingTreeModel(): MarketingTreeModel {
       .filter((point) => point.node.status === status)
       .map((point) => ({ id: point.node.id, x: point.x, y: point.y }));
 
+  const labelAnchor = (
+    id: string,
+    key: MarketingLabelAnchor['key'],
+    labelX: number,
+    labelY: number,
+  ): MarketingLabelAnchor => {
+    const point = layout.byId.get(id)!;
+    return {
+      key,
+      x: 260 + (point.x - centerX) * scale,
+      y: 304 + point.y * scale,
+      labelX,
+      labelY,
+    };
+  };
+
   return {
     transform,
+    labelAnchors: [
+      labelAnchor('heart', 'goal', 260, 342),
+      labelAnchor('path-a', 'vocabulary', 112, 138),
+      labelAnchor('path-b', 'listening', 112, 255),
+      labelAnchor('path-c', 'speaking', 408, 255),
+      labelAnchor('path-d', 'reading', 408, 138),
+    ],
     trunks: roots.map((root) => trunkPath(layout.byId.get(root.id)!, groundY, wood, form, 10)),
     flare: roots.map((root) => trunkFlarePath(layout.byId.get(root.id)!, groundY, wood, form, 10)),
     limbs,
@@ -162,5 +203,6 @@ export function marketingTreeModel(): MarketingTreeModel {
 })
 export class MarketingTree {
   readonly variant = input<MarketingTreeVariant>('hero');
+  readonly demoLabels = input<MarketingDemoLabels>();
   protected readonly model = marketingTreeModel();
 }

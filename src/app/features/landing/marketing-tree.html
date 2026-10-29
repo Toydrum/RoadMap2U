@@ -75,73 +75,105 @@
     </svg>
   }
   @case ('demo') {
-    <svg class="art demo-tree" viewBox="0 0 520 420" aria-hidden="true" focusable="false">
-      <ellipse cx="260" cy="375" rx="160" ry="18" fill="#9db98a" opacity=".28" />
-      <g [attr.transform]="model.transform">
-        @for (flare of model.flare; track $index) {
-          <path [attr.d]="flare" fill="#6f5640" />
-        }
-        @for (trunk of model.trunks; track $index) {
-          <path [attr.d]="trunk" fill="#6f5640" />
-        }
-        @for (limb of model.limbs; track limb.id) {
-          <path [attr.d]="limb.d" [style.fill]="limb.fill" />
-        }
-        @for (pad of model.pads; track $index) {
-          <ellipse
-            class="canopy-pad"
-            [attr.cx]="pad.x"
-            [attr.cy]="pad.y"
-            [attr.rx]="pad.rx"
-            [attr.ry]="pad.ry"
-            [attr.transform]="'rotate(' + pad.rot + ' ' + pad.x + ' ' + pad.y + ')'"
-            [attr.data-shade]="pad.shade"
-          />
-        }
-        @for (leaf of model.leaves; track $index) {
-          @if (leaf.kind === 'leaf') {
-            <path
-              class="leaf"
-              [attr.transform]="
-                'translate(' + leaf.x + ' ' + leaf.y + ') rotate(' + leaf.angle + ')'
-              "
-              [attr.d]="
-                'M 0 0 Q ' +
-                leaf.size +
-                ' ' +
-                -leaf.size +
-                ' 0 ' +
-                -2 * leaf.size +
-                ' Q ' +
-                -leaf.size +
-                ' ' +
-                -leaf.size +
-                ' 0 0 Z'
-              "
-              [attr.data-shade]="leaf.shade"
+    <div
+      class="demo-figure"
+      [attr.role]="demoLabels() ? 'img' : null"
+      [attr.aria-label]="demoLabels()?.description"
+      [attr.aria-hidden]="demoLabels() ? null : 'true'"
+    >
+      <svg class="art demo-tree" viewBox="0 0 520 420" aria-hidden="true" focusable="false">
+        <ellipse cx="260" cy="375" rx="160" ry="18" fill="#9db98a" opacity=".28" />
+        <g [attr.transform]="model.transform">
+          @for (flare of model.flare; track $index) {
+            <path [attr.d]="flare" fill="#6f5640" />
+          }
+          @for (trunk of model.trunks; track $index) {
+            <path [attr.d]="trunk" fill="#6f5640" />
+          }
+          @for (limb of model.limbs; track limb.id) {
+            <path [attr.d]="limb.d" [style.fill]="limb.fill" />
+          }
+          @for (pad of model.pads; track $index) {
+            <ellipse
+              class="canopy-pad"
+              [attr.cx]="pad.x"
+              [attr.cy]="pad.y"
+              [attr.rx]="pad.rx"
+              [attr.ry]="pad.ry"
+              [attr.transform]="'rotate(' + pad.rot + ' ' + pad.x + ' ' + pad.y + ')'"
+              [attr.data-shade]="pad.shade"
             />
           }
-        }
-        @for (bud of model.buds; track bud.id) {
-          <path
-            class="bud"
-            [attr.transform]="'translate(' + bud.x + ' ' + bud.y + ')'"
-            d="M0 3C-5-2-4-10 0-14C5-9 5-2 0 3Z"
-          />
-        }
-        @for (knot of model.knots; track knot.id) {
-          <g [attr.transform]="'translate(' + knot.x + ' ' + knot.y + ')'">
-            <circle r="7" class="knot-ring" />
-            <circle r="2.4" class="knot-core" />
+          @for (leaf of model.leaves; track $index) {
+            @if (leaf.kind === 'leaf') {
+              <path
+                class="leaf"
+                [attr.transform]="
+                  'translate(' + leaf.x + ' ' + leaf.y + ') rotate(' + leaf.angle + ')'
+                "
+                [attr.d]="
+                  'M 0 0 Q ' +
+                  leaf.size +
+                  ' ' +
+                  -leaf.size +
+                  ' 0 ' +
+                  -2 * leaf.size +
+                  ' Q ' +
+                  -leaf.size +
+                  ' ' +
+                  -leaf.size +
+                  ' 0 0 Z'
+                "
+                [attr.data-shade]="leaf.shade"
+              />
+            }
+          }
+          @for (bud of model.buds; track bud.id) {
+            <path
+              class="bud"
+              [attr.transform]="'translate(' + bud.x + ' ' + bud.y + ')'"
+              d="M0 3C-5-2-4-10 0-14C5-9 5-2 0 3Z"
+            />
+          }
+          @for (knot of model.knots; track knot.id) {
+            <g [attr.transform]="'translate(' + knot.x + ' ' + knot.y + ')'">
+              <circle r="7" class="knot-ring" />
+              <circle r="2.4" class="knot-core" />
+            </g>
+          }
+          @for (bloom of model.blooms; track bloom.id) {
+            <g [attr.transform]="'translate(' + bloom.x + ' ' + bloom.y + ')'">
+              <g appFlower [flower]="model.flower" [scale]="0.68" />
+            </g>
+          }
+        </g>
+        @if (demoLabels()) {
+          <g class="demo-connectors">
+            @for (anchor of model.labelAnchors; track anchor.key) {
+              <path
+                [attr.d]="
+                  'M ' + anchor.x + ' ' + anchor.y + ' L ' + anchor.labelX + ' ' + anchor.labelY
+                "
+              />
+              <circle [attr.cx]="anchor.x" [attr.cy]="anchor.y" r="3" />
+            }
           </g>
         }
-        @for (bloom of model.blooms; track bloom.id) {
-          <g [attr.transform]="'translate(' + bloom.x + ' ' + bloom.y + ')'">
-            <g appFlower [flower]="model.flower" [scale]="0.68" />
-          </g>
-        }
-      </g>
-    </svg>
+      </svg>
+      @if (demoLabels(); as labels) {
+        <div class="demo-labels" aria-hidden="true">
+          @for (anchor of model.labelAnchors; track anchor.key) {
+            <span
+              class="demo-label"
+              [class.demo-label--goal]="anchor.key === 'goal'"
+              [style.left.%]="(anchor.labelX / 520) * 100"
+              [style.top.%]="(anchor.labelY / 420) * 100"
+              >{{ labels[anchor.key] }}</span
+            >
+          }
+        </div>
+      }
+    </div>
   }
   @default {
     <svg class="art hero-tree" viewBox="0 0 520 420" aria-hidden="true" focusable="false">

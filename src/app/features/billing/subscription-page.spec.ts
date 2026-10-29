@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActivatedRoute } from '@angular/router';
 import { API_CLIENT } from '../../core/api/api-client';
+import { billingDocument } from '../../core/api/billing-document';
 import { AccessService } from '../../core/access/access.service';
 import { PUBLIC_INDIVIDUAL_CATALOG } from '../../core/api/public-individual-catalog';
 import {
@@ -26,9 +27,11 @@ describe('individual subscription page', () => {
     summary: Partial<IndividualBillingSummary> = {},
     enabled = true,
     returnFrom: string | null = null,
-    termsHash = CLOSED_INDIVIDUAL_BILLING_CATALOG.terms.hashes.es,
+    termsHash?: string,
     stage = 'local',
+    termsVersion = ES.billing.termsVersion,
   ) {
+    const [esTerms, enTerms] = await Promise.all([billingDocument('es'), billingDocument('en')]);
     const current: IndividualBillingSummary = {
       contractVersion: 1,
       state: 'none',
@@ -94,7 +97,8 @@ describe('individual subscription page', () => {
             purchasesEnabled: enabled,
             terms: {
               ...CLOSED_INDIVIDUAL_BILLING_CATALOG.terms,
-              hashes: { ...CLOSED_INDIVIDUAL_BILLING_CATALOG.terms.hashes, es: termsHash },
+              version: termsVersion,
+              hashes: { es: termsHash ?? esTerms.hash, en: enTerms.hash },
             },
           }),
         },
@@ -140,13 +144,7 @@ describe('individual subscription page', () => {
         observedAt: now,
         evidenceValidUntil: now + 30000,
       };
-    const { root, fixture } = await adult(
-      { simulation },
-      true,
-      null,
-      CLOSED_INDIVIDUAL_BILLING_CATALOG.terms.hashes.es,
-      'dev',
-    );
+    const { root, fixture } = await adult({ simulation }, true, null, undefined, 'dev');
     expect(root.querySelector('.billing-simulation')?.textContent).toContain('Ensayo');
     expect(root.querySelector('.billing-simulation')?.textContent).toContain('fecha financiera');
     await TestBed.inject(I18nService).set('en');
@@ -171,7 +169,7 @@ describe('individual subscription page', () => {
       { state: 'payment_review', processing: 'review', simulation },
       true,
       null,
-      CLOSED_INDIVIDUAL_BILLING_CATALOG.terms.hashes.es,
+      undefined,
       'test',
     );
     expect(root.querySelector('.billing-simulation')?.textContent).toContain('esperamos');
@@ -289,14 +287,28 @@ describe('individual subscription page', () => {
     expect(root.textContent).toContain(ES.billing.accessFree);
     expect(root.querySelector('.billing-checkout')).toBeNull();
   });
-  it('does not enable purchase against commercial terms different from those displayed', async () => {
-    const { root, fixture } = await adult({}, true, null, 'a'.repeat(64));
-    (root.querySelector('#billing-terms') as HTMLInputElement).click();
-    (root.querySelector('#billing-country') as HTMLInputElement).click();
-    fixture.detectChanges();
-    expect((root.querySelector('.billing-checkout') as HTMLButtonElement).disabled).toBe(true);
-    expect(root.textContent).toContain(ES.billing.catalogUnavailable);
-  });
+  it.each([
+    { mismatch: 'hash', termsHash: 'a'.repeat(64), termsVersion: ES.billing.termsVersion },
+    {
+      mismatch: 'version',
+      termsHash: undefined,
+      termsVersion: 'individual-subscription-2026-10-12-draft-v2',
+    },
+  ])(
+    'does not enable purchase against a different terms $mismatch',
+    async ({ termsHash, termsVersion }) => {
+      const { root, fixture, api } = await adult({}, true, null, termsHash, 'local', termsVersion);
+      (root.querySelector('#billing-terms') as HTMLInputElement).click();
+      (root.querySelector('#billing-country') as HTMLInputElement).click();
+      fixture.detectChanges();
+      expect((root.querySelector('.billing-checkout') as HTMLButtonElement).disabled).toBe(true);
+      expect(root.textContent).toContain(ES.billing.catalogUnavailable);
+      (root.querySelector('form') as HTMLFormElement).dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      expect(api.createIndividualCheckout).not.toHaveBeenCalled();
+    },
+  );
   it('sends the annual interval and exact English terms only after fresh language consent', async () => {
     const { root, fixture, api } = await adult();
     (root.querySelector('#billing-terms') as HTMLInputElement).click();
@@ -321,7 +333,7 @@ describe('individual subscription page', () => {
         language: 'en',
         accepted: true,
         version: EN.billing.termsVersion,
-        hash: CLOSED_INDIVIDUAL_BILLING_CATALOG.terms.hashes.en,
+        hash: (await billingDocument('en')).hash,
       },
     });
   });

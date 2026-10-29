@@ -109,6 +109,10 @@ export const EN: Dict = {
       'This device could not open its storage: your forest lives only in this session and will be lost on reload. Close other tabs and reload to retry.',
   },
   landing: {
+    seo: {
+      title: 'RoadMap2U — Goals and tasks in visual trees',
+      description: 'RoadMap2U is an app for goals and tasks in visual trees. Each plan has small steps, and your forest lives on your device, without ads or trackers.',
+    },
     skip: 'Skip to content',
     nav: {
       label: 'Main navigation',
@@ -123,8 +127,8 @@ export const EN: Dict = {
     },
     hero: {
       eyebrow: 'A living map for your plans',
-      title: 'See the path. Help it grow.',
-      body: 'Turn what you want to build into trees, branches, and next steps you can actually follow.',
+      title: 'Your goals and tasks, in a visual tree.',
+      body: 'RoadMap2U is an app for organizing goals and tasks in visual trees. Each goal becomes a tree, with branches for small steps and alternative paths at your own pace.',
       primary: 'Create my forest for free',
       secondary: 'See how it works',
       microcopy: 'No card required · start with 2 trees and 10 branches per tree',
@@ -151,12 +155,19 @@ export const EN: Dict = {
     },
     product: {
       eyebrow: 'Your map, in motion',
-      title: 'The tree does not decorate the plan. It is the plan.',
-      body: 'Every branch holds a decision, every flower keeps a step you lived, and every knot shows that you found another way forward.',
+      title: 'A goal at the heart. Its tasks on the branches.',
+      body: 'In Learn French, each branch opens a task: vocabulary, listening, conversation or reading. I can choose one next step and adjust my path when I need to.',
       proof:
         'The same structure appears in your forest, focus, almanac, and harvest; it all remains yours and works offline.',
-      treeLabel:
-        'Example of a RoadMap2U tree with branches, leaves, flowers, and a transformation knot.',
+      example: {
+        goal: 'Learn French',
+        vocabulary: 'I practice vocabulary',
+        listening: 'I listen to audio',
+        speaking: 'I speak French',
+        reading: 'I read a short text',
+        description: 'Tree for the goal Learn French with four tasks on its branches: I practice vocabulary, I listen to audio, I speak French and I read a short text.',
+      },
+      treeLabel: 'Learn French: one goal with four concrete tasks.',
       notes: [
         'One next step at a time',
         'Gentle dates, never alarms',
@@ -183,7 +194,6 @@ export const EN: Dict = {
       },
       premium: {
         name: 'Premium',
-        badge: 'Coming soon',
         monthly: '$114.84 MXN per month',
         yearly: '$1,100.84 MXN per year · save $277.24 · tax included',
         summary: 'Grow your forest beyond the limits of the free plan.',
@@ -192,15 +202,9 @@ export const EN: Dict = {
           'Secure sync across devices',
           'Friends and read-only visits',
         ],
-        note: 'Paid plans are not available yet. The free family pilot is offered through a separate invitation.',
+        note: 'In My subscription I can check availability and the conditions for my own account.',
         cta: 'Explore Premium',
       },
-    },
-    key: {
-      eyebrow: 'Sponsored access',
-      title: 'Families by invitation',
-      body: 'Invited households can join a free pilot for up to two minors and one additional responsible adult. Each person uses their own account. Registration does not activate family coverage.',
-      cta: 'Sign in to my account',
     },
     faq: {
       eyebrow: 'Frequently asked questions',
@@ -212,9 +216,9 @@ export const EN: Dict = {
             'You can use the full personal cycle with 2 active trees and up to 10 visible branches per tree: check-in, focus, gentle dates, rituals, almanac, harvest, backup, and accessibility.',
         },
         {
-          question: 'Can I buy Premium now?',
+          question: 'Where can I check Premium availability?',
           answer:
-            'Not yet. These are the proposed launch prices and they are marked Coming soon; no button makes or simulates a charge.',
+            'My subscription checks whether purchases are enabled for my own account. I can see the final price and conditions there before confirming a payment. When purchases are closed, no new purchase starts.',
         },
         {
           question: 'What does Premium add?',
@@ -227,9 +231,9 @@ export const EN: Dict = {
             'Your forest works on your device first. RoadMap2U uses no ads, analytics, or trackers, and you can export your information.',
         },
         {
-          question: 'How can my family participate?',
+          question: 'What do the tasks for a goal look like?',
           answer:
-            'Pilot coverage is privately granted to invited households, with no charges or automatic expiration. It includes up to two minors and one additional responsible adult. A free adult account does not activate it on its own; paid family offers come later.',
+            'In the Learn French example, the branches are vocabulary practice, listening to audio, conversation and reading a short text. Each task becomes one next step.',
         },
       ],
     },

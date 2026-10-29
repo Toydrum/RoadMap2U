@@ -111,6 +111,10 @@ export const ES = {
       'Este dispositivo no pudo abrir su almacenamiento: tu bosque vive solo en esta sesión y se perderá al recargar. Cierra otras pestañas y recarga para reintentar.',
   },
   landing: {
+    seo: {
+      title: 'RoadMap2U — Metas y tareas en árboles visuales',
+      description: 'RoadMap2U es una app de metas y tareas en árboles visuales. Cada plan tiene pasos pequeños y el bosque vive en tu dispositivo, sin anuncios ni rastreadores.',
+    },
     skip: 'Saltar al contenido',
     nav: {
       label: 'Navegación principal',
@@ -125,8 +129,8 @@ export const ES = {
     },
     hero: {
       eyebrow: 'Un mapa vivo para tus planes',
-      title: 'Haz visible el camino. Hazlo crecer.',
-      body: 'Convierte lo que quieres construir en árboles, ramas y siguientes pasos que realmente puedas recorrer.',
+      title: 'Tus metas y tareas, en un árbol visual.',
+      body: 'RoadMap2U es una app para organizar metas y tareas en árboles visuales. Cada meta es un árbol; sus ramas muestran los pasos y las alternativas para avanzar a tu ritmo.',
       primary: 'Crear mi bosque gratis',
       secondary: 'Ver cómo funciona',
       microcopy: 'Sin tarjeta · empieza con 2 árboles y 10 ramas por árbol',
@@ -153,12 +157,19 @@ export const ES = {
     },
     product: {
       eyebrow: 'Tu mapa, en movimiento',
-      title: 'El árbol no adorna el plan. Es el plan.',
-      body: 'Cada rama guarda una decisión, cada flor conserva un paso vivido y cada nudo muestra que encontraste otra manera de seguir.',
+      title: 'Una meta en el corazón. Sus tareas, en las ramas.',
+      body: 'En «Aprender francés», cada rama abre una tarea: practicar vocabulario, escuchar, conversar o leer. Puedo elegir un siguiente paso y ajustar el camino cuando lo necesite.',
       proof:
         'La misma estructura aparece en tu bosque, tu enfoque, tu almanaque y tu cosecha; todo sigue siendo tuyo y funciona sin conexión.',
-      treeLabel:
-        'Ejemplo de un árbol RoadMap2U con ramas, hojas, flores y un nudo de transformación.',
+      example: {
+        goal: 'Aprender francés',
+        vocabulary: 'Practico vocabulario',
+        listening: 'Escucho un audio',
+        speaking: 'Converso en francés',
+        reading: 'Leo un texto corto',
+        description: 'Árbol de la meta Aprender francés con cuatro tareas en sus ramas: Practico vocabulario, Escucho un audio, Converso en francés y Leo un texto corto.',
+      },
+      treeLabel: 'Aprender francés: una meta con cuatro tareas concretas.',
       notes: [
         'Un siguiente paso a la vez',
         'Fechas amables, nunca alarmas',
@@ -185,7 +196,6 @@ export const ES = {
       },
       premium: {
         name: 'Premium',
-        badge: 'Próximamente',
         monthly: '$114.84 MXN al mes',
         yearly: '$1,100.84 MXN al año · ahorra $277.24 · IVA incluido',
         summary: 'Haz crecer tu bosque más allá de los límites del plan gratuito.',
@@ -194,15 +204,9 @@ export const ES = {
           'Sincronización segura entre dispositivos',
           'Amistades y visitas de sólo lectura',
         ],
-        note: 'Los planes de pago aún no están disponibles. El piloto familiar gratuito se ofrece por invitación independiente.',
+        note: 'En Mi suscripción puedo consultar la disponibilidad y las condiciones para mi cuenta.',
         cta: 'Conocer Premium',
       },
-    },
-    key: {
-      eyebrow: 'Acceso patrocinado',
-      title: 'Familias por invitación',
-      body: 'Los hogares invitados pueden participar en un piloto gratuito para hasta dos menores y una persona responsable adicional. Cada persona usa su propia cuenta. Registrarte no activa la cobertura familiar.',
-      cta: 'Entrar a mi cuenta',
     },
     faq: {
       eyebrow: 'Preguntas frecuentes',
@@ -214,9 +218,9 @@ export const ES = {
             'Puedes usar el ciclo personal completo con 2 árboles activos y hasta 10 ramas visibles por árbol: check-in, enfoque, fechas amables, rituales, almanaque, cosecha, respaldo y accesibilidad.',
         },
         {
-          question: '¿Premium ya se puede comprar?',
+          question: '¿Dónde consulto Premium y su disponibilidad?',
           answer:
-            'Todavía no. Los precios son la propuesta de lanzamiento y están marcados como Próximamente; ningún botón realiza o simula un cobro.',
+            'En Mi suscripción se comprueba si las compras están habilitadas para mi cuenta. Allí veo el precio final y las condiciones antes de confirmar un pago. Si están cerradas, no se inicia una compra nueva.',
         },
         {
           question: '¿Qué añade Premium?',
@@ -229,9 +233,9 @@ export const ES = {
             'Tu bosque funciona primero en tu dispositivo. RoadMap2U no usa anuncios, analítica ni rastreadores, y puedes exportar tu información.',
         },
         {
-          question: '¿Cómo participa mi familia?',
+          question: '¿Cómo se ven las tareas de una meta?',
           answer:
-            'La cobertura del piloto se concede de forma privada a hogares invitados, sin cobros ni vencimiento automático. Incluye hasta dos menores y una persona responsable adicional. La cuenta adulta gratuita no la activa por sí sola; las ofertas familiares de pago llegan después.',
+            'En el ejemplo Aprender francés, las ramas son practicar vocabulario, escuchar un audio, conversar y leer un texto corto. Cada tarea se convierte en un siguiente paso.',
         },
       ],
     },

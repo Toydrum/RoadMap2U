@@ -1,4 +1,4 @@
-<a class="skip-link" href="#landing-main">{{ copy().landing.skip }}</a>
+<a class="skip-link" routerLink="/" fragment="landing-main" (click)="focusMain()">{{ copy().landing.skip }}</a>
 
 <div class="landing-shell">
   <header class="site-header">
@@ -7,9 +7,9 @@
     </a>
 
     <nav class="site-nav" [attr.aria-label]="copy().landing.nav.label">
-      <a href="#how-it-works">{{ copy().landing.nav.how }}</a>
-      <a href="#product">{{ copy().landing.nav.product }}</a>
-      <a href="#plans">{{ copy().landing.nav.plans }}</a>
+      <a routerLink="/" fragment="how-it-works">{{ copy().landing.nav.how }}</a>
+      <a routerLink="/" fragment="product">{{ copy().landing.nav.product }}</a>
+      <a routerLink="/" fragment="plans">{{ copy().landing.nav.plans }}</a>
     </nav>
 
     <div class="header-actions">
@@ -41,7 +41,7 @@
     </div>
   </header>
 
-  <main id="landing-main">
+  <main #main id="landing-main" tabindex="-1">
     <section class="hero" aria-labelledby="hero-title">
       <svg class="topography" viewBox="0 0 1200 760" preserveAspectRatio="none" aria-hidden="true">
         <g fill="none" stroke="currentColor">
@@ -60,7 +60,7 @@
           <p class="hero-body">{{ copy().landing.hero.body }}</p>
           <div class="hero-actions">
             <a class="button" routerLink="/account">{{ copy().landing.hero.primary }}</a>
-            <a class="text-link" href="#how-it-works">
+            <a class="text-link" routerLink="/" fragment="how-it-works">
               {{ copy().landing.hero.secondary }}
               <span aria-hidden="true">↓</span>
             </a>
@@ -118,7 +118,7 @@
         </ul>
       </div>
       <figure class="product-visual">
-        <app-marketing-tree variant="demo" />
+        <app-marketing-tree variant="demo" [demoLabels]="copy().landing.product.example" />
         <figcaption>{{ copy().landing.product.treeLabel }}</figcaption>
       </figure>
     </section>
@@ -193,18 +193,6 @@
       </div>
     </section>
 
-    <section class="key-section reveal" aria-labelledby="key-title">
-      <div class="key-mark" aria-hidden="true">
-        <span></span>
-      </div>
-      <div>
-        <p class="eyebrow">{{ copy().landing.key.eyebrow }}</p>
-        <h2 id="key-title">{{ copy().landing.key.title }}</h2>
-        <p>{{ copy().landing.key.body }}</p>
-      </div>
-      <a class="button button-light" routerLink="/account">{{ copy().landing.key.cta }}</a>
-    </section>
-
     <section id="faq" class="section faq-section reveal" aria-labelledby="faq-title">
       <div class="section-heading faq-heading">
         <p class="eyebrow">{{ copy().landing.faq.eyebrow }}</p>
@@ -243,13 +231,13 @@
       <p>{{ copy().landing.footer.tagline }}</p>
     </div>
     <nav [attr.aria-label]="copy().landing.nav.label">
-      <a routerLink="/privacy">{{ copy().landing.footer.privacy }}</a>
-      <a routerLink="/terms">{{ copy().landing.footer.terms }}</a>
+      <a routerLink="/privacy" [queryParams]="{ lang: lang() }">{{ copy().landing.footer.privacy }}</a>
+      <a routerLink="/terms" [queryParams]="{ lang: lang() }">{{ copy().landing.footer.terms }}</a>
       <a routerLink="/subscription-terms" [queryParams]="{ lang: lang() }">{{
         copy().billing.termsTitle
       }}</a>
-      <a routerLink="/support">{{ copy().landing.footer.support }}</a>
-      <a routerLink="/support">{{ copy().landing.footer.contact }}</a>
+      <a routerLink="/support" [queryParams]="{ lang: lang() }">{{ copy().landing.footer.support }}</a>
+      <a routerLink="/support" [queryParams]="{ lang: lang() }">{{ copy().landing.footer.contact }}</a>
     </nav>
     <p class="rights">{{ copy().landing.footer.rights }}</p>
   </footer>

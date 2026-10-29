@@ -52,7 +52,10 @@ export const appConfig: ApplicationConfig = {
     provideRouter(
       routes,
       withComponentInputBinding(),
-      withInMemoryScrolling({ scrollPositionRestoration: 'enabled' }),
+      withInMemoryScrolling({
+        scrollPositionRestoration: 'enabled',
+        anchorScrolling: 'enabled',
+      }),
     ),
     // Keep Angular's SwUpdate seam available, but do not register/cache the
     // product from `/` or `/account`. The lazy product initializer opens this
