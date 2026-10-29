@@ -9,6 +9,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const contractFiles = [
   ['api/contracts.ts', resolve(root, 'src/app/core/api/contracts.ts')],
+  ['api/historical-privacy-documents.ts', resolve(root, 'src/app/core/api/historical-privacy-documents.ts')],
+  ['api/common-account-documents.ts', resolve(root, 'src/app/core/api/common-account-documents.ts')],
+  ['api/subscription-terms-documents.ts', resolve(root, 'src/app/core/api/subscription-terms-documents.ts')],
   ['db/schema.ts', resolve(root, 'src/app/core/db/schema.ts')],
   ['auth/auth-types.ts', resolve(root, 'src/app/core/auth/auth-types.ts')],
   ['i18n/es.ts', resolve(root, 'src/app/core/i18n/es.ts')],

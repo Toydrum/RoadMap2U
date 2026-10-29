@@ -41,23 +41,24 @@ try {
     );
     await page
       .getByRole('button', {
-        name: locale === 'es' ? 'Quiero una llave nueva' : 'I want a new key',
+        name: locale === 'es' ? 'Crear cuenta' : 'Create account',
         exact: true,
       })
       .click();
     const form = page.locator('.auth-form');
-    await form.locator('input[name="signup-age"]').first().waitFor();
+    await form.locator('input[type="checkbox"]').waitFor();
     const content = await page.locator('body').innerText();
     check(
-      locale + ': registration describes authenticated declaration',
-      (locale === 'es' ? /declaración autenticada/i : /authenticated declaration/i).test(content),
+      locale + ': standard registration offers Free and Premium without an age choice',
+      /Free/.test(content) && /Premium/.test(content) &&
+        (await form.locator('input[type="radio"],input[maxlength="64"]').count()) === 0,
     );
     check(
       locale + ': registration has no claim of verified representation',
       !(locale === 'es' ? /representación verificada/i : /verified representation/i).test(content),
     );
     check(
-      locale + ': age and terms remain unselected',
+      locale + ': terms remain unselected',
       (await form.locator('input[type="checkbox"]:checked,input[type="radio"]:checked').count()) ===
         0,
     );

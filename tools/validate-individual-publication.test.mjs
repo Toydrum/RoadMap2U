@@ -8,6 +8,7 @@ import {
 
 const versions = { privacy: 'privacy-v1', terms: 'terms-v1', cloudConsent: 'cloud-v1' };
 const hashes = { es: 'a'.repeat(64), en: 'b'.repeat(64) };
+const common = { versions: { privacy: 'common-privacy-v1', terms: 'common-terms-v1', cloudConsent: 'common-cloud-v1' }, hashes: { es: 'c'.repeat(64), en: 'd'.repeat(64) } };
 const approved = () => ({
   schemaVersion: 1,
   status: 'approved_for_publication',
@@ -88,6 +89,20 @@ test('does not reuse owner approval after either translated document changes', (
     false,
   );
 });
+test('does not use historical approval to publish common account documents', () => {
+  assert.equal(validateIndividualPublication(approved(), { stage: 'prod', versions, hashes, common }).valid, false);
+});
+test('requires exact separate owner-approved common versions, translations and completed verification', () => {
+  const manifest = { ...approved(), commonAccountPublicationApproved: true,
+    commonAccountVerification: { testsPassed: true, reviewComplete: true },
+    commonAccountPublicationApproval: { basis: 'responsible_owner', approvedBy: 'Héctor Coronado', approvedOn: '2026-10-29', designApprovalReference: '2ec91643', productionAuthorizationReference: 'owner-2026-10-29-conditional-tests-review', versions: common.versions, documentHashes: common.hashes } };
+  assert.equal(validateIndividualPublication(manifest, { stage: 'prod', versions, hashes, common }).valid, true);
+  for (const override of [
+    { commonAccountVerification: { testsPassed: false, reviewComplete: true } },
+    { commonAccountPublicationApproval: { ...manifest.commonAccountPublicationApproval, documentHashes: hashes } },
+    { commonAccountPublicationApproval: { ...manifest.commonAccountPublicationApproval, versions } },
+  ]) assert.equal(validateIndividualPublication({ ...manifest, ...override }, { stage: 'prod', versions, hashes, common }).valid, false);
+});
 test('does not permit drafts, missing owner approval or unresolved gates', () => {
   for (const override of [
     { versions: { ...versions, privacy: 'draft1' } },
@@ -122,7 +137,7 @@ test('external legal review alone does not replace the responsible owner approva
     false,
   );
 });
-test('validates the owner-approved current sources and exact ES/EN hashes in DEV/TEST/PROD', async () => {
+test('validates exact current owner-approved sources and keeps new common PROD closed until tests and review finish', async () => {
   const manifest = JSON.parse(
     await readFile(
       new URL('../docs/legal-drafts/individual-publication-readiness.json', import.meta.url),
@@ -130,9 +145,12 @@ test('validates the owner-approved current sources and exact ES/EN hashes in DEV
     ),
   );
   const current = await currentPrivacyDocuments();
-  for (const stage of ['dev', 'test', 'prod'])
+  for (const stage of ['dev', 'test'])
     assert.equal(validateIndividualPublication(manifest, { stage, ...current }).valid, true);
+  const pending = manifest.commonAccountVerification?.testsPassed !== true || manifest.commonAccountVerification?.reviewComplete !== true;
+  assert.equal(validateIndividualPublication(manifest, { stage: 'prod', ...current }).valid, !pending);
   assert.deepEqual(manifest.publicationApproval.documentHashes, current.hashes);
+  assert.deepEqual(manifest.commonAccountPublicationApproval.documentHashes, current.common.hashes);
   assert.equal(manifest.paymentActivationApproved, false);
   assert.equal(manifest.familyActivationApproved, false);
   assert.equal(

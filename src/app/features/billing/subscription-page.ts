@@ -39,15 +39,15 @@ export class SubscriptionPage {
   private readonly privacy = computed(() =>
     this.auth.user() ? this.injector.get(PrivacyService) : null,
   );
-  protected readonly adultAdmissionPending = computed(() =>
+  protected readonly accountAdmissionPending = computed(() =>
     Boolean(this.auth.user() && !this.privacy()?.status()),
   );
-  protected readonly canonicalAdult = computed(() => {
+  protected readonly standardOwnAccount = computed(() => {
     const status = this.privacy()?.status();
-    return this.auth.user()?.accountType === 'adult' && status?.scope === 'adult';
+    return this.auth.user()?.accountType === 'adult' && status?.scope === 'adult' && !status.privateOnly;
   });
   protected readonly eligibleBuyer = computed(
-    () => this.canonicalAdult() && this.privacy()?.status()?.adultDeclared === true,
+    () => this.standardOwnAccount() && this.privacy()?.status()?.accountAdmission === 'standard',
   );
   protected readonly interval = signal<BillingInterval>('month');
   protected readonly acceptsTerms = signal(false);
@@ -88,6 +88,8 @@ export class SubscriptionPage {
         return this.i18n.t().billing.termsChanged;
       case 'BILLING_BUYER_INELIGIBLE':
         return this.i18n.t().billing.adultOnly;
+      case 'ACCOUNT_TERMS_REQUIRED':
+        return this.i18n.t().privacy.accountTermsRequired;
       case 'BILLING_REVISION_CONFLICT':
       case 'BILLING_SUBSCRIPTION_EXISTS':
         return this.i18n.t().billing.conflict;
@@ -202,7 +204,7 @@ export class SubscriptionPage {
     this.status()?.nativeElement.focus();
   }
   protected async portal(): Promise<void> {
-    if (!this.canonicalAdult()) return;
+    if (!this.standardOwnAccount()) return;
     await this.billing()?.portal();
     this.status()?.nativeElement.focus();
   }

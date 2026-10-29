@@ -24,7 +24,7 @@ Checklist (mirrored in `cognito-auth.provider.ts`; the backend stack implements 
 - Verification & recovery by **CODE**, never emailed links.
 - Password policy = `PASSWORD_POLICY` in `auth-types.ts` (min 8, upper+lower+digit). Align the pool to the const.
 - Custom attribute `custom:accountType: 'adult' | 'minor'`, mutable, **written by the backend only** (PostConfirmation trigger for self-signups → `adult`; `AdminCreateUser` for minors → `minor`).
-- Self-signup **enabled** (creates adults; PostConfirmation Lambda writes the DynamoDB profile). Minors are born ONLY via `POST /family/children` → `AdminCreateUser` (`MessageAction: SUPPRESS`, temp password) → the child's first sign-in lands in `NEW_PASSWORD_REQUIRED`.
+- Self-signup **enabled** (creates standard own-accounts; PostConfirmation keeps technical `adult` for compatibility without asserting age). Current signup retains verified email and affirmative common terms, with no age or guardian choice. Existing guardian-created `minor` identities retain their legacy `NEW_PASSWORD_REQUIRED` and recovery model; new guardian signup is outside this launch.
 - Guardian password reset for `created` minors = `AdminSetUserPassword` (temporary), returned once as `tempPassword`.
 
 ## 3. Accounts, family, friends
@@ -58,6 +58,34 @@ Friendship { friendshipId, userA, userB, createdAt }
 _Stripped_ = `note → ''`, `trigger → null`, `targetDate → null`, archived + tombstoned excluded. Visits render a neutral sky (weather derives from private feelings). Family visibility is **mutual** and disclosed to the child in-UI.
 
 ## 5. API surface
+
+Common own-account admission uses `POST /privacy/consents` with
+`action: 'accept_account_terms'`, `documentFamily: 'common'`, explicit
+`acceptTerms: true`, command ID, expected revision, language and the exact
+`COMMON_ACCOUNT_VERSIONS` and common document hash. `GET /privacy/status`
+reports `accountAdmission: 'standard' | 'absent'` independently of the
+historical `adultDeclared` field. A common acceptance never declares age,
+authorizes cloud, grants Premium or confers family/social authority. Existing
+private or supervised accounts retain their original admission and restrictions.
+
+Common acceptance retains `accountTermsAcceptedAt`, `accountTermsLanguage` and
+`accountTermsDocumentHash` in existing privacy evidence, independently of historical
+adult declarations. Status also carries `accountTermsAccepted`, `commonVersions`
+and `commonDocumentHash`. Own-account operations use standard admission; family/social
+operations retain historical authority and reject terms-only common enrollment even
+when `ADULT_PRIVACY_MODE=off`. Common-enrolled accounts cannot accept legacy private
+invitations; original eligible legacy-unenrolled behavior is preserved. Access reads
+keep existing paid/sponsored sources, while Portal/cancellation remains independent
+of renewed terms and public purchase availability.
+
+Common cloud decisions explicitly use `documentFamily: 'common'` and the
+corresponding exact versions/hash. Historical commands retain their original
+shape. `historical-privacy-documents.ts` preserves the previously accepted ES/EN
+payloads, `common-account-documents.ts` defines the separate current account
+family, and `subscription-terms-documents.ts` retains both the previous and
+current recurring terms. All three modules participate in the paired backend
+source hash and vendored contract checks. `ACCOUNT_TERMS_REQUIRED` reports
+missing own-account admission without asking for an age declaration.
 
 REST under `${apiBaseUrl}/v1`, JSON, `Authorization: Bearer <Cognito idToken>` (HTTP API JWT authorizer). Paths/verbs in `API_PATHS` + `http-api.ts`. Sign-in/up/challenges are NOT here — they ride the Cognito SDK through the `AuthProvider` seam.
 

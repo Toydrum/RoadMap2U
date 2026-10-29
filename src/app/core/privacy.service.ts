@@ -2,6 +2,7 @@ import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core'
 import { API_CLIENT } from './api/api-client';
 import {
   ADULT_PRIVACY_VERSIONS,
+  COMMON_ACCOUNT_VERSIONS,
   ApiError,
   type PrivacyStatus,
   type PrivacyConsentCommand,
@@ -10,7 +11,7 @@ import {
   type PrivacyExportPage,
   type PrivateAdolescentGuardianCommand,
 } from './api/contracts';
-import { privacyDocument } from './api/privacy-document';
+import { privacyDocument, commonAccountDocument } from './api/privacy-document';
 import { AuthService } from './auth/auth.service';
 import type { AuthUser } from './auth/auth-types';
 
@@ -105,6 +106,14 @@ export class PrivacyService {
       )
     )
       throw new ApiError('VALIDATION');
+    if (status.commonVersions || status.commonDocumentHash) {
+      const common = await commonAccountDocument(language);
+      this.check(owner);
+      if (status.commonDocumentHash !== common.hash || !status.commonVersions ||
+          Object.entries(COMMON_ACCOUNT_VERSIONS).some(([key, value]) =>
+            (status.commonVersions as Record<string, string>)[key] !== value))
+        throw new ApiError('VALIDATION');
+    }
     this.cached.set({ owner, status });
     return status;
   }
@@ -130,19 +139,26 @@ export class PrivacyService {
   private async decide(
     language: 'es' | 'en',
     action: Record<string, unknown>,
+    requestedFamily: 'common' | 'legacy' | 'own' = 'legacy',
   ): Promise<PrivacyStatus> {
     const owner = this.owner();
     const status = await this.refresh(language);
     this.check(owner);
-    const key = `${owner.userId}:${language}:${JSON.stringify(action)}`;
+    const family = requestedFamily === 'own'
+      ? status.scope === 'adult' && !status.privateOnly ? 'common' : 'legacy'
+      : requestedFamily;
+    const document = family === 'common' ? await commonAccountDocument(language) : await privacyDocument(language);
+    this.check(owner);
+    const key = `${owner.userId}:${language}:${family}:${JSON.stringify(action)}`;
     let command = this.pending.get(key) as PrivacyConsentCommand | undefined;
     if (!command) {
       command = {
-        ...ADULT_PRIVACY_VERSIONS,
+        ...document.document.versions,
+        ...(family === 'common' ? { documentFamily: 'common' as const } : {}),
         language,
         commandId: crypto.randomUUID(),
         expectedRevision: status.revision,
-        documentHash: status.documentHash,
+        documentHash: document.hash,
         ...action,
       } as PrivacyConsentCommand;
       this.pending.set(key, command);
@@ -151,6 +167,12 @@ export class PrivacyService {
       const next = await this.api.changePrivacyConsent(command);
       this.check(owner);
       if (next.userId !== owner.userId || next.documentHash !== status.documentHash)
+        throw new ApiError('VALIDATION');
+      if (family === 'common' &&
+          (next.commonDocumentHash !== document.hash || !next.commonVersions ||
+           Object.entries(COMMON_ACCOUNT_VERSIONS).some(([key, value]) =>
+             (next.commonVersions as Record<string, string>)[key] !== value) ||
+           (action['action'] === 'accept_account_terms' && next.accountAdmission !== 'standard')))
         throw new ApiError('VALIDATION');
       this.cached.set({ owner, status: next });
       this.pending.delete(key);
@@ -165,6 +187,10 @@ export class PrivacyService {
         this.pending.delete(key);
       throw error;
     }
+  }
+  acceptAccountTerms(language: 'es' | 'en', accepted: boolean) {
+    if (!accepted) return Promise.reject(new ApiError('VALIDATION'));
+    return this.decide(language, { action: 'accept_account_terms', acceptTerms: true }, 'common');
   }
   declareAdult(language: 'es' | 'en', adultChosen: boolean, acceptsTerms: boolean) {
     if (!adultChosen || !acceptsTerms) return Promise.reject(new ApiError('VALIDATION'));
@@ -190,15 +216,15 @@ export class PrivacyService {
   }
   grantCloud(language: 'es' | 'en', accepted: boolean) {
     if (!accepted) return Promise.reject(new ApiError('VALIDATION'));
-    return this.decide(language, { action: 'grant_cloud', accepted: true });
+    return this.decide(language, { action: 'grant_cloud', accepted: true }, 'own');
   }
   revokeCloud(language: 'es' | 'en') {
     this.block(this.owner().userId);
-    return this.decide(language, { action: 'revoke_cloud' });
+    return this.decide(language, { action: 'revoke_cloud' }, 'own');
   }
   eraseCloud(language: 'es' | 'en') {
     this.block(this.owner().userId);
-    return this.decide(language, { action: 'erase_cloud' });
+    return this.decide(language, { action: 'erase_cloud' }, 'own');
   }
   async invitations(): Promise<PrivateAdolescentInvitation[]> {
     const owner = this.owner();

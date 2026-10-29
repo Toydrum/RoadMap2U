@@ -6,7 +6,7 @@ import { runInNewContext } from 'node:vm';
 import { build } from 'esbuild';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-export async function loadPrivacyDocuments() {
+export async function loadPrivacyDocuments(family = 'legacy') {
   // Execute only our bundled, framework-free dictionary/contract definitions.
   // This is the same document function used by the app and canonical server.
   const bundled = await build({
@@ -14,10 +14,12 @@ export async function loadPrivacyDocuments() {
       resolveDir: root,
       loader: 'ts',
       contents: `
-    import { adultPrivacyDocument } from './src/app/core/api/contracts';
+    import { adultPrivacyDocument, commonAccountPrivacyDocument } from './src/app/core/api/contracts';
     import { ES } from './src/app/core/i18n/es';
     import { EN } from './src/app/core/i18n/en';
-    export const documents = { es: adultPrivacyDocument('es', ES), en: adultPrivacyDocument('en', EN) };
+    export const documents = ${family === 'common'
+      ? "{ es: commonAccountPrivacyDocument('es'), en: commonAccountPrivacyDocument('en') }"
+      : "{ es: adultPrivacyDocument('es', ES), en: adultPrivacyDocument('en', EN) }"};
   `,
     },
     bundle: true,
@@ -35,8 +37,8 @@ export async function loadPrivacyDocuments() {
   return module.exports.documents;
 }
 export async function currentPrivacyDocuments() {
-  const documents = await loadPrivacyDocuments();
-  return {
+  const [documents, commonDocuments] = await Promise.all([loadPrivacyDocuments(), loadPrivacyDocuments('common')]);
+  const describe = (documents) => ({
     versions: {
       privacy: documents.es.versions.noticeVersion,
       terms: documents.es.versions.termsVersion,
@@ -48,11 +50,12 @@ export async function currentPrivacyDocuments() {
         createHash('sha256').update(JSON.stringify(document)).digest('hex'),
       ]),
     ),
-  };
+  });
+  return { ...describe(documents), common: describe(commonDocuments) };
 }
 export function validateIndividualPublication(
   manifest,
-  { stage, scope = 'adult_private_adolescents', versions, hashes } = {},
+  { stage, scope = 'adult_private_adolescents', versions, hashes, common } = {},
 ) {
   const failures = [];
   if (!['dev', 'test', 'prod'].includes(stage)) failures.push('invalid_stage');
@@ -112,6 +115,20 @@ export function validateIndividualPublication(
     if (!Array.isArray(manifest.remainingGates) || manifest.remainingGates.length)
       failures.push('unresolved_gates');
     if (manifest.implementationLocalOnly !== false) failures.push('local_validation_only');
+    if (common) {
+      const approval = manifest.commonAccountPublicationApproval;
+      if (manifest.commonAccountPublicationApproved !== true) failures.push('common_account_publication_unapproved');
+      if (approval?.basis !== 'responsible_owner' || approval?.approvedBy !== manifest.legalController?.name ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(approval?.approvedOn ?? '') ||
+        !approval?.designApprovalReference || !approval?.productionAuthorizationReference)
+        failures.push('missing_common_owner_approval');
+      if (Object.entries(common.versions).some(([key, value]) => approval?.versions?.[key] !== value))
+        failures.push('common_version_mismatch');
+      if (['es', 'en'].some((language) => approval?.documentHashes?.[language] !== common.hashes[language]))
+        failures.push('common_approved_document_mismatch');
+      if (manifest.commonAccountVerification?.testsPassed !== true || manifest.commonAccountVerification?.reviewComplete !== true)
+        failures.push('common_verification_pending');
+    }
   }
   return { valid: failures.length === 0, failures };
 }

@@ -11,7 +11,7 @@ import { AccessKeyForm } from '../access/access-key-form';
 import { PrivacyPanel } from '../../shared/ui/privacy-panel';
 import { PrivacyService } from '../../core/privacy.service';
 import { ApiError } from '../../core/api/contracts';
-import { privacyDocument } from '../../core/api/privacy-document';
+import { commonAccountDocument } from '../../core/api/privacy-document';
 import { AccountAccessSummary } from '../../shared/ui/account-access-summary';
 
 type Step =
@@ -105,11 +105,8 @@ export class AccountPage {
   protected readonly password2 = signal('');
   protected readonly email = signal('');
   protected readonly code = signal('');
-  protected readonly ageChoice = signal<'adult' | 'adolescent' | null>(null);
   protected readonly acceptsTerms = signal(false);
-  protected readonly understandsPrivacy = signal(false);
-  protected readonly privateInvitation = signal('');
-  protected readonly signupDocument = signal<Awaited<ReturnType<typeof privacyDocument>> | null>(
+  protected readonly signupDocument = signal<Awaited<ReturnType<typeof commonAccountDocument>> | null>(
     null,
   );
   protected readonly canCloseOwnAccount = computed(
@@ -117,8 +114,6 @@ export class AccountPage {
   );
   private pendingSignup: {
     username: string;
-    age: 'adult' | 'adolescent';
-    invitationId: string;
     language: 'es' | 'en';
     hash: string;
   } | null = null;
@@ -142,10 +137,8 @@ export class AccountPage {
     effect(() => {
       const language = this.i18n.lang();
       this.signupDocument.set(null);
-      this.ageChoice.set(null);
       this.acceptsTerms.set(false);
-      this.understandsPrivacy.set(false);
-      void privacyDocument(language)
+      void commonAccountDocument(language)
         .then((text) => {
           if (this.i18n.lang() === language) this.signupDocument.set(text);
         })
@@ -183,8 +176,6 @@ export class AccountPage {
     if (step !== 'confirmCode') {
       this.pendingSignup = null;
       this.acceptsTerms.set(false);
-      this.understandsPrivacy.set(false);
-      this.ageChoice.set(null);
     }
     this.auth.dismissChallenge();
     this.localError.set('');
@@ -223,13 +214,8 @@ export class AccountPage {
       return;
     }
     this.localError.set('');
-    if (
-      !this.ageChoice() ||
-      !this.acceptsTerms() ||
-      (this.ageChoice() === 'adolescent' &&
-        (!this.understandsPrivacy() || !/^[a-f0-9]{64}$/.test(this.privateInvitation().trim())))
-    ) {
-      this.localError.set(this.i18n.t().privacy.adultChoiceRequired);
+    if (!this.acceptsTerms()) {
+      this.localError.set(this.i18n.t().privacy.accountTermsRequired);
       return;
     }
     const username = normalizedUsername(this.username());
@@ -241,8 +227,6 @@ export class AccountPage {
     }
     this.pendingSignup = {
       username,
-      age: this.ageChoice()!,
-      invitationId: this.privateInvitation().trim(),
       language,
       hash: text.hash,
     };
@@ -324,12 +308,6 @@ export class AccountPage {
     if (result === 'completed' && !this.closure.receipt()) this.restartAfterClosure();
   }
 
-  protected chooseAge(age: 'adult' | 'adolescent') {
-    this.ageChoice.set(age);
-    this.acceptsTerms.set(false);
-    this.understandsPrivacy.set(false);
-  }
-
   protected async retryClosure(): Promise<void> {
     const result = await this.closure.retry();
     if (result === 'completed' && !this.closure.receipt()) this.restartAfterClosure();
@@ -369,19 +347,15 @@ export class AccountPage {
       let status = await this.privacy.refresh(this.i18n.lang());
       const signup = this.pendingSignup;
       if (signup && signup.username === this.auth.user()?.username) {
-        if ((await privacyDocument(signup.language)).hash !== signup.hash)
+        if ((await commonAccountDocument(signup.language)).hash !== signup.hash)
           throw new ApiError('VALIDATION');
-        status =
-          signup.age === 'adult'
-            ? await this.privacy.declareAdult(signup.language, true, true)
-            : await this.privacy.acceptAdolescent(signup.language, signup.invitationId, true, true);
+        status = await this.privacy.acceptAccountTerms(signup.language, true);
         this.pendingSignup = null;
         this.acceptsTerms.set(false);
-        this.understandsPrivacy.set(false);
-        this.ageChoice.set(null);
       }
       if (
         !status.adultDeclared &&
+        status.accountAdmission !== 'standard' &&
         (status.scope !== 'adolescent_private' || !status.adolescentUnderstood)
       ) {
         this.step.set('admission');

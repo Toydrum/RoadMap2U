@@ -130,48 +130,9 @@
           <p class="hint">{{ i18n.t().account.passwordHint }}</p>
 
           @if (signupDocument(); as consentText) {
-            <fieldset class="age-choice">
-              <legend>{{ i18n.t().privacy.ageLabel }}</legend>
-              <label class="consent-choice"
-                ><input
-                  type="radio"
-                  name="signup-age"
-                  [checked]="ageChoice() === 'adult'"
-                  (change)="chooseAge('adult')"
-                />{{ consentText.document.declaration.adult }}</label
-              >
-              <label class="consent-choice"
-                ><input
-                  type="radio"
-                  name="signup-age"
-                  [checked]="ageChoice() === 'adolescent'"
-                  (change)="chooseAge('adolescent')"
-                />{{ i18n.t().privacy.adolescentChoice }}</label
-              >
-            </fieldset>
-            @if (ageChoice() === 'adolescent') {
-              <p class="hint">{{ consentText.document.adolescent.explanation }}</p>
-              <label class="field"
-                ><span>{{ i18n.t().privacy.invitationLabel }}</span
-                ><input
-                  type="text"
-                  autocomplete="off"
-                  spellcheck="false"
-                  maxlength="64"
-                  [value]="privateInvitation()"
-                  (input)="privateInvitation.set(inputValue($event))"
-              /></label>
-              <label class="consent-choice"
-                ><input
-                  type="checkbox"
-                  [checked]="understandsPrivacy()"
-                  (change)="understandsPrivacy.set($any($event.target).checked)"
-                />{{ consentText.document.adolescent.understanding }}</label
-              >
-            }
             <p class="hint">
-              <a routerLink="/privacy">{{ i18n.t().privacy.readNotice }}</a> ·
-              <a routerLink="/terms">{{ i18n.t().privacy.readTerms }}</a>
+              <a routerLink="/privacy" [queryParams]="{ lang: i18n.lang() }">{{ i18n.t().privacy.readNotice }}</a> ·
+              <a routerLink="/terms" [queryParams]="{ lang: i18n.lang() }">{{ i18n.t().privacy.readTerms }}</a>
             </p>
             <label class="consent-choice"
               ><input
@@ -413,7 +374,7 @@
 
     @case ('admission') {
       <section class="stage" aria-live="polite">
-        <h1>{{ i18n.t().privacy.adultTitle }}</h1>
+        <h1>{{ i18n.t().privacy.accountTitle }}</h1>
         @if (localError()) {
           <p role="alert">{{ localError() }}</p>
         }
@@ -463,7 +424,7 @@
               {{
                 privacy.status()?.scope === 'adolescent_private' || user.accountType === 'minor'
                   ? i18n.t().account.roleMinor
-                  : i18n.t().account.roleAdult
+                  : i18n.t().account.roleAccount
               }}
             </span>
           </div>
@@ -506,7 +467,7 @@
             }}</a>
             <p class="hint">{{ i18n.t().billing.settingsHint }}</p>
           }
-          @if (auth.user()?.accountType === 'adult' && !privacy.status()?.privateOnly) {
+          @if (auth.user()?.accountType === 'adult' && privacy.status()?.scope === 'adult' && !privacy.status()?.privateOnly) {
             <div class="card access-card">
               <app-access-key-form (redeemed)="redeemCompleted.set(true)" />
               @if (redeemCompleted()) {

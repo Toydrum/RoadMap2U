@@ -241,7 +241,7 @@ export class MockApi implements ApiClient {
 
   async getAccess(): Promise<AccessSummary> {
     await simLatency('api.getAccess');
-    const caller = await this.caller();
+    const caller = await this.caller(true);
     if (caller.accountType === 'minor' && caller.privacyMode === 'adolescent_private')
       return createFreeAccessSummary();
     const individual = await this.individualBilling.source(caller);
@@ -291,8 +291,10 @@ export class MockApi implements ApiClient {
 
   async redeemAccessCode(_code: string): Promise<AccessSummary> {
     await simLatency('api.redeemAccessCode');
-    const caller = await this.caller();
-    if (caller.accountType !== 'adult') throw new ApiError('FORBIDDEN');
+    const caller = await this.caller(true);
+    if (caller.accountType !== 'adult' || caller.privacyMode) throw new ApiError('FORBIDDEN');
+    if (parseMockToken((await this.auth.idToken()) ?? '')?.email_verified !== true)
+      throw new ApiError('EMAIL_VERIFICATION_REQUIRED');
     // The device mock has no HMAC secret or owner broker. Accepting a magic or
     // arbitrary string here would create a false Premium security model.
     throw new ApiError('ACCESS_CODE_INVALID');
@@ -327,6 +329,7 @@ export class MockApi implements ApiClient {
     await simLatency('api.patchMe');
     return this.withAccountMutation(
       async (caller) => {
+        await this.privacy.admitOwn(caller);
         const displayName = patch.displayName?.trim();
         if (displayName !== undefined) {
           if (!displayName || displayName.length > 40) throw new ApiError('VALIDATION');
@@ -2055,18 +2058,20 @@ export class MockApi implements ApiClient {
     return this.individualBilling.catalog();
   }
   async getIndividualBillingSummary(): Promise<IndividualBillingSummary> {
-    const caller = await this.caller(true);
-    if (caller.accountType !== 'adult') throw new ApiError('BILLING_BUYER_INELIGIBLE');
-    return this.individualBilling.summary(caller);
+    const token = await this.auth.idToken();
+    const caller = await this.callerForIdentity(this.identityFromToken(token));
+    if (caller.accountType !== 'adult' || caller.privacyMode) throw new ApiError('BILLING_BUYER_INELIGIBLE');
+    const summary = await this.individualBilling.summary(caller);
+    return { ...summary, canCheckout: summary.canCheckout && parseMockToken(token!)?.email_verified === true && (await this.privacy.status(caller)).accountAdmission === 'standard' };
   }
   async createIndividualCheckout(req: IndividualCheckoutRequest): Promise<IndividualBillingCommandResult> {
     if (!isIndividualCheckoutRequest(req)) throw new ApiError('VALIDATION');
     const token = await this.auth.idToken();
     const identity = this.identityFromToken(token);
     return this.withAccountMutation(async (caller) => {
-      if (caller.accountType !== 'adult') throw new ApiError('BILLING_BUYER_INELIGIBLE');
+      if (caller.accountType !== 'adult' || caller.privacyMode) throw new ApiError('BILLING_BUYER_INELIGIBLE');
       if (!token || parseMockToken(token)?.email_verified !== true) throw new ApiError('EMAIL_VERIFICATION_REQUIRED');
-      if (!(await this.privacy.status(caller)).adultDeclared) throw new ApiError('ADULT_DECLARATION_REQUIRED');
+      if ((await this.privacy.status(caller)).accountAdmission !== 'standard') throw new ApiError('ACCOUNT_TERMS_REQUIRED');
       return this.individualBilling.command(caller, req, 'checkout');
     }, async () => [], async () => [], true, identity);
   }
@@ -2074,7 +2079,7 @@ export class MockApi implements ApiClient {
   async createIndividualPortalSession(req: IndividualPortalRequest): Promise<IndividualBillingCommandResult> {
     if (!isIndividualPortalRequest(req)) throw new ApiError('VALIDATION');
     return this.withAccountMutation(async (caller) => {
-      if (caller.accountType !== 'adult') throw new ApiError('BILLING_BUYER_INELIGIBLE');
+      if (caller.accountType !== 'adult' || caller.privacyMode) throw new ApiError('BILLING_BUYER_INELIGIBLE');
       return this.individualBilling.command(caller, req, 'portal');
     }, async () => [], async () => [], true);
   }
@@ -2127,7 +2132,8 @@ export class MockApi implements ApiClient {
    *  and friends get the STRIPPED view, strangers get 404 (no oracle). */
   async getForest(userId: string): Promise<ForestSnapshot> {
     await simLatency('api.getForest');
-    const caller = await this.caller();
+    const caller = await this.caller(true);
+    if (caller.userId !== userId) await this.privacy.admit(caller);
     const owner = await mockGet<MockUserRow>('users', userId);
     if (!owner) throw new ApiError('NOT_FOUND');
     if (caller.userId !== userId && (caller.privacyMode || owner.privacyMode))
@@ -2209,7 +2215,7 @@ export class MockApi implements ApiClient {
    *  the last seq seen, opaque to the client. */
   async getSyncChanges(cursor?: string): Promise<SyncChangesResponse> {
     await simLatency('api.getSyncChanges');
-    const caller = await this.caller();
+    const caller = await this.caller(true);
     const privacy = await this.privacy.requireCloud(caller);
     const after = cursor ? Number(cursor) || 0 : 0;
     const page = 200;
@@ -2971,7 +2977,9 @@ export class MockApi implements ApiClient {
           if (participant.sub === identity.sub) caller = user;
         }
         if (!caller) throw new ApiError('UNAUTHENTICATED');
-        await this.privacy.admit(caller);
+        // Own-operation callbacks enforce their specific terms/cloud/identity
+        // requirement. Family and social mutations retain historical admission.
+        if (!ownPrivateOperation) await this.privacy.admit(caller);
         return operation(caller);
       },
     );

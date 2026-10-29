@@ -495,9 +495,11 @@ function mockToken(sub: string, accountInstanceId = `instance:${sub}:1`): string
   return `mock.${btoa(JSON.stringify({ sub, username: sub, accountInstanceId }))}.token`;
 }
 
-function authFor(userId: string, accountInstanceId = `instance:${userId}:1`): AuthProvider {
+function authFor(userId: string, accountInstanceId = `instance:${userId}:1`, emailVerified = false): AuthProvider {
   return {
-    idToken: vi.fn(async () => mockToken(userId, accountInstanceId)),
+    idToken: vi.fn(async () => emailVerified
+      ? `mock.${btoa(JSON.stringify({ sub: userId, username: userId, accountInstanceId, email_verified: true }))}.token`
+      : mockToken(userId, accountInstanceId)),
   } as unknown as AuthProvider;
 }
 
@@ -627,7 +629,7 @@ describe('commercial access contract fixtures', () => {
 
   it('never turns an arbitrary key into Premium in the on-device mock', async () => {
     await expect(
-      new MockApi(authFor('rocio')).redeemAccessCode('RM2U1.fake.secret'),
+      new MockApi(authFor('rocio', undefined, true)).redeemAccessCode('RM2U1.fake.secret'),
     ).rejects.toMatchObject({ code: 'ACCESS_CODE_INVALID' });
   });
 

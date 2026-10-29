@@ -1,4 +1,4 @@
-import { adultPrivacyDocument } from './contracts';
+import { adultPrivacyDocument, commonAccountPrivacyDocument } from './contracts';
 /** Loaded on demand; English and the account flow do not wake the product graph. */
 export async function privacyDocument(language: 'es' | 'en') {
   if (language !== 'es' && language !== 'en') throw new TypeError('invalid privacy language');
@@ -12,6 +12,15 @@ export async function privacyDocument(language: 'es' | 'en') {
   const hash = Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, '0'),
   ).join('');
+  return { document, hash };
+}
+
+/** Current common terms are separate from historical age/guardian evidence. */
+export async function commonAccountDocument(language: 'es' | 'en') {
+  if (language !== 'es' && language !== 'en') throw new TypeError('invalid privacy language');
+  const document = commonAccountPrivacyDocument(language);
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(document)));
+  const hash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
   return { document, hash };
 }
 

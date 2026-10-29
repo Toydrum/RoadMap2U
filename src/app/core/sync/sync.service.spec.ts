@@ -13,7 +13,7 @@ import { AuthService } from '../auth/auth.service';
 import { META_ACCOUNT_LINK } from '../auth/auth-types';
 import { PrivacyService } from '../privacy.service';
 import { ADULT_PRIVACY_VERSIONS } from '../api/contracts';
-import { privacyDocument } from '../api/privacy-document';
+import { privacyDocument, commonAccountDocument } from '../api/privacy-document';
 import { broadcastChange } from '../db/broadcast';
 import { newSyncBase, type SyncBase, type Tree, type TreeNode } from '../db/schema';
 import { CheckinsRepo } from '../repos/checkins.repo';
@@ -146,7 +146,9 @@ function configure(input: {
       canUseCloud: false,
       erasure: 'none',
       versions: ADULT_PRIVACY_VERSIONS,
-      documentHash: command.documentHash,
+      documentHash: (await privacyDocument(command.language)).hash,
+      commonVersions: (await commonAccountDocument(command.language)).document.versions,
+      commonDocumentHash: (await commonAccountDocument(command.language)).hash,
       updatedAt: NOW,
     })),
     getSyncChanges:

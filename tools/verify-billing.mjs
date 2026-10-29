@@ -111,17 +111,8 @@ try {
 
   await signInAs(page, 'rocio', 'Bosque123', { commercialAccess: false });
   await isolateIndividualBillingFixture(page);
-  const declaration = page.locator('app-privacy-panel input[name="privacy-age"][value="adult"]');
-  if (await declaration.count()) {
-    check(
-      'synthetic buyer starts with an explicit adult declaration choice',
-      !(await declaration.isChecked()),
-    );
-    await declaration.check();
-    await page.locator('app-privacy-panel form input[type="checkbox"]').last().check();
-    await page.locator('app-privacy-panel form button[type="submit"]').click();
-    await declaration.waitFor({ state: 'detached' });
-  }
+  check('standard buyer has no age-declaration form',
+    (await page.locator('app-privacy-panel input[name="privacy-age"]').count()) === 0);
   check(
     'account has an individual subscription link',
     (await page.locator('.billing-account-link').getAttribute('href')) === '/account/subscription',

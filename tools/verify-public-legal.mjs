@@ -1,9 +1,22 @@
 import { mkdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { BASE, launchPage, ok } from './lib/harness.mjs';
 import { loadPrivacyDocuments } from './validate-individual-publication.mjs';
 
-const documents = await loadPrivacyDocuments();
+const documents = await loadPrivacyDocuments('common');
+// Golden digests of the exact retained accepted texts; a versioned reader must
+// never substitute the current text for an older accepted contract.
+const subscriptionDocuments = [
+  { version: 'individual-subscription-2026-10-29-v2', hashes: { es: 'fa6a70fa00efb678cbca133e4b00983f9fb762c9b7df2ba6708a7376eedca415', en: '65f96bad7dfa5b18bb0a1008425b690b34bd49af9e1d16924e9c511a87b43dde' } },
+  { version: 'individual-subscription-2026-10-28-v1', hashes: { es: '13543a806aa2af12f357d0c6c0ba1dcecbe08574533915fad1c9e30a222d9899', en: '0cb10b9e1bdb4a753198e7a9fd738507264963958745e4697e3075a104bb5a36' } },
+];
+async function verifySubscriptionText(page, expected, language, width) {
+  const actual = (await page.locator('main section p').textContent()).trim();
+  ok(`${width} ${expected.version} ${language} exact retained text`,
+    createHash('sha256').update(actual).digest('hex') === expected.hashes[language] &&
+    (await page.locator('main section h2').textContent()).trim() === expected.version);
+}
 async function verifyCanonicalText(page, path, language, width) {
   const document =
     path === 'privacy'
@@ -90,7 +103,7 @@ for (const viewport of [
       ok(`${width} /${path} one main`, (await page.locator('main').count()) === 1);
       ok(
         `${width} /${path} current document`,
-        (await page.locator(`footer a[href="/${path}"]`).getAttribute('aria-current')) === 'page',
+        (await page.locator(`footer a[href^="/${path}?"]`).getAttribute('aria-current')) === 'page',
       );
       ok(
         `${width} /${path} confirmed support contact`,
@@ -124,6 +137,35 @@ for (const viewport of [
       await page.locator('h1', { hasText: title }).waitFor();
       await page.screenshot({ path: resolve(output, `${path}-${width}.png`), fullPage: true });
     }
+    await page.goto(`${BASE}/subscription-terms?lang=en`, { waitUntil: 'networkidle' });
+    await verifySubscriptionText(page, subscriptionDocuments[0], 'en', width);
+    for (const expected of subscriptionDocuments) {
+      await page.goto(`${BASE}/subscription-terms?lang=es&version=${expected.version}`, { waitUntil: 'networkidle' });
+      await verifySubscriptionText(page, expected, 'es', width);
+      await page.locator('[data-lang="en"]').click();
+      await page.waitForURL((url) => url.searchParams.get('lang') === 'en');
+      await page.getByRole('heading', { name: 'Subscription terms', exact: true }).waitFor();
+      await verifySubscriptionText(page, expected, 'en', width);
+      const query = new URL(page.url()).searchParams;
+      ok(`${width} ${expected.version} locale preserves exact selected version`, query.get('version') === expected.version);
+      const footer = new URL(await page.locator('footer a[href^="/subscription-terms?"]').getAttribute('href'), BASE);
+      ok(`${width} ${expected.version} footer preserves language and version`, footer.searchParams.get('lang') === 'en' && footer.searchParams.get('version') === expected.version);
+      ok(`${width} ${expected.version} no overflow`, await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await page.screenshot({ path: resolve(output, `subscription-${expected.version}-${width}.png`), fullPage: true });
+    }
+    await page.goto(`${BASE}/subscription-terms?lang=en&version=unlisted-subscription-version`, { waitUntil: 'networkidle' });
+    ok(`${width} unknown version is explicitly unavailable without another contract`,
+      (await page.locator('main [role="alert"]').innerText()).includes('not available') &&
+      (await page.locator('main section').count()) === 0);
+    await page.locator('[data-lang="es"]').click();
+    await page.waitForURL((url) => url.searchParams.get('lang') === 'es');
+    await page.getByRole('heading', { name: 'Condiciones de suscripción', exact: true }).waitFor();
+    ok(`${width} unknown version remains unavailable across a locale change`,
+      new URL(page.url()).searchParams.get('version') === 'unlisted-subscription-version' &&
+      (await page.locator('main [role="alert"]').innerText()).includes('no está disponible') &&
+      (await page.locator('main section').count()) === 0);
+    const subscriptionActivity = await page.evaluate(() => window.__publicLegalActivity);
+    ok(`${width} historical and unavailable readers start no storage or SW`, Object.values(subscriptionActivity).every((value) => value === 0));
     await page.goto(BASE + '/', { waitUntil: 'networkidle' });
     ok(
       `${width} landing has no unreleased family invitation`,

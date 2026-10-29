@@ -6,7 +6,7 @@ import { API_CLIENT } from './api/api-client';
 import { ApiError, ADULT_PRIVACY_VERSIONS, type PrivacyStatus } from './api/contracts';
 import { AuthService } from './auth/auth.service';
 import type { AuthUser } from './auth/auth-types';
-import { privacyDocument } from './api/privacy-document';
+import { privacyDocument, commonAccountDocument } from './api/privacy-document';
 let subject: ReturnType<typeof signal<AuthUser | null>>;
 let status: PrivacyStatus;
 let api: {
@@ -35,10 +35,12 @@ beforeEach(async () => {
     versions: ADULT_PRIVACY_VERSIONS,
     documentHash: (await privacyDocument('es')).hash,
     updatedAt: 1,
+    commonVersions: (await commonAccountDocument('es')).document.versions,
+    commonDocumentHash: (await commonAccountDocument('es')).hash,
   };
   api = {
     getPrivacyStatus: vi.fn(async () => status),
-    changePrivacyConsent: vi.fn(async () => status),
+    changePrivacyConsent: vi.fn(async () => ({ ...status, accountAdmission: 'standard' })),
     exportOwnPrivacy: vi.fn(),
   };
   TestBed.configureTestingModule({
@@ -54,6 +56,73 @@ afterEach(() => {
   localStorage.removeItem('roadmap2u-privacy-withdraw-intents-v1');
 });
 describe('privacy decisions and cloud leases', () => {
+  it('records common terms independently of adulthood and optional cloud', async () => {
+    const common = await commonAccountDocument('es');
+    status = { ...status, adultDeclared: false, accountAdmission: 'absent', commonVersions: common.document.versions, commonDocumentHash: common.hash };
+    await expect((service as any).acceptAccountTerms('es', false)).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(api.changePrivacyConsent).not.toHaveBeenCalled();
+    await (service as any).acceptAccountTerms('es', true);
+    expect(api.changePrivacyConsent).toHaveBeenCalledWith(expect.objectContaining({
+      ...common.document.versions, documentFamily: 'common', action: 'accept_account_terms',
+      acceptTerms: true, documentHash: common.hash,
+    }));
+    expect(api.changePrivacyConsent.mock.calls[0][0]).not.toHaveProperty('declareAdult');
+    expect(api.changePrivacyConsent.mock.calls[0][0]).not.toHaveProperty('accepted');
+  });
+  it('rejects common document mismatches without writing consent', async () => {
+    const common = await commonAccountDocument('es');
+    status = { ...status, accountAdmission: 'absent', commonVersions: common.document.versions, commonDocumentHash: '0'.repeat(64) };
+    await expect((service as any).acceptAccountTerms('es', true)).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(api.changePrivacyConsent).not.toHaveBeenCalled();
+  });
+  it('keeps an ambiguous common terms retry identical', async () => {
+    api.changePrivacyConsent.mockRejectedValueOnce(new ApiError('offline'));
+    await expect((service as any).acceptAccountTerms('es', true)).rejects.toMatchObject({ code: 'offline' });
+    await (service as any).acceptAccountTerms('es', true);
+    expect(api.changePrivacyConsent.mock.calls[1][0]).toEqual(api.changePrivacyConsent.mock.calls[0][0]);
+  });
+  it('rejects a substituted common document in a consent response', async () => {
+    api.changePrivacyConsent.mockResolvedValueOnce({ ...status, accountAdmission: 'standard', commonDocumentHash: '0'.repeat(64) });
+    await expect(service.acceptAccountTerms('es', true)).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+  it('does not move a cloud choice to an account signed in during the initial refresh', async () => {
+    const initial = status;
+    vi.spyOn(service, 'refresh').mockImplementationOnce(async () => {
+      subject.set({ ...subject()!, userId: 'replacement' });
+      status = { ...initial, userId: 'replacement' };
+      return initial;
+    });
+    await expect(service.grantCloud('es', true)).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    expect(api.changePrivacyConsent).not.toHaveBeenCalled();
+  });
+  it.each(['revoke_cloud', 'erase_cloud'] as const)('uses common evidence and the same command when retrying %s for a standard account', async (action) => {
+    const document = await commonAccountDocument('es');
+    api.changePrivacyConsent.mockRejectedValueOnce(new ApiError('offline'));
+    const decide = () => action === 'revoke_cloud' ? service.revokeCloud('es') : service.eraseCloud('es');
+    await expect(decide()).rejects.toMatchObject({ code: 'offline' });
+    expect(api.changePrivacyConsent.mock.calls[0][0]).toMatchObject({ action, documentFamily: 'common', documentHash: document.hash, ...document.document.versions });
+    await decide();
+    expect(api.changePrivacyConsent.mock.calls[1][0]).toEqual(api.changePrivacyConsent.mock.calls[0][0]);
+  });
+  it.each(['revoke_cloud', 'erase_cloud'] as const)('keeps %s withdrawal attached to the original account during a refresh switch', async (action) => {
+    const initial = status;
+    vi.spyOn(service, 'refresh').mockImplementationOnce(async () => {
+      subject.set({ ...subject()!, userId: 'replacement' });
+      status = { ...initial, userId: 'replacement' };
+      return initial;
+    });
+    const decision = action === 'revoke_cloud' ? service.revokeCloud('es') : service.eraseCloud('es');
+    await expect(decision).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    expect(api.changePrivacyConsent).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem('roadmap2u-privacy-withdraw-intents-v1')!)).toEqual(['owner']);
+  });
+  it.each(['revoke_cloud', 'erase_cloud'] as const)('preserves historical private document evidence for %s', async (action) => {
+    status = { ...status, scope: 'adolescent_private', privateOnly: true, adultDeclared: false, accountAdmission: 'absent' };
+    if (action === 'revoke_cloud') await service.revokeCloud('es');
+    else await service.eraseCloud('es');
+    expect(api.changePrivacyConsent.mock.calls[0][0]).toMatchObject({ action, documentHash: (await privacyDocument('es')).hash, ...ADULT_PRIVACY_VERSIONS });
+    expect(api.changePrivacyConsent.mock.calls[0][0]).not.toHaveProperty('documentFamily');
+  });
   it('does not call or authorize cloud merely by constructing the account service', async () => {
     expect(api.getPrivacyStatus).not.toHaveBeenCalled();
     expect(service.status()).toBeNull();

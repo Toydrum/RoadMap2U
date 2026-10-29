@@ -8,11 +8,11 @@ import { ADULT_PRIVACY_VERSIONS } from '../../core/api/contracts';
 import { AuthService } from '../../core/auth/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ES } from '../../core/i18n/es';
+import { EN } from '../../core/i18n/en';
 import { privacyDocument } from '../../core/api/privacy-document';
 const change = vi.fn();
 beforeEach(async () => {
   change.mockReset();
-  const hash = (await privacyDocument('es')).hash;
   TestBed.configureTestingModule({
     imports: [PrivacyPanel],
     providers: [
@@ -20,17 +20,18 @@ beforeEach(async () => {
       {
         provide: API_CLIENT,
         useValue: {
-          getPrivacyStatus: async () => ({
+          getPrivacyStatus: async (language: 'es' | 'en') => ({
             userId: 'owner',
             scope: 'adult',
             enforcement: 'enforce',
             revision: 1,
             adultDeclared: true,
+            accountAdmission: 'standard',
             cloudConsent: 'absent',
             canUseCloud: false,
             erasure: 'none',
             versions: ADULT_PRIVACY_VERSIONS,
-            documentHash: hash,
+            documentHash: (await privacyDocument(language)).hash,
             updatedAt: 1,
           }),
           changePrivacyConsent: change,
@@ -46,6 +47,33 @@ beforeEach(async () => {
 });
 afterEach(() => TestBed.resetTestingModule());
 describe('privacy cloud sheet', () => {
+  it.each([['es', ES], ['en', EN]] as const)('keeps legal links in the displayed privacy language (%s)', async (language, dictionary) => {
+    const i18n = TestBed.inject(I18nService) as any;
+    i18n.lang.set(language);
+    i18n.t.set(dictionary);
+    const fixture = TestBed.createComponent(PrivacyPanel);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('a[href^="/privacy"]').getAttribute('href')).toBe('/privacy?lang=' + language);
+    expect(fixture.nativeElement.querySelector('a[href^="/terms"]').getAttribute('href')).toBe('/terms?lang=' + language);
+  });
+  it('lets an ordinary account complete terms admission without selecting an age', async () => {
+    const api = TestBed.inject(API_CLIENT);
+    const current = await api.getPrivacyStatus('es');
+    vi.spyOn(api, 'getPrivacyStatus').mockResolvedValue({ ...current, adultDeclared: false, accountAdmission: 'absent' });
+    const fixture = TestBed.createComponent(PrivacyPanel);
+    fixture.detectChanges();
+    await vi.waitFor(() => expect((fixture.componentInstance as any).privacy.status()).not.toBeNull());
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.account-terms-form')).not.toBeNull();
+    });
+    const form = fixture.nativeElement.querySelector('.account-terms-form') as HTMLFormElement;
+    expect(form.querySelector('input[type="radio"]')).toBeNull();
+    expect(form.querySelectorAll('input[type="checkbox"]')).toHaveLength(1);
+    expect((form.querySelector('input') as HTMLInputElement).checked).toBe(false);
+    expect((form.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
+    expect(change).not.toHaveBeenCalled();
+  });
   it('keeps privacy rights available without offering new guardian invitations in this launch', async () => {
     const fixture = TestBed.createComponent(PrivacyPanel);
     fixture.detectChanges();
@@ -56,8 +84,8 @@ describe('privacy cloud sheet', () => {
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('input[name="guardian-name"]')).toBeNull();
-    expect(root.querySelector('a[href="/privacy"]')).not.toBeNull();
-    expect(root.querySelector('a[href="/terms"]')).not.toBeNull();
+    expect(root.querySelector('a[href="/privacy?lang=es"]')).not.toBeNull();
+    expect(root.querySelector('a[href="/terms?lang=es"]')).not.toBeNull();
     expect(root.textContent).toContain(ES.privacy.manageInvitations);
   });
   it('requires declared name and relationship with unchecked decisions before issuing an invitation', async () => {
