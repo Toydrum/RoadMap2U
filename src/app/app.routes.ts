@@ -10,7 +10,6 @@ export const routes: Routes = [
     path: '',
     pathMatch: 'full',
     loadComponent: () => import('./features/landing/landing').then((m) => m.LandingPage),
-    title: 'RoadMap2U — Tu ruta crece contigo',
   },
   {
     path: 'privacy',

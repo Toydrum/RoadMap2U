@@ -19,7 +19,7 @@ describe('individual subscription entry and commercial copy', () => {
       const billing = (
         dictionary as unknown as { billing?: { termsText: string; termsVersion: string } }
       ).billing;
-      expect(billing?.termsVersion).toBe('individual-subscription-2026-10-12-draft-v2');
+      expect(billing?.termsVersion).toBe('individual-subscription-2026-10-28-v1');
       expect(billing?.termsText).toContain('$114.84 MXN');
       expect(billing?.termsText).toContain('$1,100.84 MXN');
       expect(billing?.termsText).toContain('overseer@roadmap2u.com');

@@ -1,5 +1,6 @@
-import { Component, inject } from '@angular/core';
+import { Component, ElementRef, effect, inject, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Meta, Title } from '@angular/platform-browser';
 import { type MarketingLang, MarketingLocaleService } from './marketing-locale.service';
 import { MarketingTree } from './marketing-tree';
 import { PlanCatalogService } from '../../core/access/plan-catalog.service';
@@ -16,9 +17,16 @@ export class LandingPage {
   protected readonly copy = this.locale.copy;
   protected readonly lang = this.locale.lang;
   protected readonly plans = inject(PlanCatalogService);
+  private readonly title = inject(Title);
+  private readonly meta = inject(Meta);
+  private readonly main = viewChild.required<ElementRef<HTMLElement>>('main');
 
   constructor() {
     void this.plans.loadIndividual();
+    effect(() => {
+      this.title.setTitle(this.copy().landing.seo.title);
+      this.meta.updateTag({ name: 'description', content: this.copy().landing.seo.description });
+    });
   }
 
   protected price(interval: 'month' | 'year'): string {
@@ -32,5 +40,9 @@ export class LandingPage {
 
   protected setLanguage(lang: MarketingLang): void {
     this.locale.set(lang);
+  }
+
+  protected focusMain(): void {
+    this.main().nativeElement.focus();
   }
 }

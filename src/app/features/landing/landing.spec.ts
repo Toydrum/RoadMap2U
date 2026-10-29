@@ -64,12 +64,9 @@ describe('commercial landing foundation', () => {
       ).toContain(ES.billing.catalogUnavailable);
     });
   });
-  it('keeps the approved hero and prepayment offer exact in both languages', () => {
-    expect(ES.landing.hero.eyebrow).toBe('Un mapa vivo para tus planes');
-    expect(ES.landing.hero.title).toBe('Haz visible el camino. Hazlo crecer.');
-    expect(ES.landing.hero.body).toBe(
-      'Convierte lo que quieres construir en árboles, ramas y siguientes pasos que realmente puedas recorrer.',
-    );
+  it('explains the visual goals and tasks app in both languages without a stale availability promise', () => {
+    expect(ES.landing.hero.title).toMatch(/metas.*tareas/i);
+    expect(ES.landing.hero.body).toMatch(/árboles visuales/i);
     expect(ES.landing.hero.primary).toBe('Crear mi bosque gratis');
     expect(ES.landing.hero.secondary).toBe('Ver cómo funciona');
     expect(ES.landing.hero.microcopy).toBe(
@@ -77,19 +74,43 @@ describe('commercial landing foundation', () => {
     );
     expect(ES.landing.plans.premium.monthly).toBe('$114.84 MXN al mes');
     expect(ES.landing.plans.premium.yearly).toBe('$1,100.84 MXN al año · ahorra $277.24 · IVA incluido');
-    expect(ES.landing.plans.premium.badge).toBe('Próximamente');
-
-    expect(EN.landing.hero.eyebrow).toBe('A living map for your plans');
-    expect(EN.landing.hero.title).toBe('See the path. Help it grow.');
-    expect(EN.landing.hero.body).toBe(
-      'Turn what you want to build into trees, branches, and next steps you can actually follow.',
-    );
+    expect(JSON.stringify(ES.landing)).not.toMatch(/familia|hogares|menores|próximamente|propuesta de lanzamiento/i);
+    expect(EN.landing.hero.title).toMatch(/goals.*tasks/i);
+    expect(EN.landing.hero.body).toMatch(/visual trees/i);
     expect(EN.landing.hero.primary).toBe('Create my forest for free');
     expect(EN.landing.hero.secondary).toBe('See how it works');
     expect(EN.landing.hero.microcopy).toBe(
       'No card required · start with 2 trees and 10 branches per tree',
     );
-    expect(EN.landing.plans.premium.badge).toBe('Coming soon');
+    expect(JSON.stringify(EN.landing)).not.toMatch(/famil(?:y|ies)|households|minors|coming soon|proposed launch/i);
+  });
+
+  it('preserves section destinations, legal language and useful page metadata without opening sales', async () => {
+    await TestBed.configureTestingModule({
+      imports: [LandingPage],
+      providers: [provideRouter([]), { provide: PUBLIC_INDIVIDUAL_CATALOG, useValue: async () => structuredClone(CLOSED_INDIVIDUAL_BILLING_CATALOG) }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(LandingPage);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(root.querySelector('.individual-offer-status')?.textContent).toContain(ES.billing.purchasesClosed);
+    });
+    const how = root.querySelector('.hero-actions .text-link') as HTMLAnchorElement;
+    expect(new URL(how.href).hash).toBe('#how-it-works');
+    expect(root.querySelector(new URL(how.href).hash)).not.toBeNull();
+    expect(root.querySelector('.key-section')).toBeNull();
+    expect(document.title).toMatch(/metas.*tareas/i);
+    expect(document.querySelector('meta[name="description"]')?.getAttribute('content')).toMatch(/árboles visuales/i);
+    (root.querySelector('[data-lang="en"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(document.title).toMatch(/goals.*tasks/i);
+    expect(document.querySelector('meta[name="description"]')?.getAttribute('content')).toMatch(/visual trees/i);
+    for (const route of ['privacy', 'terms', 'subscription-terms', 'support']) {
+      expect(root.querySelector(`.site-footer a[href="/${route}?lang=en"]`)).not.toBeNull();
+    }
+    expect(root.querySelector('.premium-plan a')?.getAttribute('href')).toBe('/account/subscription');
   });
 
   it('builds the product tree deterministically with the real pure tree brain', () => {
@@ -112,7 +133,7 @@ describe('commercial landing foundation', () => {
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('main')).not.toBeNull();
     expect(root.querySelector('h1')?.textContent?.trim()).toBe(ES.landing.hero.title);
-    expect(root.querySelectorAll('section').length).toBeGreaterThanOrEqual(7);
+    expect(root.querySelectorAll('section').length).toBeGreaterThanOrEqual(6);
     expect(root.querySelector('#how-it-works')).not.toBeNull();
     expect(root.querySelector('#plans')).not.toBeNull();
     expect(root.querySelector('#faq')).not.toBeNull();
