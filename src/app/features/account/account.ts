@@ -1,4 +1,4 @@
-import { Component, InjectionToken, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, InjectionToken, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { inputValue } from '../../shared/ui/dom';
 import { Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -12,6 +12,7 @@ import { PrivacyPanel } from '../../shared/ui/privacy-panel';
 import { PrivacyService } from '../../core/privacy.service';
 import { ApiError } from '../../core/api/contracts';
 import { privacyDocument } from '../../core/api/privacy-document';
+import { AccountAccessSummary } from '../../shared/ui/account-access-summary';
 
 type Step =
   | 'welcome'
@@ -73,7 +74,7 @@ export function createAccountInputError(
  */
 @Component({
   selector: 'app-account',
-  imports: [RouterLink, AccessKeyForm, PrivacyPanel],
+  imports: [RouterLink, AccessKeyForm, PrivacyPanel, AccountAccessSummary],
   templateUrl: './account.html',
   styleUrl: './account.scss',
 })
@@ -131,6 +132,13 @@ export class AccountPage {
   protected readonly safeReturnUrl = computed(() => safeLocalReturnUrl(this.returnUrl()));
 
   constructor() {
+    effect(() => {
+      const intent = this.intent();
+      if (!this.auth.user() && !this.closure.receipt() && untracked(() => this.step()) === 'welcome') {
+        if (intent === 'create') this.step.set('create');
+        if (intent === 'signIn') this.step.set('signIn');
+      }
+    });
     effect(() => {
       const language = this.i18n.lang();
       this.signupDocument.set(null);

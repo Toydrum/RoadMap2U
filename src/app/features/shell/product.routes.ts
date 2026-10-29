@@ -9,13 +9,8 @@ import { VisitSession } from '../../core/visit/visit-session';
 import { productReadyGate } from './product-initializer';
 import { ProductShell } from './product-shell';
 
-/** Loads the visited forest before the subtree paints (idempotent per user). */
-const visitGate: CanActivateFn = (route) => {
-  const userId = route.paramMap.get('userId') ?? '';
-  return inject(VisitSession)
-    .load(userId)
-    .then(() => true);
-};
+/** Social visits are outside this launch. Stop before loading any visited data. */
+const visitGate: CanActivateFn = () => inject(Router).createUrlTree(['/settings']);
 
 const CHECK_IN_COOLDOWN_MS = 30 * 60 * 1000;
 

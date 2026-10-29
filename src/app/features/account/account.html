@@ -450,6 +450,9 @@
     @case ('profile') {
       <section class="stage" aria-live="polite">
         <h1>{{ i18n.t().account.profileTitle }}</h1>
+        <a class="btn btn-ghost account-settings-back" routerLink="/settings"
+          >← {{ i18n.t().accountStatus.backSettings }}</a
+        >
 
         @if (auth.user(); as user) {
           <div class="card profile-card">
@@ -496,9 +499,11 @@
             }
           </div>
         } @else {
-          <app-privacy-panel />
+          <app-account-access-summary />
           @if (auth.user()?.accountType === 'adult' && privacy.status()?.scope === 'adult') {
-            <a class="btn btn-soft billing-account-link" routerLink="/account/subscription">{{ i18n.t().billing.accountLink }}</a>
+            <a class="btn btn-soft billing-account-link" routerLink="/account/subscription">{{
+              i18n.t().billing.accountLink
+            }}</a>
             <p class="hint">{{ i18n.t().billing.settingsHint }}</p>
           }
           @if (auth.user()?.accountType === 'adult' && !privacy.status()?.privateOnly) {
@@ -513,6 +518,8 @@
           } @else if (intent() === 'redeem') {
             <p class="hint">{{ i18n.t().access.key.adultOnly }}</p>
           }
+
+          <app-privacy-panel />
 
           <div class="profile-actions">
             <button

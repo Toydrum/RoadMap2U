@@ -13,17 +13,17 @@ import {
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { AccessService } from '../../core/access/access.service';
 import { PlanCatalogService } from '../../core/access/plan-catalog.service';
 import { IndividualBillingService } from '../../core/api/individual-billing.service';
 import { billingDocument } from '../../core/api/billing-document';
 import { PrivacyService } from '../../core/privacy.service';
 import type { BillingInterval, IndividualBillingState } from '../../core/api/contracts';
 import { inputEl } from '../../shared/ui/dom';
+import { AccountAccessSummary } from '../../shared/ui/account-access-summary';
 
 @Component({
   selector: 'app-subscription-page',
-  imports: [RouterLink],
+  imports: [RouterLink, AccountAccessSummary],
   templateUrl: './subscription-page.html',
   styleUrl: './subscription-page.scss',
 })
@@ -48,9 +48,6 @@ export class SubscriptionPage {
   });
   protected readonly eligibleBuyer = computed(
     () => this.canonicalAdult() && this.privacy()?.status()?.adultDeclared === true,
-  );
-  protected readonly access = computed(() =>
-    this.auth.user() ? this.injector.get(AccessService).access() : null,
   );
   protected readonly interval = signal<BillingInterval>('month');
   protected readonly acceptsTerms = signal(false);
@@ -151,7 +148,9 @@ export class SubscriptionPage {
       ? ''
       : this.i18n.fill(
           interval === 'month' ? this.i18n.t().billing.monthly : this.i18n.t().billing.yearly,
-          { amount: `$${new Intl.NumberFormat(this.i18n.lang() === 'es' ? 'es-MX' : 'en-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount / 100)}` },
+          {
+            amount: `$${new Intl.NumberFormat(this.i18n.lang() === 'es' ? 'es-MX' : 'en-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount / 100)}`,
+          },
         );
   }
   protected date(timestamp: number): string {

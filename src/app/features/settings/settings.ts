@@ -17,18 +17,17 @@ import { APP_VERSION } from '../../core/version';
 import { AuthService } from '../../core/auth/auth.service';
 import { APP_CONFIG } from '../../core/config';
 import { resetMockCloud } from '../../core/api/mock-cloud';
-import { FamiliaCard } from '../familia/familia-card';
-import { AmigosCard } from '../amigos/amigos-card';
 import { SyncService } from '../../core/sync/sync.service';
 import { FamilyService } from '../../core/family.service';
 import { AccountClosureService } from '../../core/account-closure.service';
 import type { AccountClosureState } from '../../core/api/contracts';
 import { PrivacyService } from '../../core/privacy.service';
 import { PrivacyPanel } from '../../shared/ui/privacy-panel';
+import { AccountAccessSummary } from '../../shared/ui/account-access-summary';
 
 @Component({
   selector: 'app-settings',
-  imports: [RouterLink, FamiliaCard, AmigosCard, ConfirmSheet, Switch, PrivacyPanel],
+  imports: [RouterLink, ConfirmSheet, Switch, PrivacyPanel, AccountAccessSummary],
   templateUrl: './settings.html',
   styleUrl: './settings.scss',
 })

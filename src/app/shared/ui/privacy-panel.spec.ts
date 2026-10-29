@@ -46,8 +46,23 @@ beforeEach(async () => {
 });
 afterEach(() => TestBed.resetTestingModule());
 describe('privacy cloud sheet', () => {
+  it('keeps privacy rights available without offering new guardian invitations in this launch', async () => {
+    const fixture = TestBed.createComponent(PrivacyPanel);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await vi.waitFor(() =>
+      expect((fixture.componentInstance as any).privacy.status()).not.toBeNull(),
+    );
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('input[name="guardian-name"]')).toBeNull();
+    expect(root.querySelector('a[href="/privacy"]')).not.toBeNull();
+    expect(root.querySelector('a[href="/terms"]')).not.toBeNull();
+    expect(root.textContent).toContain(ES.privacy.manageInvitations);
+  });
   it('requires declared name and relationship with unchecked decisions before issuing an invitation', async () => {
     const fixture = TestBed.createComponent(PrivacyPanel);
+    fixture.componentRef.setInput('showInvitations', true);
     fixture.detectChanges();
     await fixture.whenStable();
     await vi.waitFor(() =>

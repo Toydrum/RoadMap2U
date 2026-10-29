@@ -126,12 +126,8 @@ for (const viewport of [
     }
     await page.goto(BASE + '/', { waitUntil: 'networkidle' });
     ok(
-      `${width} landing family invitation`,
-      (await page.locator('.key-section h2').textContent()) === 'Familias por invitación',
-    );
-    ok(
-      `${width} landing no redemption promise`,
-      !(await page.locator('.key-section').innerText()).includes('canjear'),
+      `${width} landing has no unreleased family invitation`,
+      (await page.locator('.key-section').count()) === 0,
     );
     ok(
       `${width} landing no purchase form`,
@@ -139,7 +135,7 @@ for (const viewport of [
     );
     for (const path of ['privacy', 'terms', 'support']) {
       await page.goto(BASE + '/', { waitUntil: 'networkidle' });
-      await page.locator(`.site-footer a[href="/${path}"]`).first().click();
+      await page.locator(`.site-footer a[href^="/${path}?"]`).first().click();
       await page.locator('app-legal-page h1').waitFor();
       ok(`${width} footer /${path} navigation`, new URL(page.url()).pathname === '/' + path);
       await page.locator('[data-home]').click();

@@ -7,7 +7,7 @@ import { AccountClosureService } from '../../core/account-closure.service';
 import { AccessService } from '../../core/access/access.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { API_CLIENT } from '../../core/api/api-client';
-import { ADULT_PRIVACY_VERSIONS } from '../../core/api/contracts';
+import { ADULT_PRIVACY_VERSIONS, createFreeAccessSummary } from '../../core/api/contracts';
 import { privacyDocument } from '../../core/api/privacy-document';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { EN } from '../../core/i18n/en';
@@ -71,7 +71,15 @@ function accountHarness(dict: Dict = ES) {
   };
   const constructed = { backup: 0, sync: 0, trees: 0 };
   const restart = vi.fn();
-  const access = { redeem: vi.fn(async () => undefined) };
+  const access = {
+    redeem: vi.fn(async () => undefined),
+    access: signal(createFreeAccessSummary()),
+    leaseState: signal('valid'),
+    loading: signal(false),
+    lastError: signal(null),
+    start: vi.fn(async () => undefined),
+    refresh: vi.fn(async () => undefined),
+  };
 
   TestBed.configureTestingModule({
     imports: [AccountPage],
@@ -141,11 +149,11 @@ describe('private adolescent admission copy', () => {
       falseClaim: /verified representation|verified parentage|verified guardianship/i,
     },
   ])(
-    'describes the approved declaration model in registration and guide ($locale)',
+    'preserves private admission without promoting a family guide ($locale)',
     ({ dict, declaration, falseClaim }) => {
       const familyGuide = dict.guide.sections.find((section) => section.icon === '🤝');
-      expect(familyGuide).toBeDefined();
-      for (const copy of [dict.account.createHint, familyGuide!.body]) {
+      expect(familyGuide).toBeUndefined();
+      for (const copy of [dict.account.createHint]) {
         expect(copy).toMatch(declaration);
         expect(copy).not.toMatch(falseClaim);
       }
@@ -154,6 +162,21 @@ describe('private adolescent admission copy', () => {
 });
 
 describe('account create validation', () => {
+  it.each(['create', 'signIn'])('allows returning to the welcome screen after a direct %s entry', async (intent) => {
+    TestBed.resetTestingModule();
+    const harness = accountHarness();
+    harness.closure.receipt.set(null);
+    const fixture = TestBed.createComponent(AccountPage);
+    fixture.componentRef.setInput('intent', intent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect((fixture.componentInstance as any).step()).toBe(intent);
+    (fixture.componentInstance as any).go('welcome');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect((fixture.componentInstance as any).step()).toBe('welcome');
+    TestBed.resetTestingModule();
+  });
   it('normalizes username case before signup', () => {
     expect(normalizedUsername(' LynxPardelle ')).toBe('lynxpardelle');
   });
