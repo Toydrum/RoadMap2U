@@ -1135,7 +1135,7 @@ export const EN: Dict = {
   billing: {
     simulationReady: 'Simulation {stage}: the financial date is {date}. This test access requires a connection.',
     simulationUnavailable: 'Simulation {stage}: waiting for a valid clock reading. The local forest remains available.',
-    termsVersion: "individual-subscription-2026-10-12-draft-v2",
+    termsVersion: "individual-subscription-2026-10-28-v1",
     title: "My subscription",
     intro: "I can review my subscription and manage its payments at my own pace. My forest stays here.",
     accountLink: "I view my subscription",
@@ -1155,7 +1155,7 @@ export const EN: Dict = {
     sameCapabilities: "The same Premium capabilities for both intervals.",
     recurring: "Renewal is automatic. I can cancel renewal at the end of my paid period in the Portal.",
     termsTitle: "Subscription terms",
-    termsDraft: "Commercial test draft. Commercial and tax approval pending before real charges.",
+    termsDraft: "Version individual-subscription-2026-10-28-v1.",
     termsRead: "I read the terms",
     termsAccept: "I accept the subscription terms and recurring charges for my chosen interval.",
     countryAccept: "I declare Mexico as my commercial country.",
@@ -1187,7 +1187,7 @@ export const EN: Dict = {
     expired: "My paid period ended. My forest is still here.",
     review: "My payment is under review. Support can help me.",
     closed: "My billing is closed.",
-    termsText: "Individual Premium for my own adult account with a verified email, in Mexico: $114.84 MXN every month or $1,100.84 MXN every year, final price including taxes. The annual total is charged in one advance payment. Both intervals provide the same capabilities. I authorize recurring card charges through Stripe for the interval I choose; the subscription renews automatically until I cancel. I can cancel renewal in the Portal and keep Premium until my paid period ends. There is no free trial, coupons, interval change during a subscription, or grace period: pending or unconfirmed payment does not extend access. My price is protected for at least twelve months from the first successful payment while the same subscription continues; a new purchase after its final cancellation uses the current price. Support reviews refunds: a full refund removes the affected period and a partial refund keeps access; a dispute suspends the affected period and stops future renewals. Closing the account stops renewals and does not automatically request a refund. My local forest and other sponsored access sources remain when Premium ends. A purchase does not replace my privacy choices or give an adolescent personal Premium or family features. A Stripe receipt is not a CFDI. I request a CFDI at jescricdy1@gmail.com with my tax details and delivery email; for help, payment clarification or a refund I write to overseer@roadmap2u.com. Commercial records have retention separate from the forest. These terms are a test draft; commercial and tax approval are required before real charges can be enabled.",
+    termsText: "Individual Premium for my own adult account with a verified email, in Mexico: $114.84 MXN every month or $1,100.84 MXN every year, final price including taxes. The annual total is charged in one advance payment. Both intervals provide the same capabilities. I authorize recurring card charges through Stripe for the interval I choose; the subscription renews automatically until I cancel. I can cancel renewal in the Portal and keep Premium until my paid period ends. There is no free trial, coupons, interval change during a subscription, or grace period: pending or unconfirmed payment does not extend access. My price is protected for at least twelve months from the first successful payment while the same subscription continues; a new purchase after its final cancellation uses the current price. Support reviews refunds: a full refund removes the affected period and a partial refund keeps access; a dispute suspends the affected period and stops future renewals. Closing the account stops renewals and does not automatically request a refund. My local forest and other sponsored access sources remain when Premium ends. A purchase does not replace my privacy choices or give an adolescent personal Premium or family features. A Stripe receipt is not a CFDI. I request a CFDI at jescricdy1@gmail.com with my tax details and delivery email; for help, payment clarification or a refund I write to overseer@roadmap2u.com. Commercial records have retention separate from the forest.",
   },
   account: {
     welcomeTitle: 'A key for your forest',
