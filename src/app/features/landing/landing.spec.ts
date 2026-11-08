@@ -2,8 +2,8 @@ import { APP_BASE_HREF } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
-import { PUBLIC_INDIVIDUAL_CATALOG } from '../../core/api/public-individual-catalog';
-import { CLOSED_INDIVIDUAL_BILLING_CATALOG } from '../../core/api/contracts';
+import { PUBLIC_INDIVIDUAL_CATALOG, PUBLIC_PLAN_CATALOG } from '../../core/api/public-individual-catalog';
+import { CLOSED_INDIVIDUAL_BILLING_CATALOG, REDUCED_PLAN_CATALOG } from '../../core/api/contracts';
 import { AuthService } from '../../core/auth/auth.service';
 import { BootService } from '../../core/boot.service';
 import { EN } from '../../core/i18n/en';
@@ -19,6 +19,7 @@ describe('commercial landing foundation', () => {
       imports: [LandingPage],
       providers: [
         provideRouter([]),
+        { provide: PUBLIC_PLAN_CATALOG, useValue: async () => REDUCED_PLAN_CATALOG },
         {
           provide: PUBLIC_INDIVIDUAL_CATALOG,
           useValue: async () => ({ ...CLOSED_INDIVIDUAL_BILLING_CATALOG, purchasesEnabled: true }),
@@ -33,6 +34,7 @@ describe('commercial landing foundation', () => {
       expect(root.querySelector('.individual-offer-status')?.textContent ?? '').toContain(
         ES.billing.available,
       );
+      expect(root.querySelector('.microcopy')?.textContent).toContain('1 árbol activo y 5 ramas');
     });
     expect(root.querySelector('.premium-plan a')?.getAttribute('href')).toBe(
       '/account/subscription',
@@ -40,7 +42,6 @@ describe('commercial landing foundation', () => {
     expect(root.querySelector('.premium-prices')?.textContent).toContain('$114.84 MXN');
     expect(root.querySelector('.premium-prices')?.textContent).toContain('$1,100.84 MXN');
     expect(root.querySelector('.premium-plan')?.textContent).toContain(ES.billing.recurring);
-    expect(root.querySelector('.microcopy')?.textContent).toContain('1 árbol activo y 5 ramas');
   });
   it('keeps the individual offer closed when the public catalog is unavailable', async () => {
     await TestBed.configureTestingModule({
