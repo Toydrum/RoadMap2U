@@ -13,7 +13,7 @@ import {
 import { AccessService } from '../access/access.service';
 import type { AccessSummary } from '../api/contracts';
 import { broadcastMutation } from '../db/broadcast';
-import { type StoreName, putAcrossOrMemory, replaceAll, replaceAllIfEmpty } from '../db/idb';
+import { type StoreName, getAll, putAcrossOrMemory, replaceAll, replaceAllIfEmpty } from '../db/idb';
 import { type AccentToken, type Tree, type TreeNode, newSyncBase } from '../db/schema';
 
 export interface ForestMutationEntry {
@@ -51,6 +51,7 @@ export interface ForestAccessContext {
 /** Persistence seam: tests can hold/reject a commit without faking IndexedDB. */
 export interface ForestMutationStorage {
   commit(entries: readonly ForestMutationEntry[]): Promise<void>;
+  readQuotaRecords?(): Promise<Pick<QuotaSnapshot, 'trees' | 'nodes'>>;
 }
 
 export const FOREST_MUTATION_STORAGE = new InjectionToken<ForestMutationStorage>(
@@ -60,6 +61,10 @@ export const FOREST_MUTATION_STORAGE = new InjectionToken<ForestMutationStorage>
     factory: () => ({
       commit: (entries) =>
         putAcrossOrMemory(entries.map((entry) => ({ store: entry.store, rows: [...entry.rows] }))),
+      async readQuotaRecords() {
+        const [trees, nodes] = await Promise.all([getAll<Tree>('trees'), getAll<TreeNode>('nodes')]);
+        return { trees, nodes };
+      },
     }),
   },
 );
@@ -100,6 +105,7 @@ export class ForestMutationsService {
 
   private treesPort: ForestRecordsPort<Tree> | null = null;
   private nodesPort: ForestRecordsPort<TreeNode> | null = null;
+  private pendingQuotaMutation: Promise<unknown> | null = null;
 
   connectTrees(port: ForestRecordsPort<Tree>): void {
     this.treesPort = port;
@@ -145,21 +151,48 @@ export class ForestMutationsService {
       archivedAt: null,
     };
 
-    this.allow(preflightCreateTree(snapshot, tree, heart));
-    await this.storage.commit([
-      { store: 'trees', rows: [tree] },
-      { store: 'nodes', rows: [heart] },
-    ]);
+    return this.commitWithinQuota((current) => preflightCreateTree(current, tree, heart), async () => {
+      await this.storage.commit([
+        { store: 'trees', rows: [tree] },
+        { store: 'nodes', rows: [heart] },
+      ]);
+      this.treesPort!.publish([tree]);
+      this.nodesPort!.publish([heart]);
+      broadcastMutation([
+        { store: 'trees', ids: [tree.id] },
+        { store: 'nodes', ids: [heart.id] },
+      ]);
+      return tree;
+    });
+  }
 
-    // Signals and sync broadcasts become visible only after the transaction
-    // commits (or after the storage seam deliberately chose memory-only).
-    this.treesPort!.publish([tree]);
-    this.nodesPort!.publish([heart]);
-    broadcastMutation([
-      { store: 'trees', ids: [tree.id] },
-      { store: 'nodes', ids: [heart.id] },
-    ]);
-    return tree;
+  /** Hold one forest-wide lock until both disk and the local repositories agree. */
+  async commitWithinQuota<T>(
+    check: (snapshot: QuotaSnapshot) => QuotaDecision,
+    commit: () => Promise<T>,
+  ): Promise<T> {
+    const run = async () => {
+      let snapshot = this.snapshot();
+      if (this.storage.readQuotaRecords && snapshot.access.effectivePlanKey === 'free') {
+        const persisted = await this.storage.readQuotaRecords().catch(() => null);
+        snapshot = { ...this.snapshot(), ...persisted };
+      }
+      this.allow(check(snapshot));
+      return commit();
+    };
+    // Tabs may still be processing a previous writer's broadcast. Read the
+    // shared stores under the lock so the last slot cannot be claimed twice.
+    if (globalThis.navigator?.locks && this.storage.readQuotaRecords) {
+      return navigator.locks.request('roadmap2u:forest-quota', run);
+    }
+    const pending = this.pendingQuotaMutation;
+    const request = pending ? pending.then(run, run) : run();
+    this.pendingQuotaMutation = request;
+    try {
+      return await request;
+    } finally {
+      if (this.pendingQuotaMutation === request) this.pendingQuotaMutation = null;
+    }
   }
 
   assertPlantBranches(treeId: string, count: number): void {

@@ -1,27 +1,33 @@
-import { Injectable, Injector, inject, signal } from '@angular/core';
-import { API_CLIENT } from '../api/api-client';
+import { Injectable, inject, signal } from '@angular/core';
 import {
   PREPAYMENT_PLAN_CATALOG,
+  REDUCED_PLAN_CATALOG,
+  isFreeLimits,
   CURRENT_INDIVIDUAL_BILLING_CATALOG_VERSION,
   isIndividualBillingCatalog,
   type IndividualBillingCatalog,
   type PlanCatalog,
 } from '../api/contracts';
-import { PUBLIC_INDIVIDUAL_CATALOG } from '../api/public-individual-catalog';
+import { PUBLIC_INDIVIDUAL_CATALOG, PUBLIC_PLAN_CATALOG } from '../api/public-individual-catalog';
 
-function isLaunchCatalog(value: unknown): value is PlanCatalog {
-  if (!value || typeof value !== 'object') return false;
-  const catalog = value as Partial<PlanCatalog>;
+function launchCatalog(value: unknown): PlanCatalog {
+  if (!value || typeof value !== 'object') throw new Error('invalid plan catalog');
+  const catalog = value as Omit<Partial<PlanCatalog>, 'version' | 'pricingVersion'> & {
+    version?: string;
+    pricingVersion?: string;
+  };
   const free = catalog.plans?.free;
   const premium = catalog.plans?.premium;
-  return (
-    catalog.version === PREPAYMENT_PLAN_CATALOG.version &&
-    catalog.pricingVersion === PREPAYMENT_PLAN_CATALOG.pricingVersion &&
+  const supportedVersion =
+    (catalog.version === PREPAYMENT_PLAN_CATALOG.version &&
+      catalog.pricingVersion === PREPAYMENT_PLAN_CATALOG.pricingVersion) ||
+    (catalog.version === '2026-08-prepayment-v1' && catalog.pricingVersion === 'launch-2026');
+  if (!(
+    supportedVersion &&
     catalog.currency === 'MXN' &&
     catalog.taxInclusive === true &&
     catalog.paymentsEnabled === false &&
-    free?.limits?.maxActiveTrees === 2 &&
-    free?.limits?.maxVisibleBranchesPerTree === 10 &&
+    isFreeLimits(free?.limits) &&
     free?.capabilities?.cloudSync === false &&
     free?.capabilities?.social === false &&
     free?.capabilities?.family === false &&
@@ -32,7 +38,9 @@ function isLaunchCatalog(value: unknown): value is PlanCatalog {
     premium?.capabilities?.family === false &&
     premium?.prices?.month?.amountMinor === 9900 &&
     premium?.prices?.year?.amountMinor === 94900
-  );
+  )) throw new Error('invalid plan catalog');
+
+  return free.limits.maxActiveTrees === 1 ? REDUCED_PLAN_CATALOG : PREPAYMENT_PLAN_CATALOG;
 }
 
 /**
@@ -41,7 +49,7 @@ function isLaunchCatalog(value: unknown): value is PlanCatalog {
  */
 @Injectable({ providedIn: 'root' })
 export class PlanCatalogService {
-  private readonly injector = inject(Injector);
+  private readonly readPlans = inject(PUBLIC_PLAN_CATALOG);
   private readonly readIndividual = inject(PUBLIC_INDIVIDUAL_CATALOG);
   private readonly catalogSignal = signal<PlanCatalog>(PREPAYMENT_PLAN_CATALOG);
   private loaded = false;
@@ -98,16 +106,14 @@ export class PlanCatalogService {
   }
 
   private fetch(): Promise<PlanCatalog> {
-    const request = this.injector
-      .get(API_CLIENT)
-      .getPlans()
-      .then((catalog) => {
-        if (!isLaunchCatalog(catalog)) throw new Error('invalid plan catalog');
+    const request = this.readPlans()
+      .then((value) => {
+        const catalog = launchCatalog(value);
         // Canonicalize to the frozen client constant so extra wire fields and
         // mutable response objects never become application configuration.
-        this.catalogSignal.set(PREPAYMENT_PLAN_CATALOG);
+        this.catalogSignal.set(catalog);
         this.loaded = true;
-        return PREPAYMENT_PLAN_CATALOG;
+        return catalog;
       })
       .finally(() => {
         if (this.inFlight === request) this.inFlight = null;

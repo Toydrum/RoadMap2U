@@ -18,6 +18,7 @@ import {
   LIMITS,
   PlanCatalog,
   PREPAYMENT_PLAN_CATALOG,
+  REDUCED_PLAN_CATALOG,
   SERVER_API_ERROR_CODES,
   SyncPushRequest,
   SyncPushV2Request,
@@ -522,7 +523,7 @@ describe('commercial access contract fixtures', () => {
 
     const catalog = await new MockApi(auth).getPlans();
 
-    expect(catalog).toEqual(EXPECTED_CATALOG);
+    expect(catalog).toEqual(REDUCED_PLAN_CATALOG);
     expect(PREPAYMENT_PLAN_CATALOG).toEqual(EXPECTED_CATALOG);
     expect(auth.idToken).not.toHaveBeenCalled();
     expect(mockCloud.open).toHaveBeenCalledTimes(opensBefore);
@@ -533,7 +534,10 @@ describe('commercial access contract fixtures', () => {
 
     const access = await new MockApi(authFor('rocio')).getAccess();
 
-    expect(access).toEqual(EXPECTED_FREE_ACCESS);
+    expect(access).toEqual({
+      ...EXPECTED_FREE_ACCESS,
+      limits: { maxActiveTrees: 1, maxVisibleBranchesPerTree: 5 },
+    });
   });
 
   it('resolves explicitly seeded family coverage without pretending a payment occurred', async () => {
@@ -1491,7 +1495,7 @@ describe('HttpApi commercial transport', () => {
     await expect(new HttpApi(auth).getPlans()).resolves.toEqual(EXPECTED_CATALOG);
 
     expect(auth.idToken).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledWith(expectedHttpUrl(API_PATHS.plans), {
+    expect(fetchMock).toHaveBeenCalledWith(expectedHttpUrl(API_PATHS.plans + '?policy=2'), {
       method: 'GET',
       headers: {},
       body: undefined,
@@ -1520,7 +1524,7 @@ describe('HttpApi commercial transport', () => {
     await expect(api.deleteMe()).resolves.toEqual(receipt);
 
     expect(fetchMock.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
-      [expectedHttpUrl(API_PATHS.access), 'GET'],
+      [expectedHttpUrl(API_PATHS.access + '?policy=2'), 'GET'],
       [expectedHttpUrl(API_PATHS.accessCodesRedeem), 'POST'],
       [expectedHttpUrl(API_PATHS.me), 'DELETE'],
     ]);

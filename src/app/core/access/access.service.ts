@@ -17,6 +17,8 @@ import {
   type AccessSummary,
   PREPAYMENT_PLAN_CATALOG,
   createFreeAccessSummary,
+  FREE_LIMITS,
+  isFreeLimits,
   type BillingSimulation,
 } from '../api/contracts';
 import {
@@ -167,8 +169,9 @@ function hasCanonicalEntitlements(
 
   return (
     canonicalSources &&
-    limits['maxActiveTrees'] === plan.limits.maxActiveTrees &&
-    limits['maxVisibleBranchesPerTree'] === plan.limits.maxVisibleBranchesPerTree &&
+    (planKey === 'free'
+      ? isFreeLimits(limits)
+      : limits['maxActiveTrees'] === null && limits['maxVisibleBranchesPerTree'] === null) &&
     capabilities['cloudSync'] === plan.capabilities.cloudSync &&
     capabilities['social'] === plan.capabilities.social &&
     capabilities['family'] === false
@@ -270,6 +273,9 @@ function normalizeSummary(
 
   return {
     ...(simulation ? { simulation: { ...simulation } } : {}),
+    ...(onlineRead && typeof value['cloudAutoStartEnabled'] === 'boolean'
+      ? { cloudAutoStartEnabled: value['cloudAutoStartEnabled'] }
+      : {}),
     effectivePlanKey: value['effectivePlanKey'],
     catalogVersion: value['catalogVersion'],
     status: 'active',
@@ -321,7 +327,12 @@ export class AccessService {
   } | null>(null);
   private readonly loadingSignal = signal(false);
   private readonly lastErrorSignal = signal<ApiErrorCode | null>(null);
-  private inFlight: { userId: string; promise: Promise<AccessSummary> } | null = null;
+  private inFlight: {
+    userId: string;
+    generation: number;
+    promise: Promise<AccessSummary>;
+    verified: Promise<AccessSummary | null>;
+  } | null = null;
   private started = false;
   private preparedUserId: string | null | undefined;
   private preparingIdentity: { userId: string | null; promise: Promise<void> } | null = null;
@@ -342,7 +353,7 @@ export class AccessService {
     if (userId && cached?.userId === userId && this.validUntil(cached) > now) {
       return cached.summary;
     }
-    return createFreeAccessSummary(now);
+    return createFreeAccessSummary(now, this.stage === 'local' && !userId ? FREE_LIMITS : undefined);
   });
   readonly leaseState = computed<'valid' | 'fallback'>(() => {
     const userId = this.auth.user()?.userId;
@@ -470,16 +481,25 @@ export class AccessService {
   }
 
   refresh(): Promise<AccessSummary> {
+    return this.requestAccess()?.promise ?? Promise.resolve(this.access());
+  }
+
+  /** Read a live entitlement without falling back to a cached device lease. */
+  refreshVerified(): Promise<AccessSummary | null> {
+    return this.requestAccess()?.verified ?? Promise.resolve(null);
+  }
+
+  private requestAccess(): NonNullable<AccessService['inFlight']> | null {
     this.tick();
-    if (this.accountClosureQuiesced) return Promise.resolve(this.access());
+    if (this.accountClosureQuiesced) return null;
     const userId = this.auth.user()?.userId;
     const generation = this.generation;
     if (!userId) {
       this.cachedSignal.set(null);
       this.lastErrorSignal.set(null);
-      return Promise.resolve(this.access());
+      return null;
     }
-    if (this.inFlight?.userId === userId) return this.inFlight.promise;
+    if (this.inFlight?.userId === userId && this.inFlight.generation === generation) return this.inFlight;
 
     this.beginRequest();
     this.lastErrorSignal.set(null);
@@ -490,22 +510,28 @@ export class AccessService {
         ACCESS_REQUEST_TIMEOUT_MS,
       );
     });
-    const request = Promise.race([this.api.getAccess(), deadline])
+    const verified = Promise.race([this.api.getAccess(), deadline])
       .then((summary) => this.accept(userId, summary, generation, true))
+      .then((summary) =>
+        generation === this.generation && this.auth.user()?.userId === userId &&
+        this.onlineSignal() && this.runtime.isOnline?.() !== false
+          ? summary
+          : null,
+      )
       .catch((error: unknown) => {
         if (generation === this.generation && this.auth.user()?.userId === userId) {
           if (this.cachedSignal()?.summary.simulation) this.cachedSignal.set(null);
           this.lastErrorSignal.set(error instanceof ApiError ? error.code : 'unknown');
         }
-        return this.access();
+        return null;
       })
       .finally(() => {
         cancelDeadline();
-        if (this.inFlight?.promise === request) this.inFlight = null;
+        if (this.inFlight?.verified === verified) this.inFlight = null;
         this.endRequest();
       });
-    this.inFlight = { userId, promise: request };
-    return request;
+    this.inFlight = { userId, generation, verified, promise: verified.then((summary) => summary ?? this.access()) };
+    return this.inFlight;
   }
 
   async redeem(code: string): Promise<AccessSummary> {
@@ -558,10 +584,11 @@ export class AccessService {
     if (generation !== this.generation || this.auth.user()?.userId !== userId) {
       return this.access();
     }
-    this.setCached(userId, summary);
+    const { cloudAutoStartEnabled: _onlineGate, ...deviceSummary } = summary;
+    this.setCached(userId, deviceSummary);
     await this.writeCache(
       userId,
-      summary.simulation ? createFreeAccessSummary(this.nowSignal()) : summary,
+      summary.simulation ? createFreeAccessSummary(this.nowSignal()) : deviceSummary,
     );
     return summary;
   }

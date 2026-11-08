@@ -216,9 +216,11 @@ describe('individual subscription page', () => {
     );
     expect(root.querySelector('.billing-simulation')?.textContent).toContain('esperamos');
   });
-  it('requires separate recurring-terms and Mexico choices without optional cloud consent', async () => {
+  it('offers unselected cloud consent separately from the choices required for Checkout', async () => {
     const { root, fixture } = await adult();
     const checkout = root.querySelector('.billing-checkout') as HTMLButtonElement;
+    const cloudChoice = root.querySelector<HTMLInputElement>('app-premium-cloud-choice input');
+    expect(cloudChoice?.checked).toBe(false);
     expect(checkout).not.toBeNull();
     expect(checkout.disabled).toBe(true);
     (root.querySelector('#billing-terms') as HTMLInputElement).click();

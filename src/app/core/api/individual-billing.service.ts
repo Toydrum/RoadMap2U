@@ -188,6 +188,20 @@ export class IndividualBillingService {
     return request;
   }
 
+  async readFreshSummary(): Promise<IndividualBillingSummary | null> {
+    const actor = this.auth.user()?.userId;
+    if (!actor || this.quiesced() || !navigator.onLine) return null;
+    const generation = this.generation;
+    try {
+      const summary = await this.bounded(this.api.getIndividualBillingSummary());
+      return this.current(actor, generation) && navigator.onLine &&
+        isIndividualBillingSummary(summary) && !summary.simulation
+        ? summary : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** A return parameter only starts reads. It never grants access or marks payment paid. */
   async confirm(kind: 'checkout' | 'portal' = 'checkout'): Promise<void> {
     if (!this.auth.user() || this.quiesced()) return;
@@ -253,6 +267,7 @@ export class IndividualBillingService {
 
   async checkout(
     input: Omit<IndividualCheckoutRequest, 'commandId' | 'expectedBillingRevision'>,
+    onAccepted?: (afterRevision: number) => Promise<void>,
   ): Promise<void> {
     if (!this.canCheckout()) return;
     const request = this.checkoutRequest ?? {
@@ -263,7 +278,7 @@ export class IndividualBillingService {
     // Keep original parameters and command identity if an outcome was uncertain.
     this.checkoutRequest = request;
     this.terminalCheckoutRevision = null;
-    await this.command('checkout', request);
+    await this.command('checkout', request, onAccepted);
   }
 
   async portal(): Promise<void> {
@@ -277,6 +292,7 @@ export class IndividualBillingService {
   private async command(
     kind: 'checkout' | 'portal',
     request: IndividualCheckoutRequest | IndividualPortalRequest,
+    onAccepted?: (afterRevision: number) => Promise<void>,
   ): Promise<void> {
     const actor = this.auth.user()?.userId;
     if (!actor || this.busy() || this.quiesced()) return;
@@ -291,6 +307,8 @@ export class IndividualBillingService {
       );
       if (!this.current(actor, generation)) return;
       this.validateResult(result, kind, request);
+      await onAccepted?.(request.expectedBillingRevision).catch(() => undefined);
+      if (!this.current(actor, generation)) return;
       if (result.outcome === 'redirect') this.navigate(result.url);
       else await this.confirm(kind);
     } catch (error) {

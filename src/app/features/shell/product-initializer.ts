@@ -8,6 +8,7 @@ import { MotionService } from '../../core/motion.service';
 import { RemindersService } from '../../core/reminders.service';
 import { RitualsService } from '../../core/rituals.service';
 import { SyncService } from '../../core/sync/sync.service';
+import { PremiumCloudActivation } from '../../core/sync/premium-cloud-activation';
 import { ThemeService } from '../../core/theme/theme.service';
 import { UpdateService } from '../../core/update.service';
 import { AuthInitializer } from './auth-initializer';
@@ -28,7 +29,9 @@ export class ProductInitializer {
   private ready = false;
 
   init(): Promise<void> {
-    if (this.ready) return this.injector.get(AccessService).start();
+    if (this.ready) return this.injector.get(AccessService).start().then(() => {
+      this.injector.get(PremiumCloudActivation).start();
+    });
     if (this.pending) return this.pending;
     return (this.pending = this.start().then(() => {
       this.ready = true;
@@ -42,6 +45,7 @@ export class ProductInitializer {
     ]);
     await this.injector.get(AccessService).start();
     await this.injector.get(SyncService).init();
+    this.injector.get(PremiumCloudActivation).start();
 
     this.injector.get(ThemeService);
     this.injector.get(MotionService);

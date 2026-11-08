@@ -18,6 +18,42 @@
   animation: sheet-up 0.28s ease both;
 }
 
+.branch-sheet {
+  --sheet-left: max(1.4rem, env(safe-area-inset-left));
+  --sheet-right: max(1.4rem, env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0.7rem 0 0;
+
+  .grabber,
+  .top-row {
+    flex-shrink: 0;
+  }
+
+  .top-row {
+    padding: 0 var(--sheet-right) 0 var(--sheet-left);
+  }
+}
+
+@supports (height: 100dvh) {
+  .branch-backdrop {
+    bottom: auto;
+    height: 100dvh;
+  }
+
+  .branch-sheet {
+    max-height: min(90dvh, calc(100dvh - env(safe-area-inset-top) - 0.5rem));
+  }
+}
+
+.sheet-content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: 0 var(--sheet-right) calc(1.6rem + env(safe-area-inset-bottom)) var(--sheet-left);
+}
+
 @keyframes sheet-up {
   from {
     transform: translateY(48px);
@@ -39,9 +75,21 @@
   gap: 0.6rem;
   margin-bottom: 0.9rem;
 
+  .top-chips {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
   .close {
-    margin-left: auto;
+    flex: 0 0 44px;
+    align-self: flex-start;
+    min-width: 44px;
     min-height: 44px;
+    padding: 0;
   }
 
   .here {

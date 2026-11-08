@@ -23,10 +23,22 @@ export class LandingPage {
 
   constructor() {
     void this.plans.loadIndividual();
+    void this.plans.load().catch(() => undefined);
     effect(() => {
       this.title.setTitle(this.copy().landing.seo.title);
       this.meta.updateTag({ name: 'description', content: this.copy().landing.seo.description });
     });
+  }
+
+  protected quotaText(message: string): string {
+    const limits = this.plans.catalog().plans.free.limits;
+    const trees = this.copy().landing.plans.free.activeTrees;
+    const treeCount = limits.maxActiveTrees === 1
+      ? trees.one
+      : trees.many.replace('{count}', String(limits.maxActiveTrees));
+    return message
+      .replace('{trees}', treeCount)
+      .replace('{branches}', String(limits.maxVisibleBranchesPerTree));
   }
 
   protected price(interval: 'month' | 'year'): string {

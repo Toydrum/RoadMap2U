@@ -122,10 +122,10 @@ export class HttpApi implements ApiClient {
 
   // ── commercial access ────────────────────────────────────────────────────
   getPlans(): Promise<PlanCatalog> {
-    return this.request('GET', API_PATHS.plans, undefined, { authenticated: false });
+    return this.request('GET', API_PATHS.plans + '?policy=2', undefined, { authenticated: false });
   }
   getAccess(): Promise<AccessSummary> {
-    return this.request('GET', API_PATHS.access);
+    return this.request('GET', API_PATHS.access + '?policy=2');
   }
   redeemAccessCode(code: string): Promise<AccessSummary> {
     return this.request('POST', API_PATHS.accessCodesRedeem, { code }, { idempotent: true });

@@ -109,7 +109,10 @@ function configure(
       { provide: PreservesRepo, useValue: repos[5] },
       { provide: SettingsService, useValue: settings },
       { provide: SyncService, useValue: sync },
-      { provide: ForestMutationsService, useValue: { assertImport } },
+      {
+        provide: ForestMutationsService,
+        useValue: { assertImport, commitWithinQuota: (_check: unknown, commit: () => Promise<void>) => commit() },
+      },
       { provide: FOREST_REPLACEMENT_STORAGE, useValue: storage },
     ],
   });

@@ -24,6 +24,7 @@ import type { AccountClosureState } from '../../core/api/contracts';
 import { PrivacyService } from '../../core/privacy.service';
 import { PrivacyPanel } from '../../shared/ui/privacy-panel';
 import { AccountAccessSummary } from '../../shared/ui/account-access-summary';
+import { forestQuotaMessage, restoreTreeWithFeedback } from '../forest/forest-quota-feedback';
 
 @Component({
   selector: 'app-settings',
@@ -260,6 +261,10 @@ export class SettingsPage {
     this.confirmingMockReset.set(true);
   }
 
+  protected async restoreArchivedTree(tree: Tree): Promise<void> {
+    await restoreTreeWithFeedback(tree, this.trees, this.i18n, this.toast);
+  }
+
   protected async onImportFile(event: Event): Promise<void> {
     const inputEl = event.target as HTMLInputElement;
     const file = inputEl.files?.[0];
@@ -269,8 +274,8 @@ export class SettingsPage {
     try {
       await this.backup.importReplace(await file.text());
       this.toast.show({ message: this.i18n.t().settings.importOk });
-    } catch {
-      this.toast.show({ message: this.i18n.t().settings.importError });
+    } catch (error) {
+      this.toast.show({ message: forestQuotaMessage(this.i18n, error) ?? this.i18n.t().settings.importError });
     } finally {
       this.importing.set(false);
     }

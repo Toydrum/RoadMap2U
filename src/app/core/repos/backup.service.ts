@@ -22,6 +22,7 @@ import { HarvestsRepo } from './harvests.repo';
 import { PreservesRepo } from './preserves.repo';
 import { SettingsService } from './settings.service';
 import { FOREST_REPLACEMENT_STORAGE, ForestMutationsService } from './forest-mutations.service';
+import { preflightImport } from '../access/quota-policy';
 
 @Injectable({ providedIn: 'root' })
 export class BackupService {
@@ -137,14 +138,17 @@ export class BackupService {
 
     // ONE transaction for the whole wipe+rewrite — a failure anywhere rolls
     // the entire import back instead of leaving an empty disk (0.0.115 M1).
-    await this.replacement.replace([
-      { store: 'trees', rows: trees },
-      { store: 'nodes', rows: nodes },
-      { store: 'checkins', rows: checkins },
-      { store: 'sessions', rows: sessions },
-      { store: 'harvests', rows: harvests },
-      { store: 'preserves', rows: preserves },
-    ]);
+    await this.mutations.commitWithinQuota(
+      (snapshot) => preflightImport(snapshot, trees, nodes),
+      () => this.replacement.replace([
+        { store: 'trees', rows: trees },
+        { store: 'nodes', rows: nodes },
+        { store: 'checkins', rows: checkins },
+        { store: 'sessions', rows: sessions },
+        { store: 'harvests', rows: harvests },
+        { store: 'preserves', rows: preserves },
+      ]),
+    );
 
     this.trees.resetTo(trees);
     this.nodes.resetTo(nodes);

@@ -27,12 +27,16 @@ import {
   Tree,
   TreeNode,
 } from '../db/schema';
-import { get, put } from '../db/idb';
-import { LocalWritesQuiescedError, onAccountClosureQuiesce } from '../db/account-closure-fence';
+import { accountClosureGuardedWriteInDatabase, get, openDb, put } from '../db/idb';
+import {
+  LocalWritesQuiescedError,
+  onAccountClosureQuiesce,
+  runAccountClosureGuardedWrite,
+} from '../db/account-closure-fence';
 import { broadcastRemote, createMutationGroupId, onLocalWrite } from '../db/broadcast';
 import { AuthService } from '../auth/auth.service';
 import { PrivacyService, type CloudPrivacyLease } from '../privacy.service';
-import { AccountLinkSnapshot, META_ACCOUNT_LINK } from '../auth/auth-types';
+import { AccountLinkSnapshot, META_ACCOUNT_LINK, META_AUTH_IDENTITY } from '../auth/auth-types';
 import { RecordsRepo } from '../repos/records.repo';
 import { TreesRepo } from '../repos/trees.repo';
 import { NodesRepo } from '../repos/nodes.repo';
@@ -41,6 +45,7 @@ import { SessionsRepo } from '../repos/sessions.repo';
 import { HarvestsRepo } from '../repos/harvests.repo';
 import { PreservesRepo } from '../repos/preserves.repo';
 import { SyncConflictStore, canForceWin, isSyncConflictCode } from './sync-conflict.store';
+import { clearPremiumCloudIntent } from './premium-cloud-intent';
 import {
   buildSyncMutationGroups,
   chunkMutationGroups,
@@ -71,14 +76,23 @@ const PUSH_DEBOUNCE_MS = 1500;
 const BOOT_PULL_DELAY_MS = 3000;
 const MAX_PULL_PAGES = 50;
 const SAFE_MUTATION_GROUP_ID = /^[A-Za-z0-9:._/-]{1,160}$/;
-const SYNC_STORE_NAMES: ReadonlySet<string> = new Set<SyncStore>([
+const SYNC_STORES: readonly SyncStore[] = [
   'trees',
   'nodes',
   'checkins',
   'sessions',
   'harvests',
   'preserves',
-]);
+];
+const SYNC_STORE_NAMES: ReadonlySet<string> = new Set(SYNC_STORES);
+
+type DeviceLink = AccountLinkSnapshot & { autoStartPending?: true };
+interface AutomaticConnection {
+  readonly privacyRevision: number;
+  readonly session: string;
+  readonly allowLocalUpload: boolean;
+  verify(): Promise<boolean>;
+}
 
 interface SyncStateSnapshot {
   key: typeof META_SYNC_STATE;
@@ -129,7 +143,7 @@ export class SyncService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly metaStorage = inject(SYNC_META_STORAGE);
 
-  private readonly linkSignal = signal<AccountLinkSnapshot | null>(null);
+  private readonly linkSignal = signal<DeviceLink | null>(null);
   private readonly busySignal = signal(false);
   private readonly lastSyncAtSignal = signal<number | null>(null);
   private readonly lastErrorSignal = signal<ApiErrorCode | null>(null);
@@ -206,7 +220,7 @@ export class SyncService {
         this.metaStorage.read(META_ACCOUNT_LINK),
         this.metaStorage.read(META_SYNC_STATE),
       ]);
-      if (link) this.linkSignal.set(link as AccountLinkSnapshot);
+      if (link) this.linkSignal.set(link as DeviceLink);
       if (state) {
         const snapshot = state as SyncStateSnapshot;
         this.watermark = snapshot.watermark ?? 0;
@@ -269,7 +283,7 @@ export class SyncService {
 
   /** The explicit opt-in: full push of this device's forest, then adoption of
    *  whatever the account's cloud already holds (LWW merges both ways). */
-  async connect(): Promise<boolean> {
+  async connect(automatic?: AutomaticConnection): Promise<boolean> {
     if (this.accountClosureQuiesced) return false;
     const user = this.auth.user();
     if (!user) return false;
@@ -279,6 +293,7 @@ export class SyncService {
     // A new cloud consent does not authorize replacing another account's link.
     // The user must first detach that link through the existing disconnect flow.
     if (linkedAccount && linkedAccount !== user.userId) return false;
+    if (automatic && (this.linkSignal() || this.forcePending)) return false;
     let lease: CloudPrivacyLease;
     try {
       lease = await this.privacy.requireCloud(this.privacyLanguage());
@@ -293,20 +308,29 @@ export class SyncService {
       if (this.accountClosureQuiesced || this.epoch !== epoch)
         throw new ApiError('CLOUD_CONSENT_REQUIRED');
       this.privacy.assertLease(lease);
+      if (automatic && lease.revision !== automatic.privacyRevision)
+        throw new ApiError('CLOUD_CONSENT_REQUIRED');
     };
-    const link: AccountLinkSnapshot = {
+    const link: DeviceLink = {
       key: META_ACCOUNT_LINK,
       accountId: user.userId,
       linkedAt: Date.now(),
       uploadedAt: null,
+      ...(automatic ? { autoStartPending: true } : {}),
     };
     try {
       authorize();
+      if (automatic && !await automatic.verify()) return false;
+      if (automatic && !await this.updateAutomaticLink(
+        undefined, link, automatic, authorize,
+      )) return false;
       this.watermark = 0; // everything this device holds goes up
       this.cursor = '0'; // and everything the account holds comes down
-      await this.persistLink(link, authorize);
+      if (automatic) this.linkSignal.set(link);
+      else await this.persistLink(link, authorize);
       await this.persistState(authorize);
       authorize();
+      if (automatic) return this.resumeAutomatic(link, automatic, authorize);
       const ok = await this.syncNow();
       if (ok) {
         await this.persistLink({ ...link, uploadedAt: Date.now() }, authorize);
@@ -323,6 +347,107 @@ export class SyncService {
     }
   }
 
+  async activatePremiumCloud(automatic: AutomaticConnection): Promise<boolean> {
+    if (!navigator.locks) return false;
+    return navigator.locks.request('roadmap2u-premium-cloud', { ifAvailable: true }, (lock) =>
+      lock ? this.activateOnDevice(automatic) : false,
+    );
+  }
+
+  private async activateOnDevice(automatic: AutomaticConnection): Promise<boolean> {
+    const owner = this.auth.user();
+    if (!owner || this.forcePending || this.accountClosureQuiesced) return false;
+    let link = this.linkSignal();
+    if (!link) {
+      const durable = await this.metaStorage.read(META_ACCOUNT_LINK) as DeviceLink | undefined;
+      if (durable?.accountId === owner.userId && durable.autoStartPending) {
+        const state = await this.metaStorage.read(META_SYNC_STATE) as SyncStateSnapshot | undefined;
+        if (this.forcePending || state?.forcePending || this.auth.user() !== owner) return false;
+        this.cursor = state?.cursor ?? '0';
+        this.watermark = state?.watermark ?? 0;
+        this.linkSignal.set(durable);
+        link = durable;
+      }
+    }
+    if (!link) return this.connect(automatic);
+    if (link.accountId !== owner.userId) return false;
+    return this.resumeAutomatic(link, automatic, () => {
+      if (this.auth.user() !== owner || this.auth.deviceSession() !== automatic.session)
+        throw new ApiError('UNAUTHENTICATED');
+    });
+  }
+
+  private async resumeAutomatic(
+    link: DeviceLink,
+    automatic: AutomaticConnection,
+    authorize: () => void,
+  ): Promise<boolean> {
+    const ok = await this.syncNow(async () => {
+      if (!await automatic.verify()) return false;
+      const [durable, state, identity] = await Promise.all([
+        this.metaStorage.read(META_ACCOUNT_LINK),
+        this.metaStorage.read(META_SYNC_STATE),
+        this.metaStorage.read(META_AUTH_IDENTITY),
+      ]);
+      authorize();
+      return !this.forcePending && !(state as SyncStateSnapshot | undefined)?.forcePending &&
+        this.matchesDeviceSession(identity, link, automatic.session) &&
+        this.sameDeviceLink(durable as DeviceLink | undefined, link);
+    }, automatic.privacyRevision);
+    if (!ok || !link.autoStartPending) return ok;
+    const completed: DeviceLink = { ...link, uploadedAt: Date.now() };
+    delete completed.autoStartPending;
+    if (!await this.updateAutomaticLink(link, completed, automatic, authorize)) return false;
+    this.linkSignal.set(completed);
+    return true;
+  }
+
+  private sameDeviceLink(left: DeviceLink | undefined, right: DeviceLink | undefined): boolean {
+    return left === right || Boolean(left && right &&
+      left.accountId === right.accountId && left.linkedAt === right.linkedAt &&
+      left.uploadedAt === right.uploadedAt && left.autoStartPending === right.autoStartPending);
+  }
+
+  private matchesDeviceSession(identity: unknown, link: DeviceLink, session: string): boolean {
+    const snapshot = identity as { user?: { userId?: string }; sessionBinding?: string } | undefined;
+    return snapshot?.sessionBinding === session && snapshot.user?.userId === link.accountId;
+  }
+
+  private async updateAutomaticLink(
+    expected: DeviceLink | undefined,
+    next: DeviceLink,
+    automatic: AutomaticConnection,
+    authorize: () => void,
+  ): Promise<boolean> {
+    const checkStores = expected || automatic.allowLocalUpload ? [] : SYNC_STORES;
+    let applied = false;
+    await runAccountClosureGuardedWrite([{ store: 'meta', value: next }], async () => {
+      const db = await openDb();
+      await accountClosureGuardedWriteInDatabase(db, checkStores, (tx) => {
+        const meta = tx.objectStore('meta');
+        const current = meta.get(META_ACCOUNT_LINK);
+        const state = meta.get(META_SYNC_STATE);
+        const identity = meta.get(META_AUTH_IDENTITY);
+        const counts = checkStores.map((store) => tx.objectStore(store).count());
+        const requests: IDBRequest[] = [current, state, identity, ...counts];
+        for (const request of requests) request.onsuccess = () => {
+          if (requests.some((item) => item.readyState !== 'done')) return;
+          if (!this.sameDeviceLink(current.result, expected) ||
+              !this.matchesDeviceSession(identity.result, next, automatic.session) ||
+              state.result?.forcePending || counts.some((count) => count.result > 0)) return;
+          try {
+            authorize();
+            meta.put(next);
+            applied = true;
+          } catch {
+            tx.abort();
+          }
+        };
+      });
+    });
+    return applied;
+  }
+
   /** Lets go of the device↔account link. Local data is untouched. */
   async disconnect(): Promise<void> {
     if (this.accountClosureQuiesced) return;
@@ -335,21 +460,23 @@ export class SyncService {
       linkedAt: current?.linkedAt ?? Date.now(),
       uploadedAt: null,
     });
+    await clearPremiumCloudIntent();
     this.lastErrorSignal.set(null);
   }
 
-  syncNow(): Promise<boolean> {
+  syncNow(verifyAutomatic?: () => Promise<boolean>, privacyRevision?: number): Promise<boolean> {
     if (
       this.accountClosureQuiesced ||
       this.phase() === 'off' ||
       this.phase() === 'mismatch' ||
-      this.busySignal()
+      this.busySignal() ||
+      (this.linkSignal()?.autoStartPending && !verifyAutomatic)
     ) {
       return Promise.resolve(false);
     }
     const ownerId = this.auth.user()?.userId;
     if (!ownerId) return Promise.resolve(false);
-    const pass = this.runSyncPass(ownerId);
+    const pass = this.runSyncPass(ownerId, verifyAutomatic, privacyRevision);
     this.activeSyncPasses.add(pass);
     void pass.then(
       () => this.activeSyncPasses.delete(pass),
@@ -358,7 +485,11 @@ export class SyncService {
     return pass;
   }
 
-  private async runSyncPass(ownerId: string): Promise<boolean> {
+  private async runSyncPass(
+    ownerId: string,
+    verifyAutomatic?: () => Promise<boolean>,
+    privacyRevision?: number,
+  ): Promise<boolean> {
     if (this.accountClosureQuiesced) return false;
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       this.lastErrorSignal.set('offline');
@@ -377,8 +508,11 @@ export class SyncService {
     try {
       this.privacyLease = await this.privacy.requireCloud(this.privacyLanguage());
       if (this.privacyLease.owner.userId !== ownerId) throw new ApiError('UNAUTHENTICATED');
+      if (verifyAutomatic && this.privacyLease.revision !== privacyRevision)
+        throw new ApiError('CLOUD_CONSENT_REQUIRED');
       this.assertPrivacy();
       await this.conflicts.open(ownerId);
+      if (verifyAutomatic && !await verifyAutomatic()) return false;
       this.assertPrivacy();
       captured = this.gatherAll();
       if (this.forcePending) {

@@ -3,6 +3,7 @@ import { AccentToken, Tree, stamp } from '../db/schema';
 import { StoreName } from '../db/idb';
 import { RecordsRepo } from './records.repo';
 import { ForestMutationsService } from './forest-mutations.service';
+import { preflightRestoreTree } from '../access/quota-policy';
 
 @Injectable({ providedIn: 'root' })
 export class TreesRepo extends RecordsRepo<Tree> {
@@ -76,9 +77,14 @@ export class TreesRepo extends RecordsRepo<Tree> {
   async restore(tree: Tree): Promise<void> {
     const current = this.byId().get(tree.id) ?? tree;
     if (!current.archivedAt) return;
+    const save = () => this.save({ ...current, archivedAt: null });
     if (this.usesLocalForestMutations()) {
-      this.forestMutations.assertRestoreTree(current.id);
+      await this.forestMutations.commitWithinQuota(
+        (snapshot) => preflightRestoreTree(snapshot, current.id),
+        save,
+      );
+    } else {
+      await save();
     }
-    await this.save({ ...current, archivedAt: null });
   }
 }

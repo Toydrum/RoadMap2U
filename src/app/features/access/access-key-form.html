@@ -26,6 +26,9 @@
       <p class="notice" role="status">{{ notice() }}</p>
     }
 
+    @if (showCloudChoice()) {
+      <app-premium-cloud-choice [disabled]="busy()" />
+    }
     <button class="btn btn-primary" type="submit" [disabled]="busy() || !code().trim()">
       {{ busy() ? i18n.t().access.key.busy : i18n.t().access.key.submit }}
     </button>

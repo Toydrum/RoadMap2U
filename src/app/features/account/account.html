@@ -469,7 +469,7 @@
           }
           @if (auth.user()?.accountType === 'adult' && privacy.status()?.scope === 'adult' && !privacy.status()?.privateOnly) {
             <div class="card access-card">
-              <app-access-key-form (redeemed)="redeemCompleted.set(true)" />
+              <app-access-key-form [showCloudChoice]="true" (redeemed)="redeemCompleted.set(true)" />
               @if (redeemCompleted()) {
                 <a class="btn btn-soft" [routerLink]="safeReturnUrl()">
                   {{ i18n.t().access.key.returnCta }}

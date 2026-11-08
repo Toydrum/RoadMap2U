@@ -5,6 +5,7 @@ import { RecordsRepo } from './records.repo';
 import { Cadence, cadenceOf } from '../cadence';
 import { isPast } from '../time';
 import { ForestMutationsService } from './forest-mutations.service';
+import { preflightPlantBranches, preflightRestoreBranches } from '../access/quota-policy';
 
 export interface NewNodeDraft {
   title: string;
@@ -136,7 +137,6 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
   /** One gesture, one aggregate quota decision, one nodes transaction. */
   async plantMany(treeId: string, drafts: readonly PlantNodeDraft[]): Promise<TreeNode[]> {
     if (!drafts.length) return [];
-    this.assertCanPlant(treeId, drafts.length);
     const now = Date.now();
     const nextOrder = new Map<string, number>();
     const nodes = drafts.map((draft) => {
@@ -170,7 +170,15 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
           : {}),
       } satisfies TreeNode;
     });
-    await this.saveMany(nodes);
+    const save = () => this.saveMany(nodes);
+    if (this.usesLocalForestMutations()) {
+      await this.forestMutations.commitWithinQuota(
+        (snapshot) => preflightPlantBranches(snapshot, treeId, drafts.length),
+        save,
+      );
+    } else {
+      await save();
+    }
     return nodes;
   }
 
@@ -263,10 +271,15 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
       .filter((r) => r.archivedAt !== null)
       .map((r) => stamp({ ...r, archivedAt: null }, now));
     if (!fresh.length) return;
+    const save = () => this.saveMany(fresh);
     if (this.usesLocalForestMutations()) {
-      this.forestMutations.assertRestoreBranches(fresh);
+      await this.forestMutations.commitWithinQuota(
+        (snapshot) => preflightRestoreBranches(snapshot, fresh),
+        save,
+      );
+    } else {
+      await save();
     }
-    await this.saveMany(fresh);
   }
 
   /** Permanent removal (sync tombstones) for a whole tree's nodes — atomic. */
@@ -281,9 +294,6 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
    * are born in the same IndexedDB transaction.
    */
   async branch(parent: TreeNode, alternatives: NewNodeDraft[]): Promise<TreeNode[]> {
-    if (this.usesLocalForestMutations()) {
-      this.forestMutations.assertPlantBranches(parent.treeId, alternatives.length);
-    }
     const now = Date.now();
     const branchedParent = stamp(
       { ...parent, status: 'branched' as NodeStatus, branchedAt: now },
@@ -304,7 +314,15 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
       archivedAt: null,
       trigger: null,
     }));
-    await this.saveMany([branchedParent, ...children]);
+    const save = () => this.saveMany([branchedParent, ...children]);
+    if (this.usesLocalForestMutations()) {
+      await this.forestMutations.commitWithinQuota(
+        (snapshot) => preflightPlantBranches(snapshot, parent.treeId, alternatives.length),
+        save,
+      );
+    } else {
+      await save();
+    }
     return children;
   }
 
