@@ -5,7 +5,7 @@
 // into the branch's tree. D: today wears the green ring; month nav offers
 // «Volver a hoy». E: the forest-header 🌾 door navigates.
 // (Sendero exclusion from month marks is covered by almanac.spec.ts.)
-import { BASE, launchPage, ok } from './lib/harness.mjs';
+import { BASE, launchPage, newProbePage, ok } from './lib/harness.mjs';
 
 const { browser, page } = await launchPage();
 
@@ -227,6 +227,36 @@ await page.waitForTimeout(900);
 const restLine = ((await page.locator('.resting-line').textContent().catch(() => '')) ?? '').trim();
 const restingOnStrip = await page.locator('.spiral-stone', { hasText: 'Inventario semanal' }).count();
 ok('H3 an off-day ritual rests with the gentle line, off the strip', restLine.includes('Inventario semanal') && restingOnStrip === 0, `line="${restLine.slice(0, 48)}" onStrip=${restingOnStrip}`);
+
+// I — a mobile tap opens a viewport-bound sheet even in an empty forest,
+// with a direct way to create the required tree.
+const { context: mobileContext, page: mobile } = await newProbePage(
+  browser, { width: 390, height: 700 }, { contextOptions: { isMobile: true, hasTouch: true } },
+);
+await mobile.goto(`${BASE}/almanaque`, { waitUntil: 'networkidle' });
+await mobile.locator('.spiral-add').tap();
+const mobileSheet = mobile.locator('.stone-sheet');
+await mobileSheet.waitFor();
+const mobileBackdrop = await mobileSheet.evaluate((sheet) => {
+  const backdrop = sheet.parentElement;
+  const { top, bottom } = sheet.getBoundingClientRect();
+  return getComputedStyle(backdrop).position === 'fixed' && top >= 0 && bottom <= innerHeight;
+});
+ok('I the spiral sheet stays in the mobile viewport', mobileBackdrop);
+await mobile.keyboard.press('Escape');
+await mobileSheet.waitFor({ state: 'hidden' });
+const pageUnlocked = await mobile.evaluate(() => document.body.style.overflow !== 'hidden');
+ok('I2 closing the spiral sheet restores page scrolling', pageUnlocked);
+await mobile.locator('.spiral-add').tap();
+await mobileSheet.waitFor();
+const createTree = mobileSheet.locator('a[href="/forest?plant=1"]');
+const canCreateTree = await createTree.count() === 1;
+ok('I3 an empty forest offers to plant the first tree', canCreateTree);
+if (canCreateTree) {
+  await createTree.tap();
+  await mobile.locator('app-forest .sheet').waitFor();
+}
+await mobileContext.close();
 
 console.log('almanaque done');
 await browser.close();

@@ -17,6 +17,7 @@ import { SpiralGlyph } from '../forest/spiral';
 import { hash } from '../forest/tree-layout';
 import { FlowerSpec, flowerFor } from '../forest/flora';
 import { FlowerGlyph } from '../forest/flower';
+import { forestQuotaMessage } from '../forest/forest-quota-feedback';
 import { DateReview } from '../check-in/date-review';
 import { HintChip } from '../../shared/ui/hint-chip';
 import {
@@ -219,7 +220,12 @@ export class AlmanaquePage {
   protected readonly sowingStone = signal(false);
   protected readonly stoneTitle = signal('');
   protected readonly stoneTreeId = signal<string | null>(null);
+  protected readonly stoneTree = computed(() =>
+    this.trees.active().find((tree) => tree.id === this.stoneTreeId()),
+  );
   protected readonly stoneCadence = signal<Cadence>('daily');
+  protected readonly stoneSaving = signal(false);
+  protected readonly stoneError = signal('');
 
   protected openSowing(): void {
     // Default tree = the first standing one — always a VISIBLE picker choice.
@@ -228,18 +234,31 @@ export class AlmanaquePage {
   }
 
   protected closeSowing(): void {
+    if (this.stoneSaving()) return;
     this.sowingStone.set(false);
     this.stoneTitle.set('');
     this.stoneCadence.set('daily');
+    this.stoneError.set('');
   }
 
   /** Plant a ritual leaf in the USER-PICKED tree (top level). The compat
    *  shadow travels with it (nodes.plant mirrors repeatsDaily). */
   protected async sowStone(): Promise<void> {
     const title = this.stoneTitle().trim();
-    const treeId = this.stoneTreeId();
-    if (!title || !treeId) return;
-    await this.nodes.plant(treeId, null, { title, repeats: this.stoneCadence() });
+    const tree = this.stoneTree();
+    if (!title || !tree || this.stoneSaving()) return;
+    this.stoneSaving.set(true);
+    this.stoneError.set('');
+    try {
+      await this.nodes.plant(tree.id, null, { title, repeats: this.stoneCadence() });
+    } catch (error) {
+      this.stoneError.set(
+        forestQuotaMessage(this.i18n, error) ?? this.i18n.t().almanaque.piedritaSaveError,
+      );
+      return;
+    } finally {
+      this.stoneSaving.set(false);
+    }
     this.toast.show({ message: this.i18n.fill(this.i18n.t().almanaque.piedritaSown, { title }) });
     this.closeSowing();
   }
