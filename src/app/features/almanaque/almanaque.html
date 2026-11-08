@@ -405,40 +405,66 @@
 @defer (when sowingStone()) {
   @if (sowingStone()) {
     <div class="sheet-backdrop" (click)="closeSowing()">
-      <form class="sheet card stone-sheet" appSheet (sheetClose)="closeSowing()" (click)="$event.stopPropagation()" (submit)="$event.preventDefault(); sowStone()">
-        <h2>{{ i18n.t().almanaque.piedritaSheetTitle }}</h2>
-        <p class="hint">{{ i18n.t().almanaque.piedritaSheetHint }}</p>
-        <div class="field">
-          <label for="stone-title">{{ i18n.t().node.titleLabel }}</label>
-          <input
-            id="stone-title"
-            type="text"
-            [value]="stoneTitle()"
-            (input)="stoneTitle.set(inputValue($event))"
-            [placeholder]="i18n.t().almanaque.piedritaPlaceholder"
-            maxlength="80"
-            autofocus
-          >
-        </div>
-        <span class="stone-label">{{ i18n.t().almanaque.piedritaTree }}</span>
-        <div class="stone-tree-chips">
-          @for (tree of trees.active(); track tree.id) {
-            <button
-              type="button"
-              class="stone-tree-chip"
-              [class.selected]="stoneTreeId() === tree.id"
-              [attr.aria-pressed]="stoneTreeId() === tree.id"
-              (click)="stoneTreeId.set(tree.id)"
-            >{{ tree.name }}</button>
+      <form
+        class="sheet card stone-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="stone-heading"
+        appSheet
+        (sheetClose)="closeSowing()"
+        (click)="$event.stopPropagation()"
+        (submit)="$event.preventDefault(); sowStone()"
+      >
+        <h2 id="stone-heading">{{ i18n.t().almanaque.piedritaSheetTitle }}</h2>
+        @if (trees.active().length) {
+          <p class="hint">{{ i18n.t().almanaque.piedritaSheetHint }}</p>
+          <div class="field">
+            <label for="stone-title">{{ i18n.t().node.titleLabel }}</label>
+            <input
+              id="stone-title"
+              type="text"
+              [value]="stoneTitle()"
+              (input)="stoneTitle.set(inputValue($event))"
+              [placeholder]="i18n.t().almanaque.piedritaPlaceholder"
+              maxlength="80"
+              autofocus
+            >
+          </div>
+          <span class="stone-label">{{ i18n.t().almanaque.piedritaTree }}</span>
+          <div class="stone-tree-chips">
+            @for (tree of trees.active(); track tree.id) {
+              <button
+                type="button"
+                class="stone-tree-chip"
+                [class.selected]="stoneTreeId() === tree.id"
+                [attr.aria-pressed]="stoneTreeId() === tree.id"
+                (click)="stoneTreeId.set(tree.id); stoneError.set('')"
+              >{{ tree.name }}</button>
+            }
+          </div>
+          <span class="stone-label">{{ i18n.t().cadence.aria }}</span>
+          <app-cadence-picker [value]="stoneCadence()" (changed)="stoneCadence.set($event)" />
+          @if (stoneError(); as error) {
+            <p role="alert">{{ error }}</p>
           }
-        </div>
-        <span class="stone-label">{{ i18n.t().cadence.aria }}</span>
-        <app-cadence-picker [value]="stoneCadence()" (changed)="stoneCadence.set($event)" />
+        } @else {
+          <p class="hint">{{ i18n.t().almanaque.piedritaNeedsTree }}</p>
+        }
         <div class="row">
-          <button type="button" class="btn btn-ghost" (click)="closeSowing()">{{ i18n.t().common.cancel }}</button>
-          <button type="submit" class="btn btn-primary stone-create" [disabled]="!stoneTitle().trim() || !stoneTreeId()">
-            {{ i18n.t().almanaque.piedritaCreate }}
+          <button type="button" class="btn btn-ghost" [disabled]="stoneSaving()" (click)="closeSowing()">
+            {{ i18n.t().common.cancel }}
           </button>
+          @if (trees.active().length) {
+            <button
+              type="submit"
+              class="btn btn-primary stone-create"
+              [disabled]="!stoneTitle().trim() || !stoneTree() || stoneSaving()"
+            >{{ i18n.t().almanaque.piedritaCreate }}</button>
+          } @else {
+            <a class="btn btn-primary" routerLink="/forest" [queryParams]="{ plant: 1 }">
+              {{ i18n.t().forest.plantFirst }}
+            </a>
+          }
         </div>
       </form>
     </div>
