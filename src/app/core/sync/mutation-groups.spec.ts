@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { SyncRecord } from '../api/contracts';
-import { newSyncBase, type TreeNode } from '../db/schema';
+import { newSyncBase, type Tree, type TreeNode } from '../db/schema';
 import { buildSyncMutationGroups, type MutationMembership } from './mutation-groups';
 
-function record(id: string, rev = 1, updatedAt = 1_800_000_000_000): SyncRecord {
+function record(id: string, rev = 1, updatedAt = 1_800_000_000_000, parentId: string | null = 'heart-a'): SyncRecord {
   const node: TreeNode = {
     ...newSyncBase(1_800_000_000_000),
     id,
     rev,
     updatedAt,
     treeId: 'tree-a',
-    parentId: 'heart-a',
+    parentId,
     title: `private-${id}`,
     note: `private-note-${id}`,
     status: 'seed',
@@ -22,6 +22,24 @@ function record(id: string, rev = 1, updatedAt = 1_800_000_000_000): SyncRecord 
     archivedAt: null,
   };
   return { store: 'nodes', record: node };
+}
+
+function tree(currentNodeId = 'heart-a'): SyncRecord {
+  const value: Tree = {
+    ...newSyncBase(1_800_000_000_000),
+    id: 'tree-a',
+    name: 'Private tree',
+    accent: 'moss',
+    order: 10,
+    currentNodeId,
+    heartId: 'heart-a',
+    archivedAt: null,
+  };
+  return { store: 'trees', record: value };
+}
+
+function membership(id: string, ...records: SyncRecord[]): MutationMembership {
+  return { id, recordRefs: records.map((entry) => ({ store: entry.store, id: entry.record.id })) };
 }
 
 describe('v2 mutation group builder', () => {
@@ -93,5 +111,78 @@ describe('v2 mutation group builder', () => {
 
     expect(retry).toBe(first);
     expect(edited).not.toBe(first);
+  });
+
+  it('sends the tree and its heart before pending parent and child groups regardless of ids', () => {
+    const owner = tree();
+    const heart = record('heart-a', 1, undefined, null);
+    const parent = record('parent-a');
+    const child = record('child-a', 1, undefined, 'parent-a');
+    const checkin: SyncRecord = {
+      store: 'checkins',
+      record: {
+        ...newSyncBase(1_800_000_000_000),
+        id: 'checkin-a',
+        feeling: 'calm',
+        note: '',
+        treeId: 'tree-a',
+        nodeId: 'child-a',
+      },
+    };
+    const groups = buildSyncMutationGroups([child, checkin, heart, owner, parent], [
+      membership('mg-d-tree', owner, heart),
+      membership('mg-c-parent', parent),
+      membership('mg-b-child', child),
+      membership('mg-a-checkin', checkin),
+    ]);
+
+    expect(groups.map((group) => group.id)).toEqual([
+      'mg-d-tree', 'mg-c-parent', 'mg-b-child', 'mg-a-checkin',
+    ]);
+  });
+
+  it('keeps the first tree and its current-node chain atomic with stable retry identity', () => {
+    const owner = tree('child-a');
+    const heart = record('heart-a', 1, undefined, null);
+    const parent = record('parent-a');
+    const child = record('child-a', 1, undefined, 'parent-a');
+    const sibling = record('sibling-a');
+    const memberships = [
+      membership('mg-new-tree', owner, heart),
+      membership('mg-parent', parent),
+      membership('mg-child', child),
+      membership('mg-sibling', sibling),
+    ];
+    const records = [child, sibling, heart, owner, parent];
+    const [first, second] = buildSyncMutationGroups(records, memberships);
+    expect(first.records.map((entry) => entry.record.id).sort()).toEqual([
+      'child-a', 'heart-a', 'parent-a', 'tree-a',
+    ]);
+    expect(first.id).not.toMatch(/mg-new-tree|mg-parent|mg-child|private/i);
+    expect(second.id).toBe('mg-sibling');
+    expect(buildSyncMutationGroups([...records].reverse(), [...memberships].reverse())).toEqual([first, second]);
+    const edited = records.map((entry) =>
+      entry === child ? record('child-a', 2, undefined, 'parent-a') : entry,
+    );
+    expect(buildSyncMutationGroups(edited, memberships)[0].id).not.toBe(first.id);
+  });
+
+  it('combines a legacy tree and heart that have no stored membership', () => {
+    const records = [tree(), record('heart-a', 1, undefined, null)];
+    const groups = buildSyncMutationGroups(records, []);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].expectedCount).toBe(2);
+    expect(buildSyncMutationGroups([...records].reverse(), [])).toEqual(groups);
+  });
+
+  it('orders a deep imported branch chain without relying on the call stack', () => {
+    const count = 12_000;
+    const id = (index: number) => `node-${String(index).padStart(5, '0')}`;
+    const records = Array.from({ length: count }, (_, index) =>
+      record(id(index), 1, undefined, index + 1 < count ? id(index + 1) : null),
+    );
+    const groups = buildSyncMutationGroups(records, []);
+    expect(groups).toHaveLength(count);
+    expect(groups.map((group) => group.records[0].record.id)).toEqual(records.map((entry) => entry.record.id).reverse());
   });
 });
