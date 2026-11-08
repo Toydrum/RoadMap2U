@@ -595,8 +595,6 @@ export const ES = {
       'Algo pequeño que me gusta repetir. Cada vez que le toca, amanece limpio — nadie cuenta los días.',
     piedritaPlaceholder: 'Regar las plantas, tocar piano 5 min…',
     piedritaTree: '¿En qué árbol vive?',
-    piedritaNeedsTree: 'Cada espiral crece en un árbol. Aquí puedes plantar el primero.',
-    piedritaSaveError: 'No pudimos sembrar la espiral. Puedes volver a intentarlo.',
     piedritaCreate: 'Sembrar',
     piedritaSown: '«{title}» ya gira contigo 🌀',
     restingOne: '«{title}» descansa hoy — vuelve el {day}.',
