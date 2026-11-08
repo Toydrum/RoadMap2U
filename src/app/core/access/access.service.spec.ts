@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { API_CLIENT, type ApiClient } from '../api/api-client';
+import { BILLING_SIMULATION_STAGE } from '../api/billing-simulation';
 import { PUBLIC_PLAN_CATALOG } from '../api/public-individual-catalog';
 import {
   ACCESS_OFFLINE_LEASE_MS,
@@ -143,6 +144,7 @@ function configure(
   TestBed.configureTestingModule({
     providers: [
       AccessService,
+      { provide: BILLING_SIMULATION_STAGE, useValue: 'local' },
       { provide: API_CLIENT, useValue: input.api ?? apiWith() },
       { provide: ACCESS_CACHE, useValue: input.cache ?? cachePort() },
       { provide: ACCESS_RUNTIME, useValue: input.runtime ?? runtime() },

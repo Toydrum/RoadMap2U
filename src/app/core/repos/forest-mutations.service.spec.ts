@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFreeAccessSummary } from '../api/contracts';
 import { API_CLIENT, type ApiClient } from '../api/api-client';
+import { BILLING_SIMULATION_STAGE } from '../api/billing-simulation';
 import {
   ACCESS_CACHE,
   ACCESS_RUNTIME,
@@ -80,6 +81,7 @@ function configureGuest(storage: ForestMutationStorage) {
       TreesRepo,
       NodesRepo,
       { provide: AuthService, useValue: { user: signal(null) } },
+      { provide: BILLING_SIMULATION_STAGE, useValue: 'local' },
       { provide: API_CLIENT, useValue: { getAccess } as unknown as ApiClient },
       {
         provide: ACCESS_CACHE,
