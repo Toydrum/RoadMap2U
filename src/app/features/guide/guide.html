@@ -10,7 +10,7 @@
   </div>
 
   <div class="sections">
-    @for (section of i18n.t().guide.sections; track section.title) {
+    @for (section of sections(); track section.title) {
       <section class="card block">
         <h2><span class="icon" aria-hidden="true">{{ section.icon }}</span> {{ section.title }}</h2>
         <p>{{ section.body }}</p>

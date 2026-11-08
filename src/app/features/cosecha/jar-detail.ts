@@ -83,8 +83,7 @@ export class JarDetail {
     };
   }
 
-  /** An elixir savors the whole TREE's fruits (by treeId, like the tea — never
-   *  moved); a jam shows its sealed members (by preserveId). */
+  /** An elixir reads the tree's fruits by treeId. A jam reads its sealed members by preserveId. */
   protected readonly members = computed(() => {
     const p = this.preserve();
     const source = this.elixir()

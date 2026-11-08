@@ -18,7 +18,6 @@ import { ElixirVial } from '../forest/elixir-vial';
 import { HintChip } from '../../shared/ui/hint-chip';
 import { ConfirmSheet } from '../../shared/ui/confirm-sheet';
 import { MermeladaSheet } from './mermelada-sheet';
-import { TeSheet } from './te-sheet';
 import { AbrirMermeladaSheet } from './abrir-mermelada-sheet';
 import { PromesaSheet } from './promesa-sheet';
 import { HacerMermeladaSheet } from './hacer-mermelada-sheet';
@@ -62,7 +61,6 @@ interface JamShelfItem {
     HintChip,
     ConfirmSheet,
     MermeladaSheet,
-    TeSheet,
     AbrirMermeladaSheet,
     PromesaSheet,
     HacerMermeladaSheet,
@@ -83,7 +81,6 @@ export class CosechaPage {
 
   /** Ritual doors — @defer'd sheets; DOORS CANCEL applies to all. */
   protected readonly makingJam = signal(false);
-  protected readonly brewingTea = signal(false);
   /** «La promesa» wizard door. */
   protected readonly promising = signal(false);
   /** The claiming ceremony's jar («abrir la mermelada»), or null. */
@@ -228,11 +225,6 @@ export class CosechaPage {
   protected monthWordFor(preserve: Preserve): string {
     return this.monthWordOf(preserve.madeAt);
   }
-
-  /** Lifetime register count — ALL fruits; it can never decrease. Gates the
-   *  tea door (memories are sippable wherever they live); the hero line
-   *  speaks for the JAR instead (freshCount, 0.0.105). */
-  protected readonly total = computed(() => this.harvests.all().length);
 
   /** What the hero jar actually holds: fresh fruits — not yet jammed, not
    *  stored in a promised jar. The number matches the picture. */
