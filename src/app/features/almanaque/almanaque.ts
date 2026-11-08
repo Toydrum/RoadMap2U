@@ -253,7 +253,7 @@ export class AlmanaquePage {
       await this.nodes.plant(tree.id, null, { title, repeats: this.stoneCadence() });
     } catch (error) {
       this.stoneError.set(
-        forestQuotaMessage(this.i18n, error) ?? this.i18n.t().almanaque.piedritaSaveError,
+        forestQuotaMessage(this.i18n, error) ?? this.i18n.t().familia.errors.unknown,
       );
       return;
     } finally {

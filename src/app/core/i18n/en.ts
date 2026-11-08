@@ -597,8 +597,6 @@ export const EN: Dict = {
       'Something small I like repeating. Each time its day comes, it wakes up clean — nobody counts the days.',
     piedritaPlaceholder: 'Water the plants, play piano 5 min…',
     piedritaTree: 'Which tree does it live in?',
-    piedritaNeedsTree: 'Every spiral grows on a tree. You can plant your first one here.',
-    piedritaSaveError: 'We couldn’t sow the spiral. You can try again.',
     piedritaCreate: 'Sow it',
     piedritaSown: '"{title}" is spinning with you now 🌀',
     restingOne: '"{title}" rests today — it returns on {day}.',
