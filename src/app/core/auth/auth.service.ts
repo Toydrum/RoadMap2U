@@ -59,6 +59,7 @@ export class AuthService {
   private readonly lastErrorSignal = signal<AuthErrorCode | null>(null);
   private readonly challengeSignal = signal<'confirmSignUp' | 'newPasswordRequired' | null>(null);
   private readonly sessionStaleSignal = signal(false);
+  private readonly deviceSessionSignal = signal<string | null>(null);
   private readonly deliveryHintSignal = signal<string | null>(null);
 
   readonly status = this.statusSignal.asReadonly();
@@ -67,6 +68,7 @@ export class AuthService {
   readonly lastError = this.lastErrorSignal.asReadonly();
   readonly challenge = this.challengeSignal.asReadonly();
   readonly sessionStale = this.sessionStaleSignal.asReadonly();
+  readonly deviceSession = this.deviceSessionSignal.asReadonly();
   /** Masked destination of the last emailed code ("r***@d***"). */
   readonly deliveryHint = this.deliveryHintSignal.asReadonly();
 
@@ -254,21 +256,27 @@ export class AuthService {
     return 'newPasswordRequired';
   }
 
-  private async commit(session: AuthSession, epoch: number): Promise<void> {
+  private async commit(session: AuthSession, epoch: number, quiet = false): Promise<void> {
     if (epoch !== this.identityEpoch) return;
+    const sessionBinding = quiet && this.user()?.userId === session.user.userId
+      ? this.deviceSessionSignal() ?? crypto.randomUUID()
+      : crypto.randomUUID();
+    this.deviceSessionSignal.set(sessionBinding);
     this.userSignal.set(session.user);
     this.statusSignal.set('signedIn');
     this.challengeSignal.set(null);
     this.sessionStaleSignal.set(false);
     this.heldCredentials = null;
     this.pendingUsername = null;
+    const snapshot: AuthIdentitySnapshot & { sessionBinding: string } = {
+      key: META_AUTH_IDENTITY,
+      user: session.user,
+      cachedAt: Date.now(),
+      sessionBinding,
+    };
     try {
       await this.queueIdentityPersistenceOperation(() =>
-        this.identityPersistence.write({
-          key: META_AUTH_IDENTITY,
-          user: session.user,
-          cachedAt: Date.now(),
-        } satisfies AuthIdentitySnapshot),
+        this.identityPersistence.write(snapshot),
       );
     } catch {
       // Memory-only session — identity still works until the app closes.
@@ -308,7 +316,7 @@ export class AuthService {
         // Validation of an unchanged session must not look like a new login:
         // family operations and credential sheets own the identity reference.
         // Explicit logins still publish their new identity through commit().
-        await this.commit(unchanged ? { ...session, user: identity } : session, epoch);
+        await this.commit(unchanged ? { ...session, user: identity } : session, epoch, true);
       } else {
         // Definitively no live session (revoked/expired refresh) — keep the
         // identity visible, demand re-auth only when a cloud feature needs it.
@@ -329,6 +337,8 @@ export class AuthService {
   }
 
   private applySnapshot(snapshot: AuthIdentitySnapshot | undefined): void {
+    const binding = snapshot && 'sessionBinding' in snapshot ? snapshot.sessionBinding : null;
+    this.deviceSessionSignal.set(snapshot?.user && typeof binding === 'string' ? binding : null);
     this.userSignal.set(snapshot?.user ?? null);
     this.statusSignal.set(snapshot?.user ? 'signedIn' : 'guest');
     this.sessionStaleSignal.set(false);

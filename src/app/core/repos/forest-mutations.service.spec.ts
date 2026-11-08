@@ -108,23 +108,25 @@ function configureGuest(storage: ForestMutationStorage) {
 describe('atomic forest mutations', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
-  it('lets a real guest create two local Free trees but rejects a third', async () => {
+  it('lets a real guest create one local Free tree and rejects a concurrent second tree', async () => {
     const commit = vi.fn(async () => undefined);
     const { access, trees, nodes, getAccess } = configureGuest({ commit });
 
     await access.start();
-    const first = await trees.create('Mi primer árbol', 'moss');
-    const second = await trees.create('Mi segundo árbol', 'sage');
+    const firstRequest = trees.create('Mi primer árbol', 'moss');
+    const secondRequest = trees.create('Mi segundo árbol', 'sage');
+    const rejected = expect(secondRequest).rejects.toMatchObject({
+      decision: { reason: 'ACTIVE_TREE_LIMIT', limit: 1 },
+    });
+    const first = await firstRequest;
+    await rejected;
 
     expect(getAccess).not.toHaveBeenCalled();
     expect(access.leaseState()).toBe('valid');
     expect(trees.byId().has(first.id)).toBe(true);
     expect(nodes.byId().has(first.heartId!)).toBe(true);
-    expect(trees.byId().has(second.id)).toBe(true);
-    await expect(trees.create('Mi tercer árbol', 'sky')).rejects.toMatchObject({
-      decision: { reason: 'ACTIVE_TREE_LIMIT' },
-    });
-    expect(commit).toHaveBeenCalledTimes(2);
+    expect(trees.byId().size).toBe(1);
+    expect(commit).toHaveBeenCalledTimes(1);
   });
 
   it('publishes a newborn tree and its heart only after one cross-store commit', async () => {

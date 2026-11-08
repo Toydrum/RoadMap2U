@@ -56,6 +56,8 @@ import {
   MinorFriendRequestView,
   MinorLinkRequestView,
   PREPAYMENT_PLAN_CATALOG,
+  REDUCED_PLAN_CATALOG,
+  FREE_LIMITS,
   PlanCatalog,
   PreviewSubscriptionChangeRequest,
   PublicProfile,
@@ -236,7 +238,7 @@ export class MockApi implements ApiClient {
 
   async getPlans(): Promise<PlanCatalog> {
     // Public and compiled: deliberately does not call auth or mock-cloud.
-    return PREPAYMENT_PLAN_CATALOG;
+    return REDUCED_PLAN_CATALOG;
   }
 
   async getAccess(): Promise<AccessSummary> {
@@ -249,6 +251,7 @@ export class MockApi implements ApiClient {
       const fallback = createFreeAccessSummary();
       return {
         ...fallback, effectivePlanKey: 'premium', activeSources: [individual],
+        cloudAutoStartEnabled: true,
         limits: { ...PREPAYMENT_PLAN_CATALOG.plans.premium.limits },
         capabilities: { ...PREPAYMENT_PLAN_CATALOG.plans.premium.capabilities },
         revision: (await this.individualBilling.summary(caller)).revision,
@@ -262,7 +265,7 @@ export class MockApi implements ApiClient {
       !['active', 'grace', 'scheduled_end'].includes(coverage.state) ||
       (coverage.validUntil !== null && coverage.validUntil <= Date.now())
     ) {
-      return createFreeAccessSummary();
+      return createFreeAccessSummary(Date.now(), FREE_LIMITS);
     }
     const fallback = createFreeAccessSummary();
     return {

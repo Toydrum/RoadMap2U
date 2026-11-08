@@ -10,7 +10,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { PlanCatalogService } from '../../core/access/plan-catalog.service';
@@ -20,10 +20,12 @@ import { PrivacyService } from '../../core/privacy.service';
 import type { BillingInterval, IndividualBillingState } from '../../core/api/contracts';
 import { inputEl } from '../../shared/ui/dom';
 import { AccountAccessSummary } from '../../shared/ui/account-access-summary';
+import { PremiumCloudChoice } from '../access/premium-cloud-choice';
+import { PremiumCloudIntentService } from '../../core/sync/premium-cloud-intent';
 
 @Component({
   selector: 'app-subscription-page',
-  imports: [RouterLink, AccountAccessSummary],
+  imports: [RouterLink, AccountAccessSummary, PremiumCloudChoice],
   templateUrl: './subscription-page.html',
   styleUrl: './subscription-page.scss',
 })
@@ -33,6 +35,10 @@ export class SubscriptionPage {
   protected readonly catalog = inject(PlanCatalogService);
   private readonly injector = inject(Injector);
   private readonly route = inject(ActivatedRoute, { optional: true });
+  private readonly router = inject(Router);
+  private readonly cloudChoice = viewChild(PremiumCloudChoice);
+  private cloudHandoff: Promise<void> | null = null;
+  protected readonly preparingCloud = signal(false);
   protected readonly billing = computed(() =>
     this.auth.user() ? this.injector.get(IndividualBillingService) : null,
   );
@@ -71,6 +77,7 @@ export class SubscriptionPage {
   protected readonly canCheckout = computed(
     () =>
       this.eligibleBuyer() &&
+      !this.preparingCloud() &&
       Boolean(
         this.catalog.individualCatalog()?.purchasesEnabled && this.billing()?.canCheckout(),
       ) &&
@@ -126,6 +133,8 @@ export class SubscriptionPage {
         void this.catalog.refreshIndividual();
         if (!billing) return;
         const returnKind = this.route?.snapshot.queryParamMap.get('return');
+        if (returnKind === 'cancel' || this.route?.snapshot.queryParamMap.get('billing') === 'cancel')
+          void this.clearCancelledCheckout();
         if (returnKind === 'checkout' || returnKind === 'portal') void billing.confirm(returnKind);
         else
           void billing.refresh().then(() => {
@@ -138,6 +147,11 @@ export class SubscriptionPage {
       this.catalog.individualCatalog()?.terms.hashes.es;
       this.catalog.individualCatalog()?.terms.hashes.en;
       this.acceptsTerms.set(false);
+    });
+    effect(() => {
+      const state = this.billing()?.summary()?.state;
+      if (state === 'active' || state === 'cancel_at_period_end')
+        untracked(() => void this.enterProductForCloud());
     });
   }
 
@@ -186,22 +200,60 @@ export class SubscriptionPage {
     if (!this.canCheckout()) return;
     const catalog = this.catalog.individualCatalog()!;
     const document = this.document()!;
-    await this.billing()!.checkout({
+    const billing = this.billing()!;
+    const input = {
       interval: this.interval(),
       catalogVersion: catalog.catalogVersion,
-      country: 'MX',
+      country: 'MX' as const,
       termsAcceptance: {
         version: document.version,
         hash: document.hash,
         language: document.language,
-        accepted: true,
+        accepted: true as const,
       },
-    });
+    };
+    const choiceComponent = this.cloudChoice();
+    const owner = this.auth.user();
+    const language = this.i18n.lang();
+    this.preparingCloud.set(true);
+    try {
+      const service = this.injector.get(PremiumCloudIntentService);
+      const previous = await service.pending();
+      if (previous?.source.kind === 'checkout') await service.clear(previous.id);
+      const choice = choiceComponent?.wantsCloud() ? await choiceComponent.prepare(service) : null;
+      if (this.auth.user() !== owner || this.i18n.lang() !== language) return;
+      await billing.checkout(input, choice
+        ? (afterRevision) => service.arm(choice, { kind: 'checkout', afterRevision })
+        : undefined);
+    } finally {
+      this.preparingCloud.set(false);
+    }
     if (this.billing()?.error() === 'BILLING_TERMS_OUTDATED') {
       this.acceptsTerms.set(false);
       await this.catalog.refreshIndividual();
     }
     this.status()?.nativeElement.focus();
+  }
+
+  private async clearCancelledCheckout(): Promise<void> {
+    const service = this.injector.get(PremiumCloudIntentService);
+    const intent = await service.pending();
+    if (intent?.source.kind === 'checkout') await service.clear(intent.id);
+  }
+
+  private enterProductForCloud(): Promise<void> {
+    return this.cloudHandoff ??= this.handoff().finally(() => { this.cloudHandoff = null; });
+  }
+
+  private async handoff(): Promise<void> {
+    const returnKind = this.route?.snapshot.queryParamMap.get('return');
+    if (returnKind === 'portal' || returnKind === 'cancel' ||
+        this.route?.snapshot.queryParamMap.get('billing') === 'cancel') return;
+    const owner = this.auth.user();
+    const service = this.injector.get(PremiumCloudIntentService);
+    const intent = await service.pending();
+    if (intent?.source.kind !== 'checkout' || !await service.verified(intent)) return;
+    if (this.auth.user() === owner) await this.router.navigateByUrl('/forest');
   }
   protected async portal(): Promise<void> {
     if (!this.standardOwnAccount()) return;

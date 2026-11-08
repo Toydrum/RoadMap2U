@@ -24,6 +24,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 import { TreesRepo } from '../../core/repos/trees.repo';
 import { NodesRepo } from '../../core/repos/nodes.repo';
 import { ForestQuotaError, type QuotaDenial } from '../../core/repos/forest-mutations.service';
+import { forestQuotaMessage, restoreTreeWithFeedback } from './forest-quota-feedback';
 import { CheckinsRepo } from '../../core/repos/checkins.repo';
 import { HarvestsRepo } from '../../core/repos/harvests.repo';
 import { SettingsService } from '../../core/repos/settings.service';
@@ -102,17 +103,7 @@ export class ForestPage {
     if (!error) return '';
     const copy = this.i18n.t().forest.errors;
     if (error === STARTER_BRANCH_FAILURE) return copy.starterBranches;
-    if (!(error instanceof ForestQuotaError)) return copy.unknown;
-    switch (error.decision.reason) {
-      case 'ACCESS_LEASE_REQUIRED':
-        return copy.accessLeaseRequired;
-      case 'ACTIVE_TREE_LIMIT':
-        return this.i18n.fill(copy.activeTreeLimit, { limit: error.decision.limit });
-      case 'VISIBLE_BRANCH_LIMIT':
-        return this.i18n.fill(copy.visibleBranchLimit, { limit: error.decision.limit });
-      default:
-        return copy.unknown;
-    }
+    return forestQuotaMessage(this.i18n, error) ?? copy.unknown;
   });
   /** Tree pending archive (confirm sheet open). */
   protected readonly archiving = signal<Tree | null>(null);
@@ -745,7 +736,7 @@ export class ForestPage {
       {
         message: this.i18n.fill(this.i18n.t().tree.archivedToast, { name: tree.name }),
         actionLabel: this.i18n.t().common.undo,
-        action: () => void this.trees.restore(tree),
+        action: () => void restoreTreeWithFeedback(tree, this.trees, this.i18n, this.toast),
       },
       UNDO_MS,
     );
@@ -774,9 +765,10 @@ export class ForestPage {
       {
         message: this.i18n.t().cosecha.elixir.minted,
         actionLabel: this.i18n.t().common.undo,
-        action: () => {
-          void this.trees.restore(tree);
-          void this.conserveria.undistill(elixir.id);
+        action: async () => {
+          if (await restoreTreeWithFeedback(tree, this.trees, this.i18n, this.toast)) {
+            await this.conserveria.undistill(elixir.id);
+          }
         },
       },
       UNDO_MS,

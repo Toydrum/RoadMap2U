@@ -10,7 +10,7 @@ import {
   type SyncRecord,
 } from '../api/contracts';
 import { AuthService } from '../auth/auth.service';
-import { META_ACCOUNT_LINK } from '../auth/auth-types';
+import { META_ACCOUNT_LINK, META_AUTH_IDENTITY } from '../auth/auth-types';
 import { PrivacyService } from '../privacy.service';
 import { ADULT_PRIVACY_VERSIONS } from '../api/contracts';
 import { privacyDocument, commonAccountDocument } from '../api/privacy-document';
@@ -159,7 +159,10 @@ function configure(input: {
       SyncService,
       SyncConflictStore,
       { provide: API_CLIENT, useValue: api },
-      { provide: AuthService, useValue: { user: authUser, sessionStale: signal(false) } },
+      {
+        provide: AuthService,
+        useValue: { user: authUser, sessionStale: signal(false), deviceSession: signal('session-1') },
+      },
       { provide: TreesRepo, useValue: trees },
       { provide: NodesRepo, useValue: nodes },
       { provide: CheckinsRepo, useValue: empty },
@@ -197,6 +200,41 @@ describe('commercial sync conflicts', () => {
   afterEach(() => {
     TestBed.resetTestingModule();
     localStorage.removeItem('roadmap2u-privacy-withdraw-intents-v1');
+    vi.unstubAllGlobals();
+  });
+
+  it.each([false, true])('resumes the same cursor only with current durable authority (%s)', async (detached) => {
+    vi.stubGlobal('navigator', {
+      onLine: true,
+      locks: { request: (_key: string, _options: unknown, callback: (lock: object) => unknown) => callback({}) },
+    });
+    const link = { key: META_ACCOUNT_LINK, accountId: 'owner-a', linkedAt: NOW, uploadedAt: NOW };
+    let durable: typeof link | { accountId: null } = link;
+    const getSyncChanges = vi.fn(async () => ({ changes: [], cursor: 'cursor-2', more: false }));
+    const push = vi.fn<ApiClient['pushSync']>();
+    const { service } = configure({
+      pushSync: push,
+      getSyncChanges,
+      metaStorage: {
+        read: async (key) => key === META_ACCOUNT_LINK
+          ? structuredClone(durable)
+          : key === META_AUTH_IDENTITY
+            ? { user: { userId: 'owner-a' }, sessionBinding: 'session-1' }
+            : { cursor: 'cursor-1', watermark: NOW, lastSyncAt: NOW },
+        write: async () => undefined,
+      },
+    });
+    await service.init();
+    if (detached) durable = { accountId: null };
+    await expect(service.activatePremiumCloud({
+      privacyRevision: 2,
+      session: 'session-1',
+      allowLocalUpload: false,
+      verify: async () => true,
+    })).resolves.toBe(!detached);
+    if (detached) expect(getSyncChanges).not.toHaveBeenCalled();
+    else expect(getSyncChanges).toHaveBeenCalledWith('cursor-1');
+    expect(push).not.toHaveBeenCalled();
   });
 
   it('does not change the device link or send forest data without current consent', async () => {

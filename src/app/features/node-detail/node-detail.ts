@@ -24,6 +24,7 @@ import { SheetDirective } from '../../shared/ui/sheet.directive';
 import { ConfirmSheet } from '../../shared/ui/confirm-sheet';
 import { VisitSession } from '../../core/visit/visit-session';
 import { PromiseService } from '../cosecha/promise.service';
+import { forestQuotaMessage } from '../forest/forest-quota-feedback';
 
 // Life-cycle order, rest LAST (owner 2026-07-11): seed → growing → bloomed
 // reads as the branch's natural arc; resting is the aside, not a stage.
@@ -369,7 +370,12 @@ export class NodeDetail {
   protected async addStep(): Promise<void> {
     const title = this.stepTitle().trim();
     if (!title) return;
-    await this.nodes.plant(this.node().treeId, this.node().id, { title });
+    try {
+      await this.nodes.plant(this.node().treeId, this.node().id, { title });
+    } catch (error) {
+      this.showMutationError(error);
+      return;
+    }
     this.stepTitle.set('');
     // Clicking the + button steals focus — hand it back for the next step.
     this.stepInput()?.nativeElement.focus();
@@ -383,6 +389,7 @@ export class NodeDetail {
    *  plants nothing and closes without a word. */
   protected readonly crumbleStep = signal<number | null>(null);
   protected readonly crumbleAnswer = signal('');
+  protected readonly crumbleSaving = signal(false);
   private crumbleAnswers: string[] = [];
 
   /** Offered while the branch is live and still standing bare (≤1 pasito). */
@@ -392,30 +399,40 @@ export class NodeDetail {
   });
 
   protected startCrumble(): void {
+    if (this.crumbleSaving()) return;
     this.crumbleAnswers = [];
     this.crumbleAnswer.set('');
     this.crumbleStep.set(0);
   }
 
   protected async crumbleNext(skip: boolean): Promise<void> {
+    const step = this.crumbleStep();
+    if (step === null || this.crumbleSaving()) return;
     const answer = skip ? '' : this.crumbleAnswer().trim();
-    if (answer) this.crumbleAnswers.push(answer);
-    this.crumbleAnswer.set('');
-    const step = this.crumbleStep() ?? 0;
     if (step < 2) {
+      if (answer) this.crumbleAnswers.push(answer);
+      this.crumbleAnswer.set('');
       this.crumbleStep.set(step + 1);
       return;
     }
-    this.crumbleStep.set(null);
-    for (const title of this.crumbleAnswers) {
-      await this.nodes.plant(this.node().treeId, this.node().id, { title });
+    const node = this.node();
+    const drafts = [...this.crumbleAnswers, answer].filter(Boolean).map((title) => ({ parentId: node.id, title }));
+    if (!drafts.length) {
+      this.closeCrumble();
+      return;
     }
-    if (this.crumbleAnswers.length) {
+    this.crumbleSaving.set(true);
+    try {
+      await this.nodes.plantMany(node.treeId, drafts);
+      this.closeCrumble();
       this.toast.show({
-        message: this.i18n.plural(this.crumbleAnswers.length, this.i18n.t().crumble.planted),
+        message: this.i18n.plural(drafts.length, this.i18n.t().crumble.planted),
       });
+    } catch (error) {
+      this.showMutationError(error);
+    } finally {
+      this.crumbleSaving.set(false);
     }
-    this.crumbleAnswers = [];
   }
 
   protected closeCrumble(): void {
@@ -534,11 +551,17 @@ export class NodeDetail {
       {
         message: this.i18n.fill(this.i18n.t().node.archivedToast, { title: node.title }),
         actionLabel: this.i18n.t().common.undo,
-        action: () => void this.nodes.unarchiveMany(archived),
+        action: () => void this.nodes.unarchiveMany(archived).catch((error) => this.showMutationError(error)),
       },
       UNDO_MS,
     );
     this.closed.emit();
+  }
+
+  private showMutationError(error: unknown): void {
+    this.toast.show({
+      message: forestQuotaMessage(this.i18n, error) ?? this.i18n.t().familia.errors.unknown,
+    });
   }
 
   /** Undo of an unrooted branching — the only way out of 'branched'. */

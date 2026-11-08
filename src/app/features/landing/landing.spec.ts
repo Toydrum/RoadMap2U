@@ -40,6 +40,7 @@ describe('commercial landing foundation', () => {
     expect(root.querySelector('.premium-prices')?.textContent).toContain('$114.84 MXN');
     expect(root.querySelector('.premium-prices')?.textContent).toContain('$1,100.84 MXN');
     expect(root.querySelector('.premium-plan')?.textContent).toContain(ES.billing.recurring);
+    expect(root.querySelector('.microcopy')?.textContent).toContain('1 árbol activo y 5 ramas');
   });
   it('keeps the individual offer closed when the public catalog is unavailable', async () => {
     await TestBed.configureTestingModule({
@@ -70,7 +71,7 @@ describe('commercial landing foundation', () => {
     expect(ES.landing.hero.primary).toBe('Crear mi bosque gratis');
     expect(ES.landing.hero.secondary).toBe('Ver cómo funciona');
     expect(ES.landing.hero.microcopy).toBe(
-      'Sin tarjeta · empieza con 2 árboles y 10 ramas por árbol',
+      'Sin tarjeta · empieza con {trees} y {branches} ramas por árbol',
     );
     expect(ES.landing.plans.premium.monthly).toBe('$114.84 MXN al mes');
     expect(ES.landing.plans.premium.yearly).toBe('$1,100.84 MXN al año · ahorra $277.24 · IVA incluido');
@@ -80,7 +81,7 @@ describe('commercial landing foundation', () => {
     expect(EN.landing.hero.primary).toBe('Create my forest for free');
     expect(EN.landing.hero.secondary).toBe('See how it works');
     expect(EN.landing.hero.microcopy).toBe(
-      'No card required · start with 2 trees and 10 branches per tree',
+      'No card required · start with {trees} and {branches} branches per tree',
     );
     expect(JSON.stringify(EN.landing)).not.toMatch(/famil(?:y|ies)|households|minors|coming soon|proposed launch/i);
   });

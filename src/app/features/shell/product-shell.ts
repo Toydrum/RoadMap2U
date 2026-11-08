@@ -11,6 +11,7 @@ import { BloomBurstHost } from '../../shared/ui/bloom-burst';
 import { HarvestSkyHost } from '../../shared/ui/harvest-sky';
 import { PerchBody } from '../../shared/ui/perch-body';
 import { ToastService } from '../../shared/ui/toast.service';
+import { PremiumCloudActivation } from '../../core/sync/premium-cloud-activation';
 
 /** Chrome for the local-first product. Public routes never construct it. */
 @Component({
@@ -32,6 +33,7 @@ export class ProductShell {
   protected readonly toast = inject(ToastService);
   protected readonly focus = inject(FocusSessionService);
   protected readonly promise = inject(PromiseService);
+  protected readonly cloudActivation = inject(PremiumCloudActivation).status;
   private readonly router = inject(Router);
   private readonly anchor = inject(PerchAnchorService);
 

@@ -342,9 +342,18 @@
               <span class="hint nube-last">{{ lastSyncText() }}</span>
             </span>
             <div class="opts">
-              <button type="button" class="chip opt" (click)="doSyncNow()">
-                🔄 {{ i18n.t().nube.syncNowCta }}
-              </button>
+              @if (sync.link()?.autoStartPending) {
+                <button
+                  type="button"
+                  class="chip opt"
+                  (click)="doConnect()"
+                  [disabled]="!privacy.status()?.canUseCloud || privacy.cloudBlocked()"
+                >☁️ {{ i18n.t().nube.connectCta }}</button>
+              } @else {
+                <button type="button" class="chip opt" (click)="doSyncNow()">
+                  🔄 {{ i18n.t().nube.syncNowCta }}
+                </button>
+              }
               <button type="button" class="chip opt" (click)="doDisconnect()">
                 {{ i18n.t().nube.disconnectCta }}
               </button>
@@ -400,7 +409,7 @@
           <li>
             <span class="dot" [style.background]="'var(--accent-' + tree.accent + ')'"></span>
             <span class="name">{{ tree.name }}</span>
-            <button type="button" class="btn btn-ghost" (click)="trees.restore(tree)">
+            <button type="button" class="btn btn-ghost" (click)="restoreArchivedTree(tree)">
               {{ i18n.t().settings.restore }}
             </button>
             <button type="button" class="btn btn-ghost danger" (click)="deleting.set(tree)">

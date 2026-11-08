@@ -16,7 +16,7 @@
       {{
         i18n.fill(
           reason() === 'ACTIVE_TREE_LIMIT'
-            ? i18n.t().access.planLimit.activeTrees
+            ? (limit() === 1 ? i18n.t().access.planLimit.activeTree : i18n.t().access.planLimit.activeTrees)
             : i18n.t().access.planLimit.visibleBranches,
           { limit: limit() }
         )

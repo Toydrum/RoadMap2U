@@ -65,7 +65,7 @@
               <span aria-hidden="true">↓</span>
             </a>
           </div>
-          <p class="microcopy">{{ copy().landing.hero.microcopy }}</p>
+          <p class="microcopy">{{ quotaText(copy().landing.hero.microcopy) }}</p>
         </div>
 
         <div class="hero-visual" aria-hidden="true">
@@ -144,7 +144,7 @@
             <p class="included">{{ copy().landing.plans.included }}</p>
             <ul>
               @for (feature of copy().landing.plans.free.features; track feature) {
-                <li><span aria-hidden="true">✓</span>{{ feature }}</li>
+                <li><span aria-hidden="true">✓</span>{{ quotaText(feature) }}</li>
               }
             </ul>
           </div>
@@ -205,7 +205,7 @@
               {{ item.question }}
               <span aria-hidden="true"></span>
             </summary>
-            <p>{{ item.answer }}</p>
+            <p>{{ quotaText(item.answer) }}</p>
           </details>
         }
       </div>
@@ -219,7 +219,7 @@
       <div>
         <p class="eyebrow">{{ copy().landing.final.eyebrow }}</p>
         <h2 id="final-title">{{ copy().landing.final.title }}</h2>
-        <p>{{ copy().landing.final.body }}</p>
+        <p>{{ quotaText(copy().landing.final.body) }}</p>
         <a class="button button-light" routerLink="/account">{{ copy().landing.final.cta }}</a>
       </div>
     </section>

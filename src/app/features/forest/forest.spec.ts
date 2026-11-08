@@ -14,7 +14,7 @@ import { HarvestsRepo } from '../../core/repos/harvests.repo';
 import { NodesRepo } from '../../core/repos/nodes.repo';
 import { SettingsService } from '../../core/repos/settings.service';
 import { TreesRepo } from '../../core/repos/trees.repo';
-import { ToastService } from '../../shared/ui/toast.service';
+import { ToastService, type Toast } from '../../shared/ui/toast.service';
 import { ForestPage } from './forest';
 
 function quotaError(reason: 'ACCESS_LEASE_REQUIRED' | 'ACTIVE_TREE_LIMIT'): ForestQuotaError {
@@ -25,7 +25,11 @@ function quotaError(reason: 'ACCESS_LEASE_REQUIRED' | 'ACTIVE_TREE_LIMIT'): Fore
   );
 }
 
-async function forestHarness(options: { createError?: unknown; plantManyError?: unknown }) {
+async function forestHarness(options: {
+  createError?: unknown;
+  plantManyError?: unknown;
+  restore?: (tree: Tree) => Promise<void>;
+}) {
   const base = newSyncBase(1_800_000_000_000);
   const newborn: Tree = {
     ...base,
@@ -49,6 +53,8 @@ async function forestHarness(options: { createError?: unknown; plantManyError?: 
     byId,
     create,
     setOrder: vi.fn(async () => undefined),
+    archive: vi.fn(async () => undefined),
+    restore: options.restore ?? vi.fn(async () => undefined),
   };
   const plantMany = vi.fn(async () => {
     if (options.plantManyError) throw options.plantManyError;
@@ -68,6 +74,8 @@ async function forestHarness(options: { createError?: unknown; plantManyError?: 
       (count === 1 ? forms.one : forms.many).replace('{count}', String(count)),
   };
   const router = { url: '/forest?plant=1', navigate: vi.fn(async () => true) };
+  const showToast = vi.fn<(toast: Toast, duration?: number) => void>();
+  const undistill = vi.fn(async () => undefined);
 
   TestBed.configureTestingModule({
     imports: [ForestPage],
@@ -80,8 +88,8 @@ async function forestHarness(options: { createError?: unknown; plantManyError?: 
         provide: SettingsService,
         useValue: { settings: signal({ startersHidden: false }), patch: vi.fn() },
       },
-      { provide: ToastService, useValue: { show: vi.fn() } },
-      { provide: ConserveriaService, useValue: {} },
+      { provide: ToastService, useValue: { show: showToast } },
+      { provide: ConserveriaService, useValue: { distill: async () => ({ id: 'elixir' }), undistill } },
       { provide: FocusSessionService, useValue: { active: signal(null) } },
       { provide: PerchAnchorService, useValue: { claim: vi.fn(), release: vi.fn() } },
       { provide: I18nService, useValue: i18n },
@@ -100,7 +108,7 @@ async function forestHarness(options: { createError?: unknown; plantManyError?: 
   await TestBed.compileComponents();
   const fixture = TestBed.createComponent(ForestPage);
   fixture.detectChanges();
-  return { fixture, create, newborn, nodesByTree, plantMany, router, treeById: byId };
+  return { fixture, create, newborn, nodesByTree, plantMany, router, treeById: byId, showToast, undistill };
 }
 
 describe('forest growth errors', () => {
@@ -188,5 +196,23 @@ describe('forest growth errors', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/account'], {
       queryParams: { intent: 'redeem', returnUrl: '/forest?plant=1' },
     });
+  });
+
+  it('keeps the elixir until undo restores the archived tree', async () => {
+    let finishRestore!: () => void;
+    const restore = vi.fn(() => new Promise<void>((resolve) => (finishRestore = resolve)));
+    const { fixture, newborn, showToast, undistill } = await forestHarness({ restore });
+    const page = fixture.componentInstance as unknown as {
+      farewelling: WritableSignal<Tree | null>;
+      keepFarewell(carry: string): Promise<void>;
+    };
+    page.farewelling.set(newborn);
+    await page.keepFarewell('Un recuerdo');
+    showToast.mock.lastCall![0].action!();
+
+    expect(restore).toHaveBeenCalledOnce();
+    expect(undistill).not.toHaveBeenCalled();
+    finishRestore();
+    await vi.waitFor(() => expect(undistill).toHaveBeenCalledWith('elixir'));
   });
 });

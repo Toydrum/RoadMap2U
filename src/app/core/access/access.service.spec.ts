@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { API_CLIENT, type ApiClient } from '../api/api-client';
+import { PUBLIC_PLAN_CATALOG } from '../api/public-individual-catalog';
 import {
   ACCESS_OFFLINE_LEASE_MS,
   ApiError,
@@ -163,7 +164,7 @@ describe('PlanCatalogService', () => {
         paymentsEnabled: true,
       } as unknown as PlanCatalog);
     TestBed.configureTestingModule({
-      providers: [PlanCatalogService, { provide: API_CLIENT, useValue: apiWith({ getPlans }) }],
+      providers: [PlanCatalogService, { provide: PUBLIC_PLAN_CATALOG, useValue: getPlans }],
     });
     const service = TestBed.inject(PlanCatalogService);
 
@@ -178,6 +179,29 @@ describe('PlanCatalogService', () => {
 
 describe('AccessService', () => {
   beforeEach(() => TestBed.resetTestingModule());
+
+  it('accepts the reduced Free policy without rejecting a legacy response on rollback', async () => {
+    const legacy = createFreeAccessSummary(NOW);
+    const reduced = { ...legacy, limits: { maxActiveTrees: 1, maxVisibleBranchesPerTree: 5 } };
+    const api = apiWith({ getAccess: vi.fn().mockResolvedValueOnce(reduced).mockResolvedValueOnce(legacy) });
+    const service = configure({ api });
+    expect((await service.refresh()).limits).toEqual(reduced.limits);
+    expect((await service.refresh()).limits).toEqual(legacy.limits);
+  });
+
+  it('returns the cloud activation gate only from a verified response and never from offline storage', async () => {
+    const cache = cachePort();
+    const api = apiWith({
+      getAccess: vi.fn()
+        .mockResolvedValueOnce({ ...premium(), cloudAutoStartEnabled: true })
+        .mockRejectedValueOnce(new ApiError('offline')),
+    });
+    const service = configure({ api, cache });
+    expect((await service.refreshVerified())?.cloudAutoStartEnabled).toBe(true);
+    expect(cache.rows.get('rocio')).not.toHaveProperty('cloudAutoStartEnabled');
+    expect(await service.refreshVerified()).toBeNull();
+    expect(service.access().effectivePlanKey).toBe('premium');
+  });
 
   it('accepts a finite individual paid source and keeps its paid boundary offline', async () => {
     const paidThrough = NOW + 60_000;
@@ -575,7 +599,7 @@ describe('AccessService', () => {
     expect(getAccess).not.toHaveBeenCalled();
     expect(service.access()).toMatchObject({
       effectivePlanKey: 'free',
-      limits: { maxActiveTrees: 2, maxVisibleBranchesPerTree: 10 },
+      limits: { maxActiveTrees: 1, maxVisibleBranchesPerTree: 5 },
       capabilities: { cloudSync: false, social: false, family: false },
     });
     expect(service.leaseState()).toBe('valid');

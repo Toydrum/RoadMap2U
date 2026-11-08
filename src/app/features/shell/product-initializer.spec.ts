@@ -15,6 +15,7 @@ import { ThemeService } from '../../core/theme/theme.service';
 import { UpdateService } from '../../core/update.service';
 import { AuthInitializer } from './auth-initializer';
 import { ProductInitializer } from './product-initializer';
+import { PremiumCloudActivation } from '../../core/sync/premium-cloud-activation';
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve: () => void = () => {};
@@ -112,6 +113,7 @@ describe('route-scoped startup', () => {
           useValue: { start: () => (calls.push('access'), accessReady.promise) },
         },
         { provide: SyncService, useValue: { init: () => (calls.push('sync'), Promise.resolve()) } },
+        { provide: PremiumCloudActivation, useValue: { start: () => calls.push('cloud') } },
         { provide: ThemeService, useFactory: tracked('theme', {}) },
         { provide: MotionService, useFactory: tracked('motion', {}) },
         {
@@ -150,6 +152,7 @@ describe('route-scoped startup', () => {
       'auth',
       'access',
       'sync',
+      'cloud',
       'theme',
       'motion',
       'updates',

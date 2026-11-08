@@ -1,6 +1,16 @@
 <a class="skip-link" href="#main">{{ i18n.t().a11y.skipToContent }}</a>
 
 <main id="main" [class.with-tabs]="showTabs()">
+  @if (cloudActivation() !== 'idle') {
+    <p class="premium-cloud-status hint" role="status">
+      @switch (cloudActivation()) {
+        @case ('waiting') { {{ i18n.t().premiumCloud.waiting }} }
+        @case ('syncing') { {{ i18n.t().premiumCloud.syncing }} }
+        @case ('current') { {{ i18n.t().premiumCloud.current }} }
+        @case ('attention') { {{ i18n.t().premiumCloud.attention }} }
+      }
+    </p>
+  }
   <router-outlet />
 </main>
 

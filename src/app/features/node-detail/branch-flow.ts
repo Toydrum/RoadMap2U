@@ -7,6 +7,7 @@ import { SettingsService } from '../../core/repos/settings.service';
 import { TreeNode } from '../../core/db/schema';
 import { ToastService, UNDO_MS } from '../../shared/ui/toast.service';
 import { SheetDirective } from '../../shared/ui/sheet.directive';
+import { forestQuotaMessage } from '../forest/forest-quota-feedback';
 
 /** Cap on alternative paths — visible in the UI as a counter, never silent. */
 const MAX_PATHS = 5;
@@ -132,7 +133,15 @@ export class BranchFlow {
     const tree = this.trees.byId().get(before.treeId);
     const prevCurrent = tree?.currentNodeId ?? null;
 
-    const children = await this.nodes.branch(before, drafts);
+    let children: TreeNode[];
+    try {
+      children = await this.nodes.branch(before, drafts);
+    } catch (error) {
+      const message = forestQuotaMessage(this.i18n, error);
+      if (!message) throw error;
+      this.toast.show({ message });
+      return;
+    }
 
     // "You are here" moves to the first new path.
     if (tree && children.length) await this.trees.setCurrentNode(tree, children[0].id);

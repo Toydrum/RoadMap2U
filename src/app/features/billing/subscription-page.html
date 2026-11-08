@@ -166,6 +166,7 @@
                 (change)="mexico.set(checked($event))"
               />{{ i18n.t().billing.countryAccept }}</label
             >
+            <app-premium-cloud-choice [disabled]="preparingCloud() || bill.busy()" />
             <button type="submit" class="btn billing-checkout" [disabled]="!canCheckout()">
               {{ i18n.t().billing.checkout }}
             </button>
