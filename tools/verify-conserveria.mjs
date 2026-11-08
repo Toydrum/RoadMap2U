@@ -5,8 +5,8 @@
 // drops the sky. D: the seal ritual moves fruits' HOME, register intact,
 // lifetime count UNCHANGED (nada se gasta). E: «Abrir el frasco» undoes.
 // F: one fruit is a whole batch. G: a mixed pot derives «del bosque».
-// H: the edited name persists to the shelf + register chip. I: a tea
-// leaves NO residue anywhere. J: the meadow holds NO jar (0.0.99) and the
+// H: the edited name persists to the shelf + register chip. I: the tea
+// action has been retired. J: the meadow holds NO jar (0.0.99) and the
 // plot centers stay self-resolving. K: DOORS CANCEL — dismissing the
 // ritual mid-way changes nothing.
 import { BASE, launchPage, ok } from './lib/harness.mjs';
@@ -246,27 +246,10 @@ if (freshSpecies >= 2) {
   ok('G mixed pot derives del bosque', false, `only ${freshSpecies} species fresh in demo`);
 }
 
-// I — a tea leaves NO residue.
-const preTea = await idbCounts();
-await page.locator('.tea-door').click();
-await page.waitForTimeout(700);
-await page.locator('button', { hasText: 'Que me sorprenda' }).click();
-await page.waitForTimeout(300);
-await page.locator('.tea-brew').click();
-await page.waitForTimeout(500);
-let sips = 0;
-while ((await page.locator('.tea-sip').count()) && sips < 5) {
-  await page.locator('.tea-sip').click();
-  await page.waitForTimeout(250);
-  sips++;
-}
-await page.locator('.tea-end').click();
-await page.waitForTimeout(400);
-const postTea = await idbCounts();
+// I — a populated pantry no longer offers to brew tea.
 ok(
-  'I tea leaves no residue',
-  postTea.jars === preTea.jars && postTea.preserved === preTea.preserved && postTea.harvests === preTea.harvests,
-  `sips=${sips + 1}`,
+  'I the populated pantry has no tea action',
+  (await page.getByRole('button', { name: 'Preparar un té', exact: true }).count()) === 0,
 );
 
 // C — reduce-motion: the card (information) stays, the sky steps aside.

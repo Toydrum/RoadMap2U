@@ -18,20 +18,13 @@
     } @else if (jamShelf().length) {
       <p class="fresh-ready">{{ i18n.t().cosecha.freshReady }}</p>
     }
-    <!-- Primary doors: make jam + tea. «Prometer un frasco» is a quieter
-         secondary affordance below (0.0.94 — both are fruit→jar). -->
-    <div class="doors">
-      @if (harvests.fresh().length) {
+    @if (freshCount()) {
+      <div class="doors">
         <button type="button" class="btn btn-primary jam-door" (click)="makingJam.set(true)">
           🫙 {{ i18n.t().cosecha.makeJam }}
         </button>
-      }
-      @if (total()) {
-        <button type="button" class="btn btn-soft tea-door" (click)="brewingTea.set(true)">
-          {{ i18n.t().cosecha.teaDoor }}
-        </button>
-      }
-    </div>
+      </div>
+    }
     @if (!promise.atLimit()) {
       <div class="doors-secondary">
         <button type="button" class="btn btn-ghost promise-door" (click)="openWizard()">
@@ -239,12 +232,6 @@
 @defer (when makingJam()) {
   @if (makingJam()) {
     <app-mermelada-sheet (closed)="makingJam.set(false)" (sealed)="onSealed($event)" />
-  }
-}
-
-@defer (when brewingTea()) {
-  @if (brewingTea()) {
-    <app-te-sheet (closed)="brewingTea.set(false)" />
   }
 }
 
