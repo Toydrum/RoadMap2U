@@ -1,4 +1,7 @@
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { AccompanimentService } from '../../core/accompaniment.service';
 import { AccessService } from '../../core/access/access.service';
@@ -15,7 +18,11 @@ import { ThemeService } from '../../core/theme/theme.service';
 import { UpdateService } from '../../core/update.service';
 import { AuthInitializer } from './auth-initializer';
 import { ProductInitializer } from './product-initializer';
+import { PRODUCT_ROUTES } from './product.routes';
 import { PremiumCloudActivation } from '../../core/sync/premium-cloud-activation';
+
+@Component({ template: '' })
+class TestPage {}
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve: () => void = () => {};
@@ -26,6 +33,34 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
 }
 
 describe('route-scoped startup', () => {
+  it('reuses startup on the check-in redirect and prepares access on a later product entry', async () => {
+    const [productRoute] = PRODUCT_ROUTES;
+    const entryRoutes = productRoute.children!
+      .filter(({ path }) => path === 'ahora' || path === 'check-in')
+      .map(({ path, canActivate }) => ({ path, canActivate, component: TestPage }));
+    const init = vi.fn(async () => {});
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'account', component: TestPage },
+          { path: '', canActivate: productRoute.canActivate, children: entryRoutes },
+        ]),
+        { provide: ProductInitializer, useValue: { init } },
+        { provide: AuthService, useValue: { status: () => 'signedIn' } },
+        { provide: SettingsService, useValue: { settings: () => DEFAULT_SETTINGS } },
+      ],
+    });
+
+    const harness = await RouterTestingHarness.create('/ahora');
+    expect(TestBed.inject(Router).url).toBe('/check-in');
+    expect(init).toHaveBeenCalledTimes(1);
+
+    await harness.navigateByUrl('/account', TestPage);
+    await harness.navigateByUrl('/ahora', TestPage);
+    expect(TestBed.inject(Router).url).toBe('/ahora');
+    expect(init).toHaveBeenCalledTimes(2);
+  });
+
   it('hydrates account auth once without constructing any product service', async () => {
     const gate = deferred();
     const hydrate = vi.fn(() => gate.promise);

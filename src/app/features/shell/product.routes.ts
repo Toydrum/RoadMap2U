@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { CanActivateFn, Router, Routes } from '@angular/router';
+import { CanActivateFn, RedirectCommand, Router, Routes } from '@angular/router';
 import { authRequiredGate } from '../../core/auth/auth.guard';
 import { NodesRepo } from '../../core/repos/nodes.repo';
 import { SettingsService } from '../../core/repos/settings.service';
@@ -13,6 +13,7 @@ import { ProductShell } from './product-shell';
 const visitGate: CanActivateFn = () => inject(Router).createUrlTree(['/settings']);
 
 const CHECK_IN_COOLDOWN_MS = 30 * 60 * 1000;
+const CHECK_IN_REDIRECT = Symbol('check-in redirect');
 
 /** One gentle diversion per app-open. After that, tabs go exactly where they say. */
 @Injectable({ providedIn: 'root' })
@@ -27,14 +28,24 @@ const checkInGate: CanActivateFn = () => {
   const settings = inject(SettingsService).settings();
   const fresh =
     settings.lastCheckInAt !== null && Date.now() - settings.lastCheckInAt < CHECK_IN_COOLDOWN_MS;
-  return fresh ? true : inject(Router).createUrlTree(['/check-in']);
+  return fresh
+    ? true
+    : new RedirectCommand(inject(Router).createUrlTree(['/check-in']), {
+        info: CHECK_IN_REDIRECT,
+      });
 };
 
 /** Every local-first route lives under one initialized chrome boundary. */
 export const PRODUCT_ROUTES: Routes = [
   {
     path: '',
-    canActivate: [productReadyGate],
+    canActivate: [
+      (route, state) =>
+        // The parent already initialized the product before the check-in guard ran.
+        inject(Router).currentNavigation()?.extras.info === CHECK_IN_REDIRECT
+          ? true
+          : productReadyGate(route, state),
+    ],
     component: ProductShell,
     children: [
       {
