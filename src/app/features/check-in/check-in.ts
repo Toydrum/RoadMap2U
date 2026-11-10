@@ -50,17 +50,10 @@ export class CheckInPage {
   protected readonly feelings = FEELINGS;
   protected readonly step = signal<Step>('feeling');
   protected readonly feeling = signal<Feeling | null>(null);
-  /** «¿Cuánta agua trae tu regadera?» — optional, tap-to-toggle, never
-   *  required, never advances the step (the feeling tap does). */
+  /** Optional energy selection. The feeling tap advances the step. */
   protected readonly energy = signal<'llena' | 'media' | 'bajita' | null>(null);
-  /** The regadera folds like the notita — optional extras share one shape. */
   protected readonly energyOpen = signal(false);
-  protected readonly energyTokens = ['llena', 'media', 'bajita'] as const;
-  protected readonly energyIcons: Record<'llena' | 'media' | 'bajita', string> = {
-    llena: '🚿',
-    media: '💧',
-    bajita: '🌵',
-  };
+  protected readonly energyTokens = ['bajita', 'media', 'llena'] as const;
 
   protected toggleEnergy(token: 'llena' | 'media' | 'bajita'): void {
     this.energy.set(this.energy() === token ? null : token);

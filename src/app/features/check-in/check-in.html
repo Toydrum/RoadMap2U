@@ -40,12 +40,10 @@
           }
         </div>
 
-        <!-- «La regadera» — optional, folded like the notita so the ONE
-             question ("¿dónde sientes que estás?") keeps the whole stage.
-             It never advances the step and never becomes a score. -->
+        <!-- Energy and the notita are optional extras. They don't advance the step. -->
         @if (!energyOpen() && !energy()) {
           <button type="button" class="btn btn-ghost energy-toggle" (click)="energyOpen.set(true)">
-            💧 {{ i18n.t().checkIn.energyLabel }} <span class="opt">({{ i18n.t().common.optional }})</span>
+            {{ i18n.t().checkIn.energyLabel }} <span class="opt">({{ i18n.t().common.optional }})</span>
           </button>
         } @else {
           <div class="energy-row" role="group" [attr.aria-label]="i18n.t().checkIn.energyLabel">
@@ -56,9 +54,10 @@
                   type="button"
                   class="chip pick"
                   [class.selected]="energy() === token"
+                  [attr.aria-pressed]="energy() === token"
                   (click)="toggleEnergy(token)"
                 >
-                  {{ energyIcons[token] }} {{ i18n.t().checkIn.energy[token] }}
+                  {{ i18n.t().checkIn.energy[token] }}
                 </button>
               }
             </div>

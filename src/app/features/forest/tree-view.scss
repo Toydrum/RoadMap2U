@@ -52,6 +52,16 @@
     padding: 0.4rem 0.5rem;
     font-size: 1.05rem;
   }
+
+  .tree-outline-toggle {
+    min-height: 44px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.9rem;
+
+    &[aria-expanded='true'] {
+      background: var(--surface-2);
+    }
+  }
 }
 
 /* Phone header: one flex row can't hold back + title + 3 tools + plant —
@@ -61,7 +71,7 @@
   .bar {
     flex-wrap: wrap;
     gap: 0.3rem;
-    padding: 0.55rem 0.75rem;
+    padding: 0.55rem 0.6rem;
 
     .title-wrap {
       order: -1;
@@ -74,13 +84,12 @@
     }
 
     .plant {
-      padding: 0.4rem 0.7rem;
+      padding: 0.4rem 0.55rem;
       font-size: 0.85rem;
     }
 
     .tree-archive,
-    .tree-focus,
-    .tree-outline-toggle {
+    .tree-focus {
       min-width: 40px;
       min-height: 40px;
       padding: 0.3rem 0.35rem;
@@ -110,6 +119,7 @@
 }
 
 .canvas-wrap {
+  --tree-title-strip: 3.4rem;
   flex: 1;
   min-height: 0;
   position: relative;
@@ -129,6 +139,10 @@
     position: relative;
     z-index: 1;
     height: 100%;
+  }
+
+  @media (max-width: 540px) {
+    --tree-title-strip: 4.4rem;
   }
 
   /* The meadow the tree stands ON — same coordinate system as the ground
@@ -262,7 +276,7 @@
 
 .outline-rail {
   position: absolute;
-  top: 0.7rem;
+  top: calc(var(--tree-title-strip) + 0.7rem);
   right: 0.7rem;
   bottom: 0.7rem;
   width: min(276px, 82vw);
@@ -273,6 +287,10 @@
   background: color-mix(in srgb, var(--surface) 93%, transparent);
   backdrop-filter: blur(2px);
   animation: rail-in 0.22s ease both;
+
+  @media (max-width: 540px) {
+    width: calc(100% - 1.4rem);
+  }
 }
 
 @keyframes rail-in {

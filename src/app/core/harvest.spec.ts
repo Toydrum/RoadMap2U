@@ -13,6 +13,7 @@ import {
   jarCapacity,
   jarSizeFor,
   membersOf,
+  occurrenceRitual,
   ritualKind,
   underDailyPath,
 } from './harvest';
@@ -92,6 +93,13 @@ describe('underDailyPath — pasitos (and sub-pasitos) bear no fruit', () => {
 
   it('the sendero parent itself is NOT under a daily path (retiring it bears fruit)', () => {
     expect(underDailyPath(sendero, byId([sendero, step]))).toBe(false);
+  });
+
+  it('a spiral keeps its own rhythm inside a sendero', () => {
+    const spiral = node('spiral', { parentId: sendero.id, repeats: ['thu'] });
+    const map = byId([sendero, step, spiral]);
+    expect(occurrenceRitual(spiral, map)).toBe(spiral);
+    expect(occurrenceRitual(step, map)).toBe(sendero);
   });
 
   it('ordinary branches and children of a BRANCHED former sendero walk free', () => {

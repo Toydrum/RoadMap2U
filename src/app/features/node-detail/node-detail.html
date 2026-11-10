@@ -84,6 +84,7 @@
             type="button"
             class="chip pick"
             [class.selected]="node().status === status"
+            [disabled]="status === 'achieved' && occurrenceBlocked(node())"
             (click)="setStatus(status, $event)"
           >
             <span class="status-dot" [class]="'status-dot ' + status"></span>
@@ -100,6 +101,9 @@
           🌿 {{ i18n.t().node.branchChip }}
         </button>
       </div>
+      @if (ritualRestLine(); as rest) {
+        <p class="hint">{{ rest }}</p>
+      }
     }
 
     <!-- «La luz»: which branch the sun looks at first — orientation, never
@@ -288,7 +292,7 @@
               </span>
             }
             @if (child.status !== 'achieved') {
-              <button type="button" class="btn btn-ghost tiny" (click)="bloomStep(child, $event)" [attr.aria-label]="i18n.t().status.achieved + ': ' + child.title">🌸</button>
+              <button type="button" class="btn btn-ghost tiny" [disabled]="occurrenceBlocked(child)" (click)="bloomStep(child, $event)" [attr.aria-label]="i18n.t().status.achieved + ': ' + child.title">🌸</button>
             }
           </li>
         }

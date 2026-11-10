@@ -7,7 +7,7 @@ import { PromiseService } from './promise.service';
 /**
  * «¿En cuál frasco?» (0.0.93) — the cross-page placement picker, mounted in App
  * so the bloom toast can offer it from any route. It shows only when >1 goal
- * jar is pending (the toast places directly into the one jar otherwise). DOORS
+ * jar can take the fruit (the toast places directly into the one jar otherwise). DOORS
  * CANCEL: backdrop/Escape just clears the request — the fruit stays fresh.
  * Self-styled (shared-overlay law: bring your own backdrop).
  */
@@ -28,7 +28,7 @@ import { PromiseService } from './promise.service';
         >
           <h2>{{ i18n.t().cosecha.promise.pickerTitle }}</h2>
           <ul class="jar-list">
-            @for (jar of promise.pending(); track jar.id) {
+            @for (jar of promise.acceptingFruit(); track jar.id) {
               <li>
                 <button type="button" class="jar-pick" (click)="pick(jar.id)">
                   <app-promise-jar [fruits]="promise.membersOf(jar.id)" [vessel]="jar.size ?? 'frasco'" [size]="0.7" />
@@ -132,7 +132,6 @@ export class PlacementPicker {
   protected async pick(jarId: string): Promise<void> {
     const fruit = this.promise.placementRequest();
     if (!fruit) return;
-    await this.promise.placeAndCelebrate(fruit.id, jarId);
-    this.promise.clearPlacement();
+    if (await this.promise.placeAndCelebrate(fruit.id, jarId)) this.promise.clearPlacement();
   }
 }

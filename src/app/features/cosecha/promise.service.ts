@@ -27,6 +27,7 @@ export const MAX_PENDING_PROMISES = 3;
  *  only a neutral placeholder until the seal recomputes the real blend. */
 const NEUTRAL_TINT = '#d9d2c4';
 const NEUTRAL_TINT_EDGE = '#b7ad99';
+const EMPTY_MEMBERS: Harvest[] = [];
 
 @Injectable({ providedIn: 'root' })
 export class PromiseService {
@@ -36,9 +37,20 @@ export class PromiseService {
   private readonly i18n = inject(I18nService);
   private readonly toast = inject(ToastService);
 
-  /** Goal jars still filling, newest promise first. */
+  /** Unsealed goal jars, newest promise first. */
   readonly pending = this.preserves.pending;
   readonly atLimit = computed(() => this.pending().length >= MAX_PENDING_PROMISES);
+  readonly acceptingFruit = computed(() => this.pending().filter((jar) => !this.isFull(jar)));
+  private readonly membersByJar = computed(() => {
+    const byJar = new Map<string, Harvest[]>();
+    for (const fruit of this.harvests.all()) {
+      if (!fruit.preserveId) continue;
+      const members = byJar.get(fruit.preserveId);
+      if (members) members.push(fruit);
+      else byJar.set(fruit.preserveId, [fruit]);
+    }
+    return byJar;
+  });
 
   /** A fresh fruit awaiting a jar choice — set by the bloom toast when >1 jar
    *  is pending; a cross-page picker host (mounted in App) reads it. */
@@ -52,13 +64,16 @@ export class PromiseService {
       const fruit = this.placementRequest();
       if (!fruit) return;
       const live = this.harvests.byId().get(fruit.id);
-      if (!this.pending().length || !live || live.deletedAt || live.preserveId) {
+      if (!this.acceptingFruit().length || !live || live.deletedAt || live.preserveId) {
         this.placementRequest.set(null);
       }
     });
   }
   requestPlacement(h: Harvest): void {
-    this.placementRequest.set(h);
+    const live = this.harvests.byId().get(h.id);
+    if (live && !live.deletedAt && !live.preserveId && this.acceptingFruit().length) {
+      this.placementRequest.set(live);
+    }
   }
   clearPlacement(): void {
     this.placementRequest.set(null);
@@ -66,9 +81,7 @@ export class PromiseService {
 
   /** Live members of a jar (the fruits placed so far). */
   membersOf(preserveId: string): Harvest[] {
-    return [...this.harvests.byId().values()].filter(
-      (h) => h.preserveId === preserveId && !h.deletedAt,
-    );
+    return this.membersByJar().get(preserveId) ?? EMPTY_MEMBERS;
   }
 
   capacity(size: JarVessel | undefined): number {
@@ -106,13 +119,16 @@ export class PromiseService {
 
   /** Place a fruit; if that placement FILLS the jar, celebrate the fill and
    *  point to «Hacer mermelada» (the app never self-seals — the user makes it). */
-  async placeAndCelebrate(harvestId: string, preserveId: string): Promise<void> {
+  async placeAndCelebrate(harvestId: string, preserveId: string): Promise<boolean> {
     const res = await this.place(harvestId, preserveId);
-    if (!res?.filled) return;
-    this.toast.show(
-      { message: this.i18n.fill(this.i18n.t().cosecha.promise.filledToast, { name: res.jar.name }) },
-      UNDO_MS,
-    );
+    if (!res) return false;
+    if (res.filled) {
+      this.toast.show(
+        { message: this.i18n.fill(this.i18n.t().cosecha.promise.filledToast, { name: res.jar.name }) },
+        UNDO_MS,
+      );
+    }
+    return true;
   }
 
   unplace(harvestId: string) {

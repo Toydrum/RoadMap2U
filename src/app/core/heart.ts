@@ -1,5 +1,6 @@
 import { TreeNode } from './db/schema';
 import { cadenceOf } from './cadence';
+import { ritualKind } from './harvest';
 
 /**
  * «El corazón del árbol» (0.0.112) — the PURE heart brain, sister of
@@ -66,6 +67,7 @@ export function isContainerHeart(
 export function treeComplete(
   heart: TreeNode,
   childrenOf: (n: TreeNode) => TreeNode[],
+  visibleRoots: readonly TreeNode[] = [],
 ): boolean {
   if (heart.status === 'achieved') return false;
   // A BRANCHED heart transformed — revertBranch is the ONLY exit from
@@ -75,6 +77,9 @@ export function treeComplete(
   // sweep would silently un-bloom the whole tree overnight (audit 0.0.115).
   if (heart.status === 'branched') return false;
   if (cadenceOf(heart) != null) return false;
+  // Older Almanaque spirals were planted as separate roots. Keep their
+  // location, but account for their rhythm when offering the tree's bloom.
+  if (visibleRoots.some((root) => root.id !== heart.id && ritualKind(root) === 'leaf')) return false;
   let any = false;
   const stack = [...childrenOf(heart)];
   const seen = new Set<string>();

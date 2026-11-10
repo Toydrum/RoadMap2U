@@ -7,9 +7,9 @@ import { TreesRepo } from '../../core/repos/trees.repo';
 import { SessionsRepo } from '../../core/repos/sessions.repo';
 import { HarvestsRepo } from '../../core/repos/harvests.repo';
 import { ESTIMATE_CHOICES, EstimateMin, Harvest, LIGHT_ICONS, LightChoice, NodePriority, NodeStatus, Tree, TreeNode } from '../../core/db/schema';
-import { dayOf, isPast, today } from '../../core/time';
-import { Cadence, cadenceOf } from '../../core/cadence';
-import { ritualKind } from '../../core/harvest';
+import { dayOf, isPast, today, weekdayOf } from '../../core/time';
+import { Cadence, cadenceOf, isScheduledOn, nextScheduledAfter } from '../../core/cadence';
+import { occurrenceRitual, ritualKind } from '../../core/harvest';
 import { treeComplete } from '../../core/heart';
 import { CadencePicker } from './cadence-picker';
 import { SpiralGlyph } from '../forest/spiral';
@@ -25,6 +25,7 @@ import { ConfirmSheet } from '../../shared/ui/confirm-sheet';
 import { VisitSession } from '../../core/visit/visit-session';
 import { PromiseService } from '../cosecha/promise.service';
 import { forestQuotaMessage } from '../forest/forest-quota-feedback';
+import { RitualCompletion, occurrenceAvailable } from './ritual-completion';
 
 // Life-cycle order, rest LAST (owner 2026-07-11): seed → growing → bloomed
 // reads as the branch's natural arc; resting is the aside, not a stage.
@@ -56,6 +57,7 @@ export class NodeDetail {
   private readonly sky = inject(HarvestSkyService);
   private readonly promise = inject(PromiseService);
   private readonly reminders = inject(RemindersService);
+  private readonly ritualCompletion = inject(RitualCompletion);
 
   protected readonly statuses = SELECTABLE_STATUSES;
   protected readonly lights = LIGHTS;
@@ -193,8 +195,12 @@ export class NodeDetail {
 
   protected readonly heartComplete = computed(() => {
     const heart = this.nodes.heartOf(this.tree().id);
-    return !!heart && heart.id === this.node().id && treeComplete(heart, (n) => this.nodes.childrenOf(n));
+    return !!heart && heart.id === this.node().id && this.isTreeComplete(heart);
   });
+
+  private isTreeComplete(heart: TreeNode): boolean {
+    return treeComplete(heart, (n) => this.nodes.childrenOf(n), this.nodes.rootsOf(heart.treeId));
+  }
 
   protected heartLine(): string {
     const { done, total } = this.heartStats();
@@ -215,7 +221,7 @@ export class NodeDetail {
     // — and never inside someone else's forest (closing a chapter is the
     // OWNER's act; a visitor's tap would also skip the fruit forever).
     if (this.visiting) return;
-    if (!heart || heart.status === 'achieved' || heart.status === 'branched') return;
+    if (!heart || !this.isTreeComplete(heart)) return;
     const prev = heart.status;
     const bloomed = await this.nodes.setStatus(heart, 'achieved');
     this.celebrateBloom(bloomed, null);
@@ -240,7 +246,7 @@ export class NodeDetail {
     if (this.visiting) return;
     const heart = this.nodes.heartOf(this.tree().id);
     if (!heart || heart.id === this.node().id) return;
-    if (!treeComplete(heart, (n) => this.nodes.childrenOf(n))) return;
+    if (!this.isTreeComplete(heart)) return;
     this.toast.show(
       {
         message: this.i18n.fill(this.i18n.t().tree.bloomAsk, { tree: this.tree().name }),
@@ -290,12 +296,16 @@ export class NodeDetail {
     // moment the synchronous dispatch ends (the burst anchored to nothing
     // for a day).
     const anchor = (ev?.currentTarget as Element) ?? null;
-    if (status === this.node().status) return;
-    await this.nodes.setStatus(this.node(), status);
+    const node = this.nodes.byId().get(this.node().id);
+    if (!node || node.deletedAt || node.archivedAt || status === node.status) return;
+    if (status === 'achieved' && occurrenceRitual(node, this.nodes.byId())) {
+      return this.ritualCompletion.complete(this.nodes, this.trees, node.id, anchor);
+    }
+    const updated = await this.nodes.setStatus(node, status);
     if (status === 'achieved') {
-      this.celebrateBloom(this.node(), anchor);
+      this.celebrateBloom(updated, anchor);
       this.toast.show({
-        message: this.i18n.fill(this.i18n.t().ahora.bloomToast, { title: this.node().title }),
+        message: this.i18n.fill(this.i18n.t().ahora.bloomToast, { title: updated.title }),
       });
     }
   }
@@ -323,12 +333,12 @@ export class NodeDetail {
   }
 
   /** «La promesa» (0.0.93): right after a fruit mints, offer to store it in a
-   *  goal jar (one tap for a single pending jar; the cross-page picker when
+   *  goal jar (one tap for a single jar with space; the cross-page picker when
    *  more than one). Never during a visit — but recordBloom already gates that,
    *  so this only ever runs on the owner's own bloom. */
   private offerToStore(fruit: Harvest): void {
-    if (this.visiting) return;
-    const jars = this.promise.pending();
+    if (this.visiting || fruit.preserveId) return;
+    const jars = this.promise.acceptingFruit();
     if (!jars.length) return;
     if (jars.length === 1) {
       const jar = jars[0];
@@ -453,6 +463,26 @@ export class NodeDetail {
    *  small act that repeats — the Pasitos section and Desmenuzar hide. */
   protected readonly isRitualLeaf = computed(() => ritualKind(this.node()) === 'leaf');
 
+  protected occurrenceBlocked(node: TreeNode): boolean {
+    const ritual = occurrenceRitual(node, this.nodes.byId());
+    return !!ritual && (node.status === 'resting' || !occurrenceAvailable(node, ritual, today()));
+  }
+
+  protected readonly ritualRestLine = computed(() => {
+    const node = this.node();
+    const ritual = occurrenceRitual(node, this.nodes.byId());
+    const cadence = ritual && cadenceOf(ritual);
+    const day = today();
+    if (!cadence || isScheduledOn(cadence, day)) return '';
+    const next = nextScheduledAfter(cadence, day);
+    if (!next) return '';
+    const dict = this.i18n.t();
+    return this.i18n.fill(dict.almanaque.restingOne, {
+      title: ritual.title,
+      day: dict.cadence.weekdayNames[weekdayOf(next)],
+    });
+  });
+
   /** The rhythm in words for the header chip — «Cada día», «L J», «Cada semana». */
   protected cadenceWords(): string {
     const c = this.cadence();
@@ -507,6 +537,9 @@ export class NodeDetail {
    *  the NEXT step; otherwise, planting another tiny one. */
   protected async bloomStep(child: TreeNode, ev?: Event): Promise<void> {
     const anchor = (ev?.currentTarget as Element) ?? null;
+    if (occurrenceRitual(child, this.nodes.byId())) {
+      return this.ritualCompletion.complete(this.nodes, this.trees, child.id, anchor);
+    }
     await this.nodes.setStatus(child, 'achieved');
     this.celebrateBloom(child, anchor);
     const next = this.flowSteps()

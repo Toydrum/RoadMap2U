@@ -91,7 +91,7 @@
         <button
           type="button"
           class="spiral-add"
-          (click)="openSowing()"
+          (click)="openSowing('spiral')"
           [attr.aria-label]="i18n.t().almanaque.piedritaAdd"
         >＋</button>
       </div>
@@ -155,6 +155,9 @@
     @if (todayIsQuiet()) {
       <p class="hint alm-quiet">{{ i18n.t().almanaque.todayEmpty }}</p>
     }
+    <button type="button" class="btn btn-soft plant-from-today" (click)="openSowing('branch', todayKey())">
+      {{ i18n.t().almanaque.branchAdd }}
+    </button>
   </section>
 
   <!-- ═══════════════════════════════════════════════ El mes ═══ -->
@@ -359,10 +362,38 @@
               }
             </ol>
           }
+          @if (openSpirals().length) {
+            <h3>{{ i18n.t().almanaque.daySpirals }}</h3>
+            <ol class="day-rows day-spirals">
+              @for (entry of openSpirals(); track entry.node.id) {
+                <li>
+                  <button type="button" class="day-row" (click)="openBranch(entry.node)">
+                    <svg class="bud" viewBox="-14 -14 28 28" aria-hidden="true">
+                      <g appSpiral [tint]="specOf(entry.tree).petalEdge" />
+                    </svg>
+                    <span class="row-text">
+                      <strong>{{ entry.node.title }}</strong>
+                      <span class="tree-name">{{ entry.tree.name }}</span>
+                      @if (entry.weekly) {
+                        <span class="tree-name">{{ i18n.t().almanaque.flexibleWeekly }}</span>
+                      }
+                    </span>
+                  </button>
+                </li>
+              }
+            </ol>
+          }
         }
-          <button type="button" class="btn btn-ghost day-close" (click)="onMesEscape()">
-            {{ i18n.t().common.close }}
-          </button>
+          <div class="day-actions">
+            @if (!openIsPast()) {
+              <button type="button" class="btn btn-soft day-plant" (click)="openSowing('branch', openDate())">
+                {{ i18n.t().almanaque.branchAdd }}
+              </button>
+            }
+            <button type="button" class="btn btn-ghost day-close" (click)="onMesEscape()">
+              {{ i18n.t().common.close }}
+            </button>
+          </div>
         </section>
       }
     }
@@ -400,10 +431,8 @@
   <app-date-review [nodesToReview]="pendingReviews()" (closed)="reviewing.set(false)" />
 }
 
-<!-- «Sembrar una piedrita» (0.0.103): the ghost stone's creation door — a
-     ritual leaf planted in a USER-PICKED tree (never a hidden system tree). -->
-@defer (when sowingStone()) {
-  @if (sowingStone()) {
+@defer (when !!sowingKind()) {
+  @if (sowingKind(); as kind) {
     <div class="sheet-backdrop" (click)="closeSowing()">
       <form
         class="sheet card stone-sheet"
@@ -413,11 +442,11 @@
         appSheet
         (sheetClose)="closeSowing()"
         (click)="$event.stopPropagation()"
-        (submit)="$event.preventDefault(); sowStone()"
+        (submit)="$event.preventDefault(); sow()"
       >
-        <h2 id="stone-heading">{{ i18n.t().almanaque.piedritaSheetTitle }}</h2>
+        <h2 id="stone-heading">{{ kind === 'spiral' ? i18n.t().almanaque.piedritaSheetTitle : i18n.t().almanaque.branchAdd }}</h2>
         @if (trees.active().length) {
-          <p class="hint">{{ i18n.t().almanaque.piedritaSheetHint }}</p>
+          <p class="hint">{{ kind === 'spiral' ? i18n.t().almanaque.piedritaSheetHint : i18n.t().almanaque.branchSheetHint }}</p>
           <div class="field">
             <label for="stone-title">{{ i18n.t().node.titleLabel }}</label>
             <input
@@ -425,7 +454,7 @@
               type="text"
               [value]="stoneTitle()"
               (input)="stoneTitle.set(inputValue($event))"
-              [placeholder]="i18n.t().almanaque.piedritaPlaceholder"
+              [placeholder]="kind === 'spiral' ? i18n.t().almanaque.piedritaPlaceholder : i18n.t().almanaque.branchPlaceholder"
               maxlength="80"
               autofocus
             >
@@ -442,9 +471,20 @@
               >{{ tree.name }}</button>
             }
           </div>
-          <span class="stone-label">{{ i18n.t().cadence.aria }}</span>
-          <app-cadence-picker [value]="stoneCadence()" (changed)="stoneCadence.set($event)" />
-          @if (stoneError(); as error) {
+          @if (kind === 'spiral') {
+            <span class="stone-label">{{ i18n.t().cadence.aria }}</span>
+            <app-cadence-picker [value]="stoneCadence()" (changed)="stoneCadence.set($event)" />
+          } @else if (branchDateLine(); as date) {
+            <label class="branch-date">
+              <input #dateChoice type="checkbox" [checked]="useBranchDate()" (change)="useBranchDate.set(dateChoice.checked)" />
+              {{ i18n.fill(i18n.t().almanaque.branchDateChoice, { date }) }}
+            </label>
+          }
+          @if (!stoneTree() && stoneTreeId()) {
+            <p role="status">{{ i18n.t().almanaque.sowingTreeUnavailable }}</p>
+          } @else if (branchTreeIsSendero()) {
+            <p class="hint" role="status">{{ i18n.t().almanaque.sowingBranchInSendero }}</p>
+          } @else if (stoneError(); as error) {
             <p role="alert">{{ error }}</p>
           }
         } @else {
@@ -458,8 +498,8 @@
             <button
               type="submit"
               class="btn btn-primary stone-create"
-              [disabled]="!stoneTitle().trim() || !stoneTree() || stoneSaving()"
-            >{{ i18n.t().almanaque.piedritaCreate }}</button>
+              [disabled]="!stoneTitle().trim() || !stoneTree() || stoneSaving() || branchTreeIsSendero()"
+            >{{ kind === 'spiral' ? i18n.t().almanaque.piedritaCreate : i18n.t().almanaque.branchCreate }}</button>
           } @else {
             <a class="btn btn-primary" routerLink="/forest" [queryParams]="{ plant: 1 }">
               {{ i18n.t().forest.plantFirst }}

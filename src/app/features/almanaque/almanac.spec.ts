@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CheckIn, Tree, TreeNode } from '../../core/db/schema';
-import { caminitos, dayChips, marksFor, monthMatrix, senderoStepIds, todayDated, upcoming, whenWord } from './almanac';
+import { caminitos, dayChips, marksFor, monthMatrix, piedritas, senderoStepIds, todayDated, upcoming, whenWord } from './almanac';
 
 function tree(id: string, name = id): Tree {
   return {
@@ -268,6 +268,16 @@ describe('todayDated', () => {
 });
 
 describe('caminitos', () => {
+  it('shows a child with its own spiral only in the spiral list', () => {
+    const t = tree('t1');
+    const parent = node('path', 't1', { flow: 'steps', repeats: 'daily' });
+    const step = node('step', 't1', { parentId: 'path' });
+    const spiral = node('spiral', 't1', { parentId: 'path', repeats: ['wed'] });
+    const nodes = byTree([t], [parent, step, spiral]);
+    expect(caminitos([t], nodes, TODAY)[0].steps.map((n) => n.id)).toEqual(['step']);
+    expect(piedritas([t], nodes, TODAY).map(({ node }) => node.id)).toEqual(['spiral']);
+  });
+
   it('a RESTING sendero pauses — it leaves today\'s path until it wakes', () => {
     const t = tree('t1');
     const parent = node('camino', 't1', { flow: 'steps', repeatsDaily: true, status: 'resting' });

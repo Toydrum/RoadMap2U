@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { HarvestsRepo } from '../../core/repos/harvests.repo';
@@ -30,7 +30,7 @@ interface MemberRow {
  *     keep no open door, 0.0.90 law) + members (deep-link to live branches).
  *   · DISFRUTADA (openedAt): the enjoyed line + members.
  * Pending mutations run through PromiseService directly (placeAndCelebrate owns
- * the auto-seal toast); page-level moments (the claiming ceremony, the release
+ * the filled toast); page-level moments (the claiming ceremony, the release
  * confirm + toast) are emitted so cosecha keeps owning them. Class names are
  * preserved from the old panels so the verify battery stays intact.
  */
@@ -46,6 +46,7 @@ export class JarDetail {
   protected readonly harvests = inject(HarvestsRepo);
   private readonly nodes = inject(NodesRepo);
   private readonly router = inject(Router);
+  private readonly panel = viewChild.required<ElementRef<HTMLElement>>('panel');
 
   readonly preserve = input.required<Preserve>();
   /** Making-month word for the sealed header (blank for pending). */
@@ -67,8 +68,8 @@ export class JarDetail {
   );
 
   /** Add-tray + edit-form local state (was on the page). */
-  protected readonly addOpen = signal(false);
-  protected readonly editOpen = signal(false);
+  protected readonly addOpen = linkedSignal({ source: () => this.preserve().id, computation: () => false });
+  protected readonly editOpen = linkedSignal({ source: () => this.preserve().id, computation: () => false });
   protected readonly editName = signal('');
   protected readonly editPremio = signal('');
 
@@ -95,6 +96,19 @@ export class JarDetail {
     return source.map((h) => this.rowOf(h));
   });
   protected readonly freshRows = computed(() => this.harvests.fresh().map((h) => this.rowOf(h)));
+  protected readonly canAdd = computed(() => !this.full() && this.harvests.fresh().length > 0);
+
+  constructor() {
+    effect(() => {
+      if (!this.canAdd()) this.addOpen.set(false);
+    });
+  }
+
+  focusPanel(): void {
+    const panel = this.panel().nativeElement;
+    panel.focus({ preventScroll: true });
+    panel.scrollIntoView({ block: 'start', behavior: 'instant' });
+  }
 
   protected carryLine(): string {
     return this.i18n.fill(this.i18n.t().cosecha.carryLine, { carry: this.preserve().carry ?? '' });
@@ -151,7 +165,6 @@ export class JarDetail {
   // ── pending mutations ────────────────────────────────────────────────────
   protected addFruit(harvestId: string): void {
     void this.promise.placeAndCelebrate(harvestId, this.preserve().id);
-    if (!this.harvests.fresh().length) this.addOpen.set(false);
   }
 
   protected removeFruit(harvestId: string): void {

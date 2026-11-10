@@ -298,7 +298,7 @@ export function caminitos(
       if (!(parent.status === 'seed' || parent.status === 'growing')) continue;
       if (!isScheduledOn(cadence, today)) continue;
       const steps = nodes
-        .filter((n) => n.parentId === parent.id)
+        .filter((n) => n.parentId === parent.id && ritualKind(n) !== 'leaf')
         // Frozen pre-cadence blooms are history, not today's walk — a stone
         // that reads «done» every morning forever would be a daily lie.
         .filter((n) => !(n.status === 'achieved' && n.achievedAt && frozenBeforeCadence(n.achievedAt, parent)))

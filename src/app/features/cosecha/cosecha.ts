@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { Location } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -78,6 +78,9 @@ export class CosechaPage {
   private readonly toast = inject(ToastService);
   private readonly location = inject(Location);
   private readonly router = inject(Router);
+  private readonly injector = inject(Injector);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly pendingDetail = viewChild<JarDetail>('pendingDetail');
 
   /** Ritual doors — @defer'd sheets; DOORS CANCEL applies to all. */
   protected readonly makingJam = signal(false);
@@ -235,6 +238,9 @@ export class CosechaPage {
   }
 
   protected onEscape(): void {
+    if (this.openInPending()) {
+      this.host.nativeElement.querySelector<HTMLElement>('.pending-jar.selected')?.focus();
+    }
     if (this.openId()) this.openId.set(null);
   }
 
@@ -248,6 +254,9 @@ export class CosechaPage {
   protected onPromiseCreated(preserve: Preserve): void {
     this.promising.set(false);
     this.openId.set(preserve.id);
+    afterNextRender(() => {
+      if (this.openId() === preserve.id) this.pendingDetail()?.focusPanel();
+    }, { injector: this.injector });
   }
 
   /** jar-detail asked to release a pending jar → confirm + toast (page owns). */
@@ -255,11 +264,11 @@ export class CosechaPage {
     this.releasing.set(preserve);
   }
 
-  protected doRelease(): void {
+  protected async doRelease(): Promise<void> {
     const jar = this.releasing();
     if (!jar) return;
-    void this.promise.release(jar);
     this.releasing.set(null);
+    if (!(await this.promise.release(jar))) return;
     if (this.openId() === jar.id) this.openId.set(null);
     this.toast.show({ message: this.i18n.t().cosecha.promise.released }, UNDO_MS);
   }

@@ -81,6 +81,12 @@ describe('treeComplete — «cuando las ramitas estén completas»', () => {
     const ritual = node('r', { parentId: 'h', status: 'achieved', achievedAt: 1, repeats: 'daily' });
     expect(treeComplete(heart, byParent([ritual]))).toBe(false);
   });
+  it('counts a legacy spiral on a separate visible root when checking closure', () => {
+    const completeBranch = node('a', { parentId: 'h', status: 'achieved', achievedAt: 1 });
+    const spiral = node('r', { status: 'achieved', repeats: 'daily' });
+    expect(treeComplete(heart, byParent([completeBranch]), [heart, spiral])).toBe(false);
+    expect(treeComplete(heart, byParent([completeBranch]), [heart, { ...spiral, repeats: null }])).toBe(true);
+  });
   it('a leftover cadence on a BRANCHED node is inert', () => {
     const branched = node('b', { parentId: 'h', status: 'branched', branchedAt: 1, repeats: 'daily' });
     expect(treeComplete(heart, byParent([branched]))).toBe(true);

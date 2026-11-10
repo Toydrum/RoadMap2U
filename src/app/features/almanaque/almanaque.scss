@@ -282,6 +282,13 @@
     margin-bottom: 0.6rem;
   }
 
+  .branch-date {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-block: 0.8rem;
+  }
+
   .row {
     display: flex;
     flex-wrap: wrap;
@@ -586,8 +593,15 @@
   }
 }
 
-.day-close {
+.plant-from-today,
+.day-actions {
   margin-top: 0.8rem;
+}
+
+.day-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 .day-rows {

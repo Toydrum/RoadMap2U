@@ -23,66 +23,60 @@ import { PromiseService } from './promise.service';
   selector: 'app-promesa-sheet',
   imports: [SheetDirective, PromiseJar],
   template: `
-    <div class="sheet-backdrop" (click)="closed.emit()">
+    <div class="sheet-backdrop" (click)="close()">
       <div
         class="sheet card promesa-sheet"
         appSheet
-        (sheetClose)="closed.emit()"
+        (sheetClose)="close()"
         (click)="$event.stopPropagation()"
         role="dialog"
         aria-modal="true"
         [attr.aria-label]="i18n.t().cosecha.promise.title"
       >
-<h2>{{ i18n.t().cosecha.promise.beat1Title }}</h2>
-        <p class="hint">{{ i18n.t().cosecha.promise.beat1Hint }}</p>
+        <h2>{{ i18n.t().cosecha.promise.title }}</h2>
+        <form (submit)="$event.preventDefault(); create()">
+          <div class="field">
+            <label for="promise-premio">{{ i18n.t().cosecha.promise.beat1Title }}</label>
+            <input
+              id="promise-premio"
+              type="text"
+              maxlength="60"
+              [value]="premio()"
+              (input)="premio.set(inputValue($event))"
+              [placeholder]="i18n.t().cosecha.premioPlaceholder"
+              aria-describedby="promise-gift-hint"
+            />
+            <p class="hint" id="promise-gift-hint">{{ i18n.t().cosecha.promise.beat1Hint }}</p>
+          </div>
 
-        <div class="field">
-          <input
-            id="promise-premio"
-            type="text"
-            maxlength="60"
-            [value]="premio()"
-            (input)="premio.set(inputValue($event))"
-            [placeholder]="i18n.t().cosecha.premioPlaceholder"
-            [attr.aria-label]="i18n.t().cosecha.promise.beat1Title"
-          />
-          <p class="hint name-hint">{{ i18n.t().cosecha.promise.nameHint }}</p>
-        </div>
+          <fieldset class="vessel-choices">
+            <legend>{{ i18n.t().cosecha.promise.beat2Title }}</legend>
+            @for (opt of vessels; track opt.size) {
+              <label class="chip vessel-chip" [class.selected]="size() === opt.size">
+                <input type="radio" name="vessel" [checked]="size() === opt.size" (change)="size.set(opt.size)" />
+                <app-promise-jar [fruits]="[]" [vessel]="opt.size" [size]="0.52" aria-hidden="true" />
+                <span>{{ i18n.t().cosecha.promise[opt.key] }}</span>
+              </label>
+            }
+          </fieldset>
 
-        <p class="hint vessel-hint">{{ i18n.t().cosecha.promise.beat2Hint }}</p>
-
-        <div class="vessel-preview" aria-hidden="true">
-          <app-promise-jar [fruits]="[]" [vessel]="size()" [size]="1.2" />
-        </div>
-
-        <div class="vessel-choices" role="radiogroup" [attr.aria-label]="i18n.t().cosecha.promise.beat2Title">
-          @for (opt of vessels; track opt.size) {
-            <button
-              type="button"
-              class="chip vessel-chip"
-              role="radio"
-              [class.selected]="size() === opt.size"
-              [attr.aria-checked]="size() === opt.size"
-              (click)="size.set(opt.size)"
-            >
-              {{ i18n.t().cosecha.promise[opt.key] }}
-            </button>
+          @if (error(); as message) {
+            <p class="hint" role="status">{{ message }}</p>
           }
-        </div>
 
-        <div class="row-actions">
-          <button type="button" class="btn btn-ghost" (click)="closed.emit()">
-            {{ i18n.t().common.cancel }}
-          </button>
-          <button
-            type="button"
-            class="btn btn-primary create-btn"
-            [disabled]="creating() || !premio().trim()"
-            (click)="create()"
-          >
-            {{ i18n.t().cosecha.promise.create }}
-          </button>
-        </div>
+          <div class="row-actions">
+            <button type="button" class="btn btn-ghost" [disabled]="creating()" (click)="close()">
+              {{ i18n.t().common.cancel }}
+            </button>
+            <button
+              type="submit"
+              class="btn btn-primary create-btn"
+              [disabled]="creating() || !premio().trim()"
+            >
+              {{ i18n.t().cosecha.promise.create }}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   `,
@@ -115,7 +109,7 @@ import { PromiseService } from './promise.service';
     }
 
     h2 {
-      margin-bottom: 0.3rem;
+      margin-bottom: 0.85rem;
     }
 
     .hint {
@@ -127,37 +121,46 @@ import { PromiseService } from './promise.service';
     .field {
       margin-bottom: 0.7rem;
 
+      label {
+        display: block;
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+      }
+
       input {
         width: 100%;
       }
-    }
-
-    .name-hint {
-      margin: 0.35rem 0 0;
-      font-size: 0.82rem;
-    }
-
-    .vessel-hint {
-      margin-bottom: 0.6rem;
-    }
-
-    .vessel-preview {
-      display: flex;
-      justify-content: center;
-      margin-bottom: 1rem;
+      .hint {
+        margin: 0.35rem 0 0;
+      }
     }
 
     .vessel-choices {
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
-      margin-bottom: 1.1rem;
+      border: 0;
+      min-inline-size: 0;
+      margin: 0 0 1.1rem;
+      padding: 0;
+
+      legend {
+        font-weight: 700;
+        padding: 0;
+        margin-bottom: 0.35rem;
+      }
     }
 
     .vessel-chip {
       width: 100%;
-      justify-content: center;
-      text-align: center;
+      gap: 0.45rem;
+      cursor: pointer;
+      white-space: normal;
+
+      input {
+        flex: none;
+        accent-color: var(--primary);
+      }
     }
 
     .row-actions {
@@ -183,6 +186,7 @@ export class PromesaSheet {
   protected readonly premio = signal('');
   protected readonly size = signal<JarVessel>('frasco');
   protected readonly creating = signal(false);
+  protected readonly error = signal<string | null>(null);
 
   protected readonly vessels = [
     { size: 'frasquito' as JarVessel, key: 'capFrasquito' as const },
@@ -190,18 +194,26 @@ export class PromesaSheet {
     { size: 'frascote' as JarVessel, key: 'capFrascote' as const },
   ];
 
+  protected close(): void {
+    if (!this.creating()) this.closed.emit();
+  }
+
   protected async create(): Promise<void> {
-    if (this.creating()) return;
+    const reward = this.premio().trim();
+    if (this.creating() || !reward) return;
+    this.error.set(null);
     this.creating.set(true);
     try {
       // The premio IS the jar's name (0.0.108) — one answer, two homes.
       const jar = await this.promise.create({
-        name: this.premio().trim(),
+        name: reward,
         size: this.size(),
-        premio: this.premio(),
+        premio: reward,
       });
       if (jar) this.created.emit(jar);
-      else this.closed.emit();
+      else this.error.set(this.i18n.t().cosecha.promise.limitReached);
+    } catch {
+      this.error.set(this.i18n.t().cosecha.promise.createError);
     } finally {
       this.creating.set(false);
     }

@@ -87,6 +87,18 @@ export function layoutTree(
     return next ? [...shown, next] : shown;
   };
 
+  // Count visible leaf slots after rewriting ordered paths: a long chain
+  // alone does not make a wide canopy. Both the map and miniature use this
+  // shape, so the same tree stays recognizable at every viewport size.
+  const countLeaves = (node: TreeNode): number => {
+    const children = kidsOf(node);
+    return children.length ? children.reduce((sum, child) => sum + countLeaves(child), 0) : 1;
+  };
+  const leaves = roots.reduce((sum, root) => sum + countLeaves(root), 0);
+  const density = Math.min(1, Math.max(0, (leaves - 16) / 28));
+  const levelHeight = LEVEL_H + 60 * density;
+  const slotWidth = SLOT_W * (1 - 0.14 * density);
+
   const place = (
     node: TreeNode,
     depth: number,
@@ -97,7 +109,7 @@ export function layoutTree(
     chainish: boolean,
   ): { point: LayoutPoint; baseX: number; leaves: number } => {
     const children = kidsOf(node);
-    const nominalY = parent === null ? 0 : parentRowY - (chainish ? CHAIN_H : LEVEL_H);
+    const nominalY = parent === null ? 0 : parentRowY - (chainish ? CHAIN_H : levelHeight);
 
     // Two-row "vase" canopy: big sibling groups alternate between two rows
     // (S) and sweep their OUTER limbs upward (V); children that carry a crown
@@ -109,9 +121,14 @@ export function layoutTree(
       const t = (sibIndex + 0.5) / sibCount;
       const s = Math.min(30, 16 + sibCount * 1.8);
       const v = Math.min(14, (sibCount - 3) * 2.5);
+      // Broad canopies also lift every third limb into a higher shelf.
+      // Blend in the extra rise as the canopy gains leaves.
+      const stagger =
+        s * (sibIndex % 2) * (1 - density) +
+        56 * (sibIndex % (sibCount >= 6 ? 3 : 2)) * density;
       lift = Math.min(
-        64,
-        s * (sibIndex % 2) + v * Math.pow(Math.abs(2 * t - 1), 1.5) + (children.length ? CROWN_LIFT : 0),
+        64 + 90 * density,
+        stagger + v * Math.pow(Math.abs(2 * t - 1), 1.5) + (children.length ? CROWN_LIFT : 0),
       );
     }
     const rowY = nominalY - lift;
@@ -127,7 +144,7 @@ export function layoutTree(
     let leaves: number;
     if (children.length === 0) {
       baseX = cursor;
-      cursor += SLOT_W * (sibCount >= STAGGER_MIN ? TIGHT : 1);
+      cursor += slotWidth * (sibCount >= STAGGER_MIN ? TIGHT : 1);
       leaves = 1;
     } else {
       // Fan geometry (stagger/tightening) counts only the real fan children;
