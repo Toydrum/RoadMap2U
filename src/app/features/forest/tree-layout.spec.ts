@@ -33,6 +33,28 @@ function lay(nodes: TreeNode[]) {
 }
 
 describe('layoutTree', () => {
+  it('gives a dense 59-branch tree vertical room while preserving every parent', () => {
+    const nodes = [node('heart', null)];
+    for (let i = 0; i < 7; i++) {
+      const fan = `fan-${i}`;
+      nodes.push(node(fan, 'heart'));
+      for (let j = 0; j < 6; j++) {
+        const branch = `${fan}-${j}`;
+        nodes.push(node(branch, fan));
+        if (j === 2 && i > 0 && i < 6) {
+          nodes.push(node(`${branch}-a`, branch), node(`${branch}-b`, branch));
+        }
+      }
+    }
+    const layout = lay(nodes);
+    expect(layout.width / layout.height).toBeLessThan(3.5);
+    expect(layout.points).toHaveLength(60);
+    for (const p of layout.points) {
+      expect(p.parent?.node.id ?? null).toBe(p.node.parentId);
+      if (p.parent) expect(p.y).toBeLessThan(p.parent.y);
+    }
+  });
+
   it('is deterministic — same ids, same forest, forever', () => {
     const nodes = [node('r', null), node('a', 'r'), node('b', 'r'), node('c', 'a')];
     const one = lay(nodes);

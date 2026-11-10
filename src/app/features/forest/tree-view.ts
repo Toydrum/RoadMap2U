@@ -269,7 +269,7 @@ export class TreeViewPage {
     // The parent is RE-READ at commit (0.0.115 M5): the sheet's snapshot
     // can outlive the branch — archived or pruned in another tab while the
     // title was being typed — and a ramita must never hang from a ghost.
-    const parentId = this.liveParentId(target.parent, tree.id);
+    const parentId = this.nodes.plantingParentId(tree.id, target.parent?.id);
     let node: TreeNode;
     try {
       node = await this.nodes.plant(tree.id, parentId, {
@@ -312,7 +312,7 @@ export class TreeViewPage {
     // Depth-0 lines hang from the heart too (0.0.112) — the sown plan is
     // the goal's first ramitas, not a row of new trunks. Same commit-time
     // re-read as plant() (0.0.115 M5).
-    const baseParentId = this.liveParentId(target.parent, tree.id);
+    const baseParentId = this.nodes.plantingParentId(tree.id, target.parent?.id);
     try {
       this.nodes.assertCanPlant(tree.id, lines.length);
       for (const line of lines) {
@@ -361,18 +361,6 @@ export class TreeViewPage {
     void this.router.navigate(['/account'], {
       queryParams: { intent: 'redeem', returnUrl },
     });
-  }
-
-  /** The commit-time parent: the sheet's captured branch only counts if it
-   *  is still ALIVE (not archived, not pruned — cross-tab edits happen while
-   *  the sheet is open); otherwise the heart adopts the planting, and a
-   *  heartless tree grows a new trunk. */
-  private liveParentId(captured: TreeNode | null, treeId: string): string | null {
-    if (captured) {
-      const fresh = this.nodes.byId().get(captured.id);
-      if (fresh && !fresh.archivedAt && !fresh.deletedAt) return fresh.id;
-    }
-    return this.nodes.heartOf(treeId)?.id ?? null;
   }
 
   /** Tab indents inside the sowing box instead of walking focus away. */

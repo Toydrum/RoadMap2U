@@ -228,6 +228,82 @@ const restLine = ((await page.locator('.resting-line').textContent().catch(() =>
 const restingOnStrip = await page.locator('.spiral-stone', { hasText: 'Inventario semanal' }).count();
 ok('H3 an off-day ritual rests with the gentle line, off the strip', restLine.includes('Inventario semanal') && restingOnStrip === 0, `line="${restLine.slice(0, 48)}" onStrip=${restingOnStrip}`);
 
+async function readPlant(title) {
+  return page.evaluate(async (name) => {
+    const open = indexedDB.open('roadmap2u');
+    const db = await new Promise((res, rej) => { open.onsuccess = () => res(open.result); open.onerror = rej; });
+    const tx = db.transaction(['nodes', 'harvests'], 'readonly');
+    const read = (store) => new Promise((res, rej) => {
+      const request = tx.objectStore(store).getAll();
+      request.onsuccess = () => res(request.result);
+      request.onerror = rej;
+    });
+    const [nodes, fruits] = await Promise.all([read('nodes'), read('harvests')]);
+    db.close();
+    const node = nodes.find((row) => row.title === name && !row.deletedAt);
+    const heart = nodes.filter((row) => row.treeId === node.treeId && !row.parentId && !row.archivedAt && !row.deletedAt)
+      .sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || a.id.localeCompare(b.id))[0];
+    return { node, heartId: heart.id, fruitCount: fruits.filter((fruit) => fruit.nodeId === node.id && !fruit.deletedAt).length };
+  }, title);
+}
+
+const plantedSpiral = await readPlant('Regar las plantas');
+ok('H4 planting a spiral uses the chosen tree heart',
+  plantedSpiral.node.parentId === plantedSpiral.heartId && plantedSpiral.node.repeats === 'daily');
+
+const tomorrow = await page.evaluate(() => {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate()].map((v) => String(v).padStart(2, '0')).join('-');
+});
+await page.goto(`${BASE}/almanaque?day=${tomorrow}`, { waitUntil: 'networkidle' });
+const preview = page.locator('.day-spirals .day-row', { hasText: 'Inventario semanal' });
+await preview.waitFor();
+ok('H5 weekday spirals appear inside a future date, outside its grid marks',
+  await page.locator(`.alm-cell[data-date="${tomorrow}"]`, { hasText: 'Inventario semanal' }).count() === 0);
+
+await page.locator('.day-plant').click();
+const dateChoice = page.locator('.branch-date input');
+const dateIsOptional = !(await dateChoice.isChecked());
+await dateChoice.check();
+await page.fill('#stone-title', 'Una rama desde el almanaque');
+const createBranch = page.locator('.stone-create');
+if (await createBranch.isDisabled()) {
+  const choices = await page.locator('.stone-tree-chip').all();
+  for (const choice of choices) {
+    await choice.click();
+    await page.waitForFunction((id) => document.querySelector('.stone-tree-chip.selected')?.textContent === id, await choice.textContent());
+    if (await createBranch.isEnabled()) break;
+  }
+}
+await createBranch.click();
+await page.locator('.stone-sheet').waitFor({ state: 'detached' });
+const plantedBranch = await readPlant('Una rama desde el almanaque');
+ok('H6 a branch uses the heart and keeps the explicitly chosen gentle date',
+  dateIsOptional && plantedBranch.node.parentId === plantedBranch.heartId &&
+  plantedBranch.node.targetDate === tomorrow && !plantedBranch.node.repeats);
+
+await preview.click();
+const achieved = page.locator('.status-row .chip.pick', { hasText: 'Florecida' });
+await page.locator('app-node-detail .hint', { hasText: '«Inventario semanal» descansa hoy' }).waitFor();
+ok('H7 an off-day spiral also rests in the branch sheet', await achieved.isDisabled());
+
+await page.goto(`${BASE}/tree/${plantedSpiral.node.treeId}?node=${plantedSpiral.node.id}`, { waitUntil: 'networkidle' });
+await achieved.click();
+const undo = page.locator('.toast button', { hasText: 'Deshacer' });
+await undo.waitFor();
+const fromTree = await readPlant('Regar las plantas');
+ok('H8 completing the spiral in the tree writes the same occurrence and makes no fruit',
+  fromTree.node.status === 'achieved' && fromTree.fruitCount === plantedSpiral.fruitCount);
+await undo.click();
+await page.locator('.status-row .chip.pick.selected', { hasText: 'Semilla' }).waitFor();
+await achieved.click();
+await undo.waitFor();
+await page.goto(`${BASE}/almanaque`, { waitUntil: 'networkidle' });
+const completedSpiral = page.locator('.spiral-stone.bloomed', { hasText: 'Regar las plantas' });
+await completedSpiral.waitFor();
+ok('H9 the Almanaque reads the completion made in the tree', await completedSpiral.count() === 1);
+
 // I — a mobile tap opens a viewport-bound sheet even in an empty forest,
 // with a direct way to create the required tree.
 const { context: mobileContext, page: mobile } = await newProbePage(

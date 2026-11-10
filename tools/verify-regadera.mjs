@@ -2,7 +2,7 @@
 // optional (skippable, toggleable). B: a bajita check-in floats a LEAF pasito
 // to the front of the suggestions with the honest low-energy reason. C: no
 // energy → pool unchanged (a big branch may lead as usual).
-import { BASE, launchPage } from './lib/harness.mjs';
+import { BASE, launchPage, ok } from './lib/harness.mjs';
 const { browser, page } = await launchPage({ width: 900, height: 800 });
 
 // Seed: one BIG bare goal (fresh) + one goal with a pasito. Freshest-first
@@ -58,21 +58,24 @@ await page.waitForTimeout(700);
 const baseline = (await page.locator('.card.next').first().textContent().catch(() => '')) ?? '';
 console.log(`C baseline (no energy) captured: "${baseline.trim().slice(0, 44)}" | OK=true`);
 
-// A+B — check-in with regadera bajita.
+// A+B — check-in with low energy.
 await page.goto(`${BASE}/check-in`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(500);
-await page.locator('.energy-toggle').click(); // 0.0.75: la regadera folds like the notita
-await page.waitForTimeout(200);
-const energyRow = await page.locator('.energy-row .chip').count();
-await page.locator('.energy-row .chip', { hasText: 'Bajita' }).click();
+const energyQuestion = '¿Cuánta energía tienes ahora?';
+await page.getByRole('button', { name: energyQuestion + ' (opcional)' }).click();
+const energyGroup = page.getByRole('group', { name: energyQuestion, exact: true });
+const lowEnergy = energyGroup.getByRole('button', { name: 'Poca', exact: true });
+await lowEnergy.waitFor();
+const energyOptions = (await energyGroup.getByRole('button').allTextContents()).map((text) => text.trim());
+await lowEnergy.click();
 await page.waitForTimeout(150);
 // toggle off and on again (A: optional + toggleable)
-await page.locator('.energy-row .chip', { hasText: 'Bajita' }).click();
+await lowEnergy.click();
 await page.waitForTimeout(150);
 const offAgain = (await page.locator('.energy-row .chip.selected').count()) === 0;
-await page.locator('.energy-row .chip', { hasText: 'Bajita' }).click();
+await lowEnergy.click();
 await page.waitForTimeout(150);
-console.log(`A energy row: chips=${energyRow} toggleable=${offAgain} | OK=${energyRow === 3 && offAgain}`);
+ok('A energy options are explicit and toggleable', energyOptions.join(', ') === 'Poca, Media, Mucha' && offAgain, energyOptions.join(', '));
 await page.locator('.feeling', { hasText: 'calma' }).click();
 await page.waitForTimeout(400);
 await page.locator('button', { hasText: 'Solo mirar el bosque' }).click();
@@ -84,8 +87,8 @@ await page.goto(`${BASE}/ahora`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(700);
 const card = (await page.locator('.card.next').first().textContent().catch(() => '')) ?? '';
 const leadsSmall = card.includes('Pasito chiquito');
-const reason = card.includes('regadera bajita');
-console.log(`B bajita bias: leads-with-pasito=${leadsSmall} reason-line=${reason} | OK=${leadsSmall && reason}`);
+const reason = card.includes('Con poca energía');
+ok('B low energy leads with a small step and explains why', leadsSmall && reason);
 
 await browser.close();
 console.log('regadera done');

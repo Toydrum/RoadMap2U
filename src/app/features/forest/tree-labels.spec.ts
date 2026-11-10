@@ -23,12 +23,11 @@ function input(partial: Partial<LabelInput> & { id: string }): LabelInput {
 
 /** Visual rect of a placed block (what actually paints). */
 function rectOf(b: LabelBlock): { x0: number; x1: number; y0: number; y1: number } {
-  const h = b.lines.length * LINE_H * b.factor;
   return {
     x0: b.cx - b.width / 2,
     x1: b.cx + b.width / 2,
-    y0: b.y0 - LINE_H * b.factor,
-    y1: b.y0 - LINE_H * b.factor + h,
+    y0: b.top,
+    y1: b.top + b.height,
   };
 }
 
@@ -104,6 +103,17 @@ describe('packLabels', () => {
     expect(lonely.clipped).toBe(false);
     expect(lonely.tail).toBe('');
     expect(lonely.lines.join(' ')).toBe('Practicar guitarra todos los días un ratito');
+  });
+
+  it('checks even the last fallback with measured tall glyphs and stacked anchors', () => {
+    const inputs = Array.from({ length: 40 }, (_, i) => input({
+      id: String(i), title: 'WWW wide title', x: 10,
+    }));
+    const labels = [...packLabels(inputs, (line) => ({
+      width: line.length * 14, ascent: 17, descent: 7,
+    })).values()];
+    expect(labels).toHaveLength(40);
+    expect(labels.every((a, i) => labels.slice(i + 1).every((b) => !overlaps(a, b)))).toBe(true);
   });
 
   it('keeps the pinned (📍) label whole even inside a crowd', () => {

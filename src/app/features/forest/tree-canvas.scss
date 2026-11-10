@@ -4,10 +4,52 @@
   height: 100%;
 }
 
+.focus-readout {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  block-size: var(--tree-title-strip);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem 0.75rem;
+  background: color-mix(in srgb, var(--surface) 95%, var(--primary));
+  border-bottom: 1px solid var(--border);
+}
+
+.focus-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  max-inline-size: min(38rem, 100%);
+  max-block-size: 100%;
+  overflow: auto;
+  padding: 0.1rem 0.3rem;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.focus-title-mark {
+  flex: none;
+  width: 0.62em;
+  height: 0.62em;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+}
+
 .canvas {
   width: 100%;
   height: 100%;
   display: block;
+  /* Keep the readout separate while preserving the map's world origin. */
+  clip-path: inset(var(--tree-title-strip) 0 0);
   touch-action: none; /* scoped here only — page scroll lives outside */
   cursor: grab;
   /* wood palette: bark near the trunk, mossy green toward the twigs */
@@ -417,9 +459,25 @@
   }
 }
 
-/* The focused node's full-name cartouche — painted on top, firmer halo. */
-.focus-tag .title {
-  stroke-width: 6px;
+.label-target {
+  fill: transparent;
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.label-links {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.3;
+  stroke-opacity: 0.48;
+  stroke-linecap: round;
+  pointer-events: none;
+
+  .focused {
+    stroke: var(--primary);
+    stroke-width: 2;
+    stroke-opacity: 0.9;
+  }
 }
 
 /* ------------------------------------------------------------- «la luz» */
@@ -526,9 +584,7 @@
   }
 }
 
-/* Priority PILLS behind the label — THE scannable cue in any messy tree.
-   Pill padding (5/3) stays under the packer's 16px margin: collisions are
-   geometrically impossible. */
+/* Priority pills stay inside the same bounds as their title. */
 .label-pill {
   pointer-events: none;
 

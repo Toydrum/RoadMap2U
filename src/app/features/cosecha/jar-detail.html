@@ -1,5 +1,7 @@
 <section
+  #panel
   [attr.id]="panelId()"
+  [attr.tabindex]="pending() ? -1 : null"
   class="card jar-panel"
   [class.pending-detail]="pending()"
   [class.elixir-detail]="elixir()"
@@ -130,19 +132,46 @@
   }
 
   @if (pending()) {
-    <div class="pending-jar-hero" aria-hidden="true">
-      <app-promise-jar [fruits]="promise.membersOf(preserve().id)" [vessel]="preserve().size ?? 'frasco'" [size]="1.6" />
-    </div>
-    <p class="fill-line">{{ fillLine() }}</p>
-
-    @if (full()) {
-      <!-- «Hacer mermelada» (0.0.96): filling is the achievement — the user
-           makes the jam themselves; the app never self-seals. -->
-      <div class="make-row">
-        <button type="button" class="btn btn-primary make-jam-btn" (click)="make.emit(preserve())">
-          🫙 {{ i18n.t().cosecha.promise.makeJam }}
-        </button>
+    <div class="promise-summary">
+      <div aria-hidden="true">
+        <app-promise-jar [fruits]="promise.membersOf(preserve().id)" [vessel]="preserve().size ?? 'frasco'" [size]="1.1" />
       </div>
+      <div>
+        <p class="fill-line">{{ fillLine() }}</p>
+        @if (full()) {
+          <button type="button" class="btn btn-primary make-jam-btn" (click)="make.emit(preserve())">
+            <span aria-hidden="true">🫙</span> {{ i18n.t().cosecha.promise.makeJam }}
+          </button>
+        } @else if (canAdd()) {
+          <button
+            type="button"
+            class="btn btn-soft add-fruit-btn"
+            [class.selected]="addOpen()"
+            [attr.aria-expanded]="addOpen()"
+            (click)="addOpen.set(!addOpen())"
+          >
+            {{ i18n.t().cosecha.promise.addFruit }}
+          </button>
+        } @else {
+          <p class="add-hint">{{ i18n.t().cosecha.promise.noFresh }}</p>
+        }
+      </div>
+    </div>
+
+    @if (canAdd() && addOpen()) {
+      <p class="add-hint">{{ i18n.t().cosecha.promise.addHint }}</p>
+      <ul class="add-tray">
+        @for (row of freshRows(); track row.harvest.id) {
+          <li>
+            <button type="button" class="add-pick" (click)="addFruit(row.harvest.id)">
+              <svg viewBox="-14 -15 28 28" width="26" height="26" aria-hidden="true">
+                <g appFruit [fruit]="row.spec" [scale]="0.9" />
+              </svg>
+              <span class="pick-title">{{ row.harvest.title }}</span>
+            </button>
+          </li>
+        }
+      </ul>
     }
 
     @if (members().length) {
@@ -171,41 +200,10 @@
     }
 
     <div class="pending-actions">
-      @if (harvests.fresh().length) {
-        <button
-          type="button"
-          class="btn btn-soft add-fruit-btn"
-          [class.selected]="addOpen()"
-          [attr.aria-expanded]="addOpen()"
-          (click)="addOpen.set(!addOpen())"
-        >
-          {{ i18n.t().cosecha.promise.addFruit }}
-        </button>
-      }
       <button type="button" class="btn btn-ghost release-btn" (click)="release.emit(preserve())">
         {{ i18n.t().cosecha.promise.release }}
       </button>
     </div>
-
-    @if (addOpen()) {
-      @if (freshRows().length) {
-        <p class="add-hint">{{ i18n.t().cosecha.promise.addHint }}</p>
-        <ul class="add-tray">
-          @for (row of freshRows(); track row.harvest.id) {
-            <li>
-              <button type="button" class="add-pick" (click)="addFruit(row.harvest.id)">
-                <svg viewBox="-14 -15 28 28" width="26" height="26" aria-hidden="true">
-                  <g appFruit [fruit]="row.spec" [scale]="0.9" />
-                </svg>
-                <span class="pick-title">{{ row.harvest.title }}</span>
-              </button>
-            </li>
-          }
-        </ul>
-      } @else {
-        <p class="add-hint">{{ i18n.t().cosecha.promise.noFresh }}</p>
-      }
-    }
   } @else {
     <ol class="steps">
       @for (row of members(); track row.harvest.id) {

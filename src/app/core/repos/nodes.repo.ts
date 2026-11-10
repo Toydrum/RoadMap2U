@@ -120,6 +120,15 @@ export class NodesRepo extends RecordsRepo<TreeNode> {
     return this.rootsOf(treeId)[0] ?? null;
   }
 
+  /** Plant under the live branch or heart. A tree without a visible root grows one. */
+  plantingParentId(treeId: string, branchId: string | null = null): string | null {
+    const branch = branchId ? this.byId().get(branchId) : undefined;
+    if (branch && branch.treeId === treeId && !branch.archivedAt && !branch.deletedAt) {
+      return branch.id;
+    }
+    return this.heartOf(treeId)?.id ?? null;
+  }
+
   async plant(treeId: string, parentId: string | null, draft: NewNodeDraft): Promise<TreeNode> {
     const [node] = await this.plantMany(treeId, [{ parentId, ...draft }]);
     return node;

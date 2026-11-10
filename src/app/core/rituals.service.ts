@@ -3,6 +3,7 @@ import { NodesRepo } from './repos/nodes.repo';
 import { TreesRepo } from './repos/trees.repo';
 import { stamp } from './db/schema';
 import { cadenceOf, frozenBeforeCadence, shouldReset } from './cadence';
+import { ritualKind } from './harvest';
 import { today } from './time';
 
 /**
@@ -68,6 +69,7 @@ export class RitualsService {
         // branched dissolves it — matching the caminito lens in almanac.ts.
         if (n.status !== 'seed' && n.status !== 'growing') continue;
         for (const child of this.nodes.childrenOf(n)) {
+          if (ritualKind(child) === 'leaf') continue; // Its own rhythm resets it below.
           // «La historia se queda» (0.0.106): blooms from before the cadence
           // existed are frozen history — converting a lived branch used to
           // silently un-achieve its past overnight.

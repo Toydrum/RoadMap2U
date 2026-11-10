@@ -20,14 +20,14 @@ import { LEVEL_H, LayoutPoint } from './tree-layout';
  * Deterministic throughout: same layout in → byte-identical field out.
  */
 
-/** Average glyph advance at the 12.5px/800 face — the same arithmetic-only
- *  width convention the old shelves used (no DOM measurement, ever). */
+/** Fallback glyph advance while the canvas font is loading. */
 export const CHAR_W = 8.1;
 export const LINE_H = 13.5;
+export const LABEL_FONT_SIZE = 12.5;
 /** Base wrap width budget (world px) for a tier-1 line. */
 const LINE_BUDGET = 118;
 /** Horizontal breathing room reserved around every block. */
-const MARGIN = 16;
+const MARGIN = 8;
 /** Vertical lane quantum of the occupancy field. */
 const LANE_H = 12;
 /** First line's baseline offset below the node's row line (matches the old
@@ -36,11 +36,8 @@ export const LABEL_BASELINE = 27;
 /** A block may not extend below this offset — the next row's glyphs start
  *  living there (focus ring r=24 + breathing room). */
 const MAX_DEPTH_BELOW_ROW = 74;
-/** Reserved for the "faroles" rest-boost experiment (--label-zoom CSS var):
- *  block envelopes would reserve BOOST× space so a partial zoom compensation
- *  never causes overlap. Shipped OFF (1.0) — flip only with a re-derivation
- *  of MAX_DEPTH_BELOW_ROW. */
-export const BOOST = 1.0;
+/** Covers the title stroke and the outer edge of priority pills. */
+const PAINT_PAD = 4;
 
 /** Crowding tiers — a whole neighborhood shares one, so smaller text reads as
  *  intentional typography, never as one name being punished. */
@@ -64,9 +61,17 @@ export interface LabelBlock {
   /** True when even the floor tier couldn't fit the whole title — the
    *  renderer fades the tail of the last line instead of cutting. */
   clipped: boolean;
-  /** Estimated block width in world px (for tests / debugging). */
+  /** Painted bounds, including the halo or priority pill. */
   width: number;
+  top: number;
+  height: number;
 }
+
+export type MeasureLabel = (line: string, fontSize: number) => {
+  width: number;
+  ascent: number;
+  descent: number;
+};
 
 /** Move the last few characters of a clipped block's final line into `tail`
  *  so the renderer can ghost them (a soft "continues" cue, never an "…"). */
@@ -91,7 +96,7 @@ export interface LabelInput {
   emphasis: number;
   /** Extra width reserved left of line 1 (e.g. a small glyph). */
   leadGlyphW: number;
-  /** Packs first and may never be clipped (the 📍 place). */
+  /** Packs first (the 📍 place). */
   pinned: boolean;
   /** Hard cap on wrapped lines. Chain links live only CHAIN_H=46px apart —
    *  the 74px downward label budget was derived for 100px rows, so a
@@ -107,33 +112,38 @@ export function wrapTitle(
   title: string,
   maxChars: number,
   maxLines: number,
+  fitsWidth?: (line: string) => boolean,
 ): { lines: string[]; clipped: boolean } {
   const words = title.trim().split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let line = '';
   let clipped = false;
+  const fits = (candidate: string): boolean =>
+    candidate.length <= maxChars && (fitsWidth?.(candidate) ?? true);
   const push = (): void => {
     if (line) lines.push(line);
     line = '';
   };
   for (let w = 0; w < words.length; w++) {
     let word = words[w];
-    while (word.length > maxChars) {
+    while (word.length > 1 && !fits(word)) {
       // Oversized single word: hard-break with a hyphen.
       push();
       if (lines.length >= maxLines) {
         clipped = true;
         break;
       }
-      lines.push(word.slice(0, maxChars - 1) + '-');
-      word = word.slice(maxChars - 1);
+      let cut = Math.max(1, Math.min(word.length - 1, maxChars - 1));
+      while (cut > 1 && !fits(word.slice(0, cut) + '-')) cut--;
+      lines.push(word.slice(0, cut) + '-');
+      word = word.slice(cut);
     }
     if (lines.length >= maxLines) {
       clipped = true;
       break;
     }
     const candidate = line ? `${line} ${word}` : word;
-    if (candidate.length <= maxChars) {
+    if (fits(candidate)) {
       line = candidate;
       continue;
     }
@@ -205,25 +215,49 @@ function blockOf(
   input: LabelInput,
   factor: number,
   maxLines: number,
+  measure: MeasureLabel,
   maxCharsOverride?: number,
-): { lines: string[]; clipped: boolean; w: number; h: number } {
-  const maxChars =
-    maxCharsOverride ?? Math.max(6, Math.floor(LINE_BUDGET / (CHAR_W * factor)));
+  lineBudget = LINE_BUDGET,
+): { lines: string[]; clipped: boolean; w: number; ascent: number; h: number } {
   const cappedLines = Math.min(maxLines, input.maxLines ?? Number.POSITIVE_INFINITY);
-  const { lines, clipped } = wrapTitle(input.title, maxChars, cappedLines);
-  const longest = lines.reduce((m, l) => Math.max(m, l.length), 0);
-  const w = longest * CHAR_W * factor * BOOST + 14 + input.leadGlyphW;
-  const h = lines.length * LINE_H * factor * BOOST;
-  return { lines, clipped, w, h };
+  const size = LABEL_FONT_SIZE * factor;
+  const { lines, clipped } = wrapTitle(
+    input.title,
+    maxCharsOverride ?? Number.POSITIVE_INFINITY,
+    cappedLines,
+    (line) => measure(line, size).width <= lineBudget,
+  );
+  let width = 0;
+  let ascent = 0;
+  let descent = 0;
+  for (const line of lines) {
+    const measured = measure(line, size);
+    width = Math.max(width, measured.width);
+    ascent = Math.max(ascent, measured.ascent);
+    descent = Math.max(descent, measured.descent);
+  }
+  // The ray sits beside centered text; reserve its space on both sides.
+  const w = width + 2 * (PAINT_PAD + input.leadGlyphW);
+  const h = ascent + descent + (lines.length - 1) * LINE_H * factor + 2 * PAINT_PAD;
+  return { lines, clipped, w, ascent: ascent + PAINT_PAD, h };
 }
+
+const fallbackMeasure: MeasureLabel = (line, size) => ({
+  width: line.length * CHAR_W * size / LABEL_FONT_SIZE,
+  ascent: size,
+  descent: size * 0.3,
+});
 
 /**
  * Pack every label into one global field. Deterministic placement order:
  * pinned (📍) first, then rowY descending (trunk-near names get stable
- * spots), then x ascending. Placement never exceeds ±28px horizontal drift,
- * so a label stays visually attached to its branch.
+ * spots), then x ascending. Prefer positions within 28px of the branch.
  */
-export function packLabels(inputs: LabelInput[]): Map<string, LabelBlock> {
+export function packLabels(
+  inputs: LabelInput[],
+  measure: MeasureLabel = fallbackMeasure,
+  anchors: readonly Pick<LayoutPoint, 'x' | 'y'>[] = [],
+): Map<string, LabelBlock> {
   const out = new Map<string, LabelBlock>();
   const lanes = new Map<number, Lane>();
 
@@ -248,6 +282,8 @@ export function packLabels(inputs: LabelInput[]): Map<string, LabelBlock> {
       laneMark(lane, x0, x0 + w);
     }
   };
+  // Leave room for branch tips, including the unlabelled links of a chain.
+  for (const { x, y } of anchors) mark(x - 9, y - 8, 18, 16);
 
   const ordered = [...inputs].sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
@@ -255,12 +291,10 @@ export function packLabels(inputs: LabelInput[]): Map<string, LabelBlock> {
     return a.x - b.x;
   });
 
-  const DYS = [0, 13, 26, 39];
-  // Preferred drift keeps a label visually attached (±28); the wider tail
-  // exists for the shrink-ladder rungs in saturated fans. Precondition
-  // (guaranteed by layoutTree's disjoint slot spans): same-row nodes sit
-  // ≥ ~48px apart — the packer cannot conjure space for stacked anchors.
-  const DXS = [0, 14, -14, 28, -28, 42, -42, 56, -56, 70, -70, 84, -84];
+  const dys = [0, 13, 26, 39];
+  const dxs = [0, 14, -14, 28, -28];
+  const pocketDxs = [...dxs, 42, -42];
+  const outerDxs = [42, -42, 56, -56, 70, -70, 84, -84];
   const tiers = smoothedTiers(inputs);
 
   for (const input of ordered) {
@@ -289,88 +323,94 @@ export function packLabels(inputs: LabelInput[]): Map<string, LabelBlock> {
       { factor: floor, maxLines: 1, acceptClipped: true, maxChars: 5 },
     );
 
-    let placedBlock: LabelBlock | null = null;
-    for (const attempt of attempts) {
-      const { lines, clipped, w, h } = blockOf(
-        input,
-        attempt.factor,
-        attempt.maxLines,
-        attempt.maxChars,
-      );
-      if (clipped && !attempt.acceptClipped) continue;
-      for (const dy of DYS) {
-        const yTop = input.rowY + LABEL_BASELINE + dy - LINE_H * attempt.factor;
-        if (yTop + h > input.rowY + MAX_DEPTH_BELOW_ROW) break;
-        for (const dx of DXS) {
-          const cx = input.x + dx;
-          const x0 = cx - w / 2 - MARGIN;
-          if (!free(x0, yTop, w + MARGIN * 2, h)) continue;
-          mark(x0, yTop, w + MARGIN * 2, h);
-          placedBlock = {
-            id: input.id,
-            lines,
-            tail: '',
-            cx,
-            y0: input.rowY + LABEL_BASELINE + dy,
-            factor: attempt.factor,
-            clipped,
-            width: w,
-          };
-          break;
+    const place = (
+      shape: ReturnType<typeof blockOf>,
+      factor: number,
+      dx: number,
+      dy: number,
+    ): LabelBlock | undefined => {
+      const cx = input.x + dx;
+      const y0 = input.rowY + LABEL_BASELINE + dy;
+      const top = y0 - shape.ascent;
+      const left = cx - shape.w / 2 - MARGIN;
+      const width = shape.w + 2 * MARGIN;
+      if (!free(left, top, width, shape.h)) return undefined;
+      mark(left, top, width, shape.h);
+      return withFadeTail({
+        id: input.id,
+        lines: shape.lines,
+        tail: '',
+        cx,
+        y0,
+        factor,
+        clipped: shape.clipped,
+        width: shape.w,
+        top,
+        height: shape.h,
+      });
+    };
+
+    const tryBelow = (attempt: (typeof attempts)[number]): LabelBlock | undefined => {
+      const shape = blockOf(input, attempt.factor, attempt.maxLines, measure, attempt.maxChars);
+      if (shape.clipped && !attempt.acceptClipped) return undefined;
+      for (const dy of dys) {
+        if (LABEL_BASELINE + dy - shape.ascent + shape.h > MAX_DEPTH_BELOW_ROW) break;
+        for (const dx of dxs) {
+          const block = place(shape, attempt.factor, dx, dy);
+          if (block) return block;
         }
-        if (placedBlock) break;
       }
-      if (placedBlock) break;
+      return undefined;
+    };
+
+    let placed: LabelBlock | undefined;
+    for (const attempt of attempts) {
+      if (attempt.acceptClipped) break;
+      placed = tryBelow(attempt);
+      if (placed) break;
     }
 
-    if (!placedBlock) {
-      // Physics floor: exhaustive sweep with the tiniest block (5 chars +
-      // fade). Still grid-checked — overlap stays impossible; the label just
-      // drifts further from its branch than the preferred ±28.
-      const factor = FLOOR_TIER * input.emphasis;
-      const { lines, w, h } = blockOf(input, factor, 1, 5);
-      sweep: for (const dy of DYS) {
-        const yTop = input.rowY + LABEL_BASELINE + dy - LINE_H * factor;
-        if (yTop + h > input.rowY + MAX_DEPTH_BELOW_ROW) break;
-        for (let step = 0; step <= 24; step++) {
-          const dx = (step % 2 ? -1 : 1) * Math.ceil(step / 2) * 12;
-          const cx = input.x + dx;
-          if (!free(cx - w / 2 - MARGIN, yTop, w + MARGIN * 2, h)) continue;
-          mark(cx - w / 2 - MARGIN, yTop, w + MARGIN * 2, h);
-          placedBlock = {
-            id: input.id,
-            lines,
-            tail: '',
-            cx,
-            y0: input.rowY + LABEL_BASELINE + dy,
-            factor,
-            clipped: true,
-            width: w,
-          };
-          break sweep;
+    // Try the open pockets around the branch before shortening its title.
+    // A narrower block can tuck between neighbors, or a wider one can fit
+    // into a shallow pocket. The same occupied grid protects every glyph.
+    if (!placed && input.maxLines === undefined) {
+      const shapes = [LINE_BUDGET, 94, 142, 76]
+        .map((budget) => blockOf(input, floor, 6, measure, undefined, budget))
+        .filter((shape) => !shape.clipped);
+      pocket: for (const distance of [0, 12, 24, 36, 48, 60]) {
+        for (const shape of shapes) {
+          const above = shape.ascent - shape.h - LABEL_BASELINE - 15 - distance;
+          for (const dy of [distance, above]) {
+            for (const dx of pocketDxs) {
+              placed = place(shape, floor, dx, dy);
+              if (placed) break pocket;
+            }
+          }
         }
       }
     }
-    if (!placedBlock) {
-      // Truly zero free cells anywhere near the node (pathological input
-      // outside layoutTree's disjoint-span guarantee): a dot-sized marker at
-      // the anchor. Reserved anyway so nothing ELSE lands on it.
-      const factor = FLOOR_TIER * input.emphasis;
-      const { lines, w, h } = blockOf(input, factor, 1, 5);
-      const yTop = input.rowY + LABEL_BASELINE - LINE_H * factor;
-      mark(input.x - w / 2 - MARGIN, yTop, w + MARGIN * 2, h);
-      placedBlock = {
-        id: input.id,
-        lines,
-        tail: '',
-        cx: input.x,
-        y0: input.rowY + LABEL_BASELINE,
-        factor,
-        clipped: true,
-        width: w,
-      };
+
+    for (const attempt of attempts) {
+      if (placed) break;
+      if (attempt.acceptClipped) placed = tryBelow(attempt);
     }
-    out.set(input.id, withFadeTail(placedBlock));
+
+    if (!placed) {
+      const shape = blockOf(input, floor, 1, measure, 5);
+      for (const dy of dys) {
+        for (const dx of outerDxs) {
+          placed = place(shape, floor, dx, dy);
+          if (placed) break;
+        }
+        if (placed) break;
+      }
+      // If the row is saturated, extend it vertically. Every placement
+      // still goes through the occupancy check, even for stacked anchors.
+      for (let dy = MAX_DEPTH_BELOW_ROW; !placed; dy += LANE_H) {
+        placed = place(shape, floor, 0, dy);
+      }
+    }
+    out.set(input.id, placed);
   }
   return out;
 }

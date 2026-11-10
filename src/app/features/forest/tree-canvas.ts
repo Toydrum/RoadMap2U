@@ -2,6 +2,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  afterNextRender,
   computed,
   effect,
   inject,
@@ -22,7 +23,6 @@ import { FocusSessionService } from '../../core/focus-session.service';
 import { PerchAnchorService } from '../../core/perch-anchor.service';
 import { PerchBody } from '../../shared/ui/perch-body';
 import {
-  LEVEL_H,
   LayoutPoint,
   branchRibbon,
   hash,
@@ -46,13 +46,11 @@ import {
 import { FlowerGlyph } from './flower';
 import { FruitGlyph } from './fruit';
 import {
-  CHAR_W,
-  LABEL_BASELINE,
-  LINE_H as LABEL_LINE_H,
+  LABEL_FONT_SIZE,
   LabelBlock,
+  MeasureLabel,
   labelInputsFrom,
   packLabels,
-  wrapTitle,
 } from './tree-labels';
 
 /** One falling fruit — «la cosecha»'s one-shot bloom celebration. */
@@ -107,8 +105,11 @@ export class TreeCanvas {
   protected readonly i18n = inject(I18nService);
   protected readonly motion = inject(MotionService);
   protected readonly Math = Math;
+  protected readonly labelFontSize = LABEL_FONT_SIZE;
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly svgRef = viewChild.required<ElementRef<SVGSVGElement>>('svg');
+  private readonly focusReadout = viewChild.required<ElementRef<HTMLElement>>('focusReadout');
+  private readonly labelMeasure = signal<MeasureLabel | undefined>(undefined);
 
   /** Pan/zoom state. */
   protected readonly tx = signal(0);
@@ -369,7 +370,49 @@ export class TreeCanvas {
       if (this.perchPoint()) this.perchAnchor.claim('tree');
       else this.perchAnchor.release('tree');
     });
-    inject(DestroyRef).onDestroy(() => this.perchAnchor.release('tree'));
+    const destroyRef = inject(DestroyRef);
+    destroyRef.onDestroy(() => this.perchAnchor.release('tree'));
+    afterNextRender(() => this.observeLabelFont(destroyRef));
+  }
+
+  private observeLabelFont(destroyRef: DestroyRef): void {
+    const context = document.createElement('canvas').getContext('2d');
+    if (!context) return;
+    context.textAlign = 'center';
+    let family = '';
+    const refresh = (force: boolean): void => {
+      const next = getComputedStyle(this.host.nativeElement).getPropertyValue('--font-body').trim();
+      if (!next || (!force && next === family)) return;
+      family = next;
+      const cache = new Map<string, ReturnType<MeasureLabel>>();
+      this.labelMeasure.set((line, size) => {
+        const key = size + ':' + line;
+        const cached = cache.get(key);
+        if (cached) return cached;
+        context.font = `800 ${size}px ${next}`;
+        const metrics = context.measureText(line);
+        const result = {
+          width: Math.max(metrics.width, 2 * metrics.actualBoundingBoxLeft, 2 * metrics.actualBoundingBoxRight),
+          ascent: Math.max(metrics.actualBoundingBoxAscent, metrics.fontBoundingBoxAscent ?? size),
+          descent: Math.max(metrics.actualBoundingBoxDescent, metrics.fontBoundingBoxDescent ?? size * 0.3),
+        };
+        if (cache.size >= 4096) cache.clear();
+        cache.set(key, result);
+        return result;
+      });
+    };
+    const observer = new MutationObserver(() => refresh(false));
+    observer.observe(document.documentElement, { attributeFilter: ['data-theme', 'class'] });
+    const onFontsLoaded = (): void => refresh(true);
+    document.fonts.addEventListener('loadingdone', onFontsLoaded);
+    void document.fonts.ready.then(() => {
+      if (!destroyRef.destroyed) onFontsLoaded();
+    });
+    refresh(false);
+    destroyRef.onDestroy(() => {
+      observer.disconnect();
+      document.fonts.removeEventListener('loadingdone', onFontsLoaded);
+    });
   }
 
   private lastFitId: string | null = null;
@@ -448,7 +491,8 @@ export class TreeCanvas {
    *  change — never per zoom, never per focus. Visibility is therefore
    *  identical at every k by construction (tree-labels.ts owns the law). */
   private readonly labelField = computed(() => {
-    const inputs = labelInputsFrom(this.layout().points, {
+    const points = this.layout().points;
+    const inputs = labelInputsFrom(points, {
       currentNodeId: this.tree().currentNodeId,
       labeledChainIds: this.nextStepIds(),
       // «La luz»: sunlit titles read slightly larger (the owner's typographic
@@ -457,49 +501,37 @@ export class TreeCanvas {
       emphasisOf: (p) => (this.lightOf(p) === 'sunlit' ? 1.12 : 1),
       leadGlyphOf: (p) => (this.lightOf(p) === 'sunlit' ? 10 : 0),
     });
-    return packLabels(inputs);
+    return packLabels(inputs, this.labelMeasure(), points);
   });
 
   protected labelFor(point: LayoutPoint): LabelBlock | undefined {
     return this.labelField().get(point.node.id);
   }
 
-  /** The priority PILL behind a label — the scannable cue: golden for sun,
-   *  cool for shade, none for steady. Geometry straight from the block
-   *  (LINE_H exported by tree-labels); pad 5/3 < the packer's 16px margin,
-   *  so pills can never collide with a neighbor. */
-  protected pillFor(
-    point: LayoutPoint,
-    block: LabelBlock,
-  ): { x: number; y: number; w: number; h: number; kind: 'sun' | 'shade' } | null {
-    const light = this.lightOf(point);
-    if (light === 'steady') return null;
-    const lineH = LABEL_LINE_H * block.factor;
-    return {
-      x: block.cx - point.x - block.width / 2 - 5,
-      y: block.y0 - point.y - lineH - 3,
-      w: block.width + 10,
-      h: block.lines.length * lineH + 6,
-      kind: light === 'sunlit' ? 'sun' : 'shade',
-    };
-  }
+  protected readonly labelLinks = computed(() => {
+    const field = this.labelField();
+    const links: { id: string; path: string }[] = [];
+    for (const point of this.layout().points) {
+      const block = field.get(point.node.id);
+      if (!block) continue;
+      const edgeX = Math.max(block.cx - block.width / 2 + 3, Math.min(point.x, block.cx + block.width / 2 - 3));
+      const edgeY = Math.max(block.top, Math.min(point.y, block.top + block.height));
+      const dx = edgeX - point.x;
+      const dy = edgeY - point.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance < 15 || (Math.abs(block.cx - point.x) < 22 && distance < 25)) continue;
+      // Leave the glyph clear and end at the nearest point of the title.
+      links.push({
+        id: point.node.id,
+        path: `M ${point.x + dx * 10 / distance} ${point.y + dy * 10 / distance} L ${edgeX} ${edgeY}`,
+      });
+    }
+    return links;
+  });
 
-  /** Focused node's FULL name as an overlay cartouche painted on top —
-   *  tabbing must never reflow the packed field. Covers silent chain links
-   *  too (focus always speaks, like it always has). */
-  protected readonly focusTag = computed(() => {
+  protected readonly focusedPoint = computed(() => {
     const id = this.focusedId();
-    if (!id) return null;
-    const point = this.layout().byId.get(id);
-    if (!point) return null;
-    const factor = 1.15;
-    const maxChars = Math.max(8, Math.floor(180 / (CHAR_W * factor)));
-    // 8 lines hold ANY 80-char title (the input's maxlength) even as
-    // one-word-per-line — the cartouche's full-title promise stays intact
-    // (6 lines silently dropped words on pathological titles).
-    const { lines } = wrapTitle(point.node.title, maxChars, 8);
-    const row = point.rowY ?? -point.depth * LEVEL_H;
-    return { point, lines, factor, yRel: row + LABEL_BASELINE - point.y };
+    return id ? this.layout().byId.get(id) : undefined;
   });
 
   /** Sunlit nodes grow their glyph — attention has size (composes with the
@@ -557,21 +589,25 @@ export class TreeCanvas {
     );
     // Young trees should still fill the view instead of drowning in it.
     const fillK = (rect.height * 0.42) / Math.max(layout.height + 60, 180);
-    // Floor 0.5: same-row spacing stays ≥ ~39 screen px — comfortably tappable.
-    const k = Math.min(1.6, Math.max(0.5, Math.min(fitK, Math.max(1.15, fillK))));
-
-    this.fitsWhole = worldW * k <= rect.width - padX * 2;
     const currentId = this.tree().currentNodeId;
     const current = currentId ? layout.byId.get(currentId) : null;
-    const cx = this.fitsWhole || !current ? layout.minX + layout.width / 2 : current.x;
+    const near = current ?? layout.points[layout.points.length - 1];
+    // On a phone a canopy wider than two screens already needs panning at
+    // 0.5×. Keep the wider overview for medium trees that nearly fit.
+    const closeUp = rect.width < 560 && layout.width > 2 * rect.width;
+    const k = closeUp ? 1 : Math.min(1.6, Math.max(0.5, Math.min(fitK, Math.max(1.15, fillK))));
+    this.fitsWhole = k <= fitK;
+    const cx = closeUp ? near.x : this.fitsWhole || !current ? layout.minX + layout.width / 2 : current.x;
 
     this.k.set(k);
     this.restingK = k;
     const tx = rect.width / 2 - cx * k;
-    this.tx.set(this.fitsWhole ? tx : this.clampPan(tx, 0, k).tx);
-    this.ty.set(groundScreen - this.groundY() * k);
+    const ty = closeUp ? rect.height * 0.52 - near.y * k : groundScreen - this.groundY() * k;
+    const position = this.fitsWhole ? { tx, ty } : this.clampPan(tx, ty, k);
+    this.tx.set(position.tx);
+    this.ty.set(closeUp ? position.ty : ty);
     if (!this.focusedId()) {
-      this.focusedId.set((current ?? layout.points[layout.points.length - 1]).node.id);
+      this.focusedId.set(near.node.id);
     }
   }
 
@@ -692,11 +728,8 @@ export class TreeCanvas {
     }
   }
 
-  /** Taps resolve at the CANVAS level to the nearest node center, so a
-   *  neighbor's invisible hit disc can never swallow a tap — the effective
-   *  target is each node's Voronoi cell. Drags never count as taps; the
-   *  note-mark and the "+" bud win when hit directly (they stop propagation,
-   *  and the guard below covers any future refactor). */
+  /** A title opens its branch. On bare canvas the closest branch wins.
+   *  Drags never count as taps, and the note and plant buttons act directly. */
   protected onCanvasClick(ev: MouseEvent): void {
     if (this.movedSinceDown) return;
     if ((ev.target as Element).closest?.('.note-mark, .plant-bud')) return;
@@ -704,6 +737,14 @@ export class TreeCanvas {
     const k = this.k();
     const wx = (ev.clientX - rect.left - this.tx()) / k;
     const wy = (ev.clientY - rect.top - this.ty()) / k;
+    // Resolve against the painted bounds even when a nearby node's hit area
+    // happens to sit above the title in the SVG.
+    for (const block of this.labelField().values()) {
+      if (Math.abs(wx - block.cx) > block.width / 2 || wy < block.top || wy > block.top + block.height) continue;
+      const point = this.layout().byId.get(block.id);
+      if (point) this.openPoint(point);
+      return;
+    }
     let best: LayoutPoint | null = null;
     let bestD = Infinity;
     for (const p of this.layout().points) {
@@ -715,8 +756,12 @@ export class TreeCanvas {
     }
     // Reach: at least 28 screen px, at least 20 world units.
     if (!best || bestD > Math.max(28 / k, 20)) return;
-    this.focusNode(best.node.id);
-    this.nodeOpened.emit(best.node);
+    this.openPoint(best);
+  }
+
+  protected openPoint(point: LayoutPoint): void {
+    this.focusNode(point.node.id);
+    this.nodeOpened.emit(point.node);
   }
 
   protected onWheel(ev: WheelEvent): void {
@@ -808,12 +853,13 @@ export class TreeCanvas {
     const sx = point.x * this.k() + this.tx();
     const sy = point.y * this.k() + this.ty();
     const margin = 80;
+    const topMargin = Math.min(rect.height / 2, Math.max(margin, this.focusReadout().nativeElement.offsetHeight + 28));
     let dx = 0;
     let dy = 0;
     if (sx < margin) dx = margin - sx;
     if (sx > rect.width - margin) dx = rect.width - margin - sx;
-    if (sy < margin) dy = margin - sy;
-    if (sy > rect.height - margin) dy = rect.height - margin - sy;
+    if (sy < topMargin) dy = topMargin - sy;
+    else if (sy > rect.height - margin) dy = rect.height - margin - sy;
     this.tx.set(this.tx() + dx);
     this.ty.set(this.ty() + dy);
   }

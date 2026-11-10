@@ -101,6 +101,7 @@ async function harness(records: TreeNode[], options: HarnessOptions = {}) {
           needsDateReview: signal([]),
           rootsOf: () => [],
           heartOf: () => records.find((record) => record.id === currentTree.heartId) ?? null,
+          plantingParentId: NodesRepo.prototype.plantingParentId,
           assertCanPlant,
           plant,
         },

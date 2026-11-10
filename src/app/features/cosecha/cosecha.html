@@ -7,63 +7,69 @@
   <div class="hero">
     <h1>{{ i18n.t().cosecha.title }}</h1>
     <p class="intro">{{ i18n.t().cosecha.subtitle }}</p>
-    <div class="hero-jar" aria-hidden="true">
-      <app-meadow-jar [fruits]="harvests.fresh()" [size]="1.8" />
-    </div>
-    <!-- The line under the jar describes THE JAR (0.0.105, owner ask): the
-         fresh fruits it actually draws — jammed/promised ones live in their
-         jars, and the lifetime count keeps its home in the register below. -->
-    @if (freshCount()) {
-      <p class="total-line">{{ i18n.plural(freshCount(), i18n.t().cosecha.total) }}</p>
-    } @else if (jamShelf().length) {
-      <p class="fresh-ready">{{ i18n.t().cosecha.freshReady }}</p>
-    }
-    @if (freshCount()) {
-      <div class="doors">
-        <button type="button" class="btn btn-primary jam-door" (click)="makingJam.set(true)">
-          🫙 {{ i18n.t().cosecha.makeJam }}
-        </button>
-      </div>
-    }
-    @if (!promise.atLimit()) {
-      <div class="doors-secondary">
-        <button type="button" class="btn btn-ghost promise-door" (click)="openWizard()">
-          🎁 {{ i18n.t().cosecha.promise.door }}
-        </button>
-      </div>
-    } @else {
-      <p class="promise-limit">{{ i18n.t().cosecha.promise.limitReached }}</p>
-    }
   </div>
 
-  <app-hint-chip surface="cosecha" [text]="i18n.t().hints.cosecha" />
-
-  <!-- «Lo que estás llenando» (0.0.93): goal jars still filling. No number on
-       the shelf (the count line lives only in the jar's detail). -->
-  @if (promise.pending().length) {
-    <section class="part pending-shelf">
-      <h2 class="part-title"><span aria-hidden="true">🎁</span> {{ i18n.t().cosecha.pendingShelfTitle }}</h2>
-      <div class="jam-row">
-        @for (jar of promise.pending(); track jar.id) {
-          <button
-            type="button"
-            class="jam-shelf-jar pending-jar"
-            [class.selected]="openId() === jar.id"
-            [attr.aria-expanded]="openId() === jar.id"
-            aria-controls="pending-panel"
-            (click)="toggle(jar.id)"
-          >
-            <app-promise-jar [fruits]="promise.membersOf(jar.id)" [vessel]="jar.size ?? 'frasco'" [label]="jar.name" />
+  <div class="pantry-workspace">
+    <section class="fresh-shelf" aria-labelledby="fresh-title">
+      <div class="hero-jar" aria-hidden="true">
+        <app-meadow-jar [fruits]="harvests.fresh()" [size]="1.05" />
+      </div>
+      <div class="fresh-copy">
+        <h2 class="part-title" id="fresh-title">{{ i18n.t().cosecha.freshTitle }}</h2>
+        @if (freshCount()) {
+          <p class="shelf-note total-line">{{ i18n.plural(freshCount(), i18n.t().cosecha.total) }}</p>
+          <button type="button" class="btn btn-primary jam-door" (click)="makingJam.set(true)">
+            <span aria-hidden="true">🫙</span> {{ i18n.t().cosecha.makeJam }}
           </button>
+        } @else {
+          <p class="shelf-note fresh-ready">{{ i18n.t().cosecha.freshReady }}</p>
         }
       </div>
     </section>
-  }
-  @if (openInPending(); as jar) {
-    <section class="part jar-panel-home">
-      <app-jar-detail [preserve]="jar" (claim)="claiming.set($event)" (release)="askRelease($event)" (make)="making.set($event)" />
+
+    <section class="pending-shelf" aria-labelledby="promises-title">
+      <div class="shelf-heading">
+        <h2 class="part-title" id="promises-title">{{ i18n.t().cosecha.pendingShelfTitle }}</h2>
+        @if (!promise.atLimit()) {
+          <button type="button" class="btn btn-soft promise-door" (click)="openWizard()">
+            <span aria-hidden="true">🎁</span> {{ i18n.t().cosecha.promise.door }}
+          </button>
+        }
+      </div>
+      @if (promise.atLimit()) {
+        <p class="shelf-note promise-limit">{{ i18n.t().cosecha.promise.limitReached }}</p>
+      } @else if (!promise.pending().length) {
+        <p class="shelf-note">{{ i18n.t().cosecha.promise.empty }}</p>
+      }
+      @if (promise.pending().length) {
+        <div class="jam-row">
+          @for (jar of promise.pending(); track jar.id) {
+            <button
+              type="button"
+              class="jam-shelf-jar pending-jar"
+              [class.selected]="openId() === jar.id"
+              [attr.aria-expanded]="openId() === jar.id"
+              [attr.aria-controls]="openId() === jar.id ? 'pending-panel' : null"
+              (click)="toggle(jar.id)"
+            >
+              <app-promise-jar [fruits]="promise.membersOf(jar.id)" [vessel]="jar.size ?? 'frasco'" />
+              <span class="promise-name">{{ jar.name }}</span>
+              @if (promise.isFull(jar)) {
+                <span class="jar-ready">{{ i18n.t().cosecha.promise.ready }}</span>
+              }
+            </button>
+          }
+        </div>
+      }
     </section>
+  </div>
+  @if (openInPending(); as jar) {
+    <div class="part jar-panel-home">
+      <app-jar-detail #pendingDetail [preserve]="jar" (release)="askRelease($event)" (make)="making.set($event)" />
+    </div>
   }
+
+  <app-hint-chip surface="cosecha" [text]="i18n.t().hints.cosecha" />
 
   <!-- La alacena: SEALED jams only (0.0.92 — the shelf of what waits),
        chronological. Opened jars live below, in «las disfrutadas». -->
@@ -224,8 +230,6 @@
         }
       </section>
     }
-  } @else {
-    <p class="part-empty">{{ i18n.t().cosecha.empty }} {{ i18n.t().cosecha.emptyHint }}</p>
   }
 </div>
 

@@ -37,16 +37,26 @@ export function underRitualPath(
   node: TreeNode,
   byId: ReadonlyMap<string, TreeNode>,
 ): boolean {
+  return ritualPathOf(node, byId) !== null;
+}
+
+function ritualPathOf(node: TreeNode, byId: ReadonlyMap<string, TreeNode>): TreeNode | null {
   const seen = new Set<string>();
   let current: TreeNode | undefined = node;
   while (current?.parentId && !seen.has(current.parentId)) {
     seen.add(current.parentId);
     const parent = byId.get(current.parentId);
-    if (!parent) return false;
-    if (ritualKind(parent) === 'path') return true;
+    if (!parent) return null;
+    if (ritualKind(parent) === 'path') return parent;
     current = parent;
   }
-  return false;
+  return null;
+}
+
+/** An occurrence is either a spiral or a step within a recurring path.
+ *  The path itself can still be bloomed as a final milestone. */
+export function occurrenceRitual(node: TreeNode, byId: ReadonlyMap<string, TreeNode>): TreeNode | null {
+  return ritualKind(node) === 'leaf' ? node : ritualPathOf(node, byId);
 }
 
 /** Back-compat alias (pre-0.0.103 name). */

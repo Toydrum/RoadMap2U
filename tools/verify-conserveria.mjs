@@ -160,13 +160,12 @@ ok(
     shelfName === 'La mermelada de mis exámenes',
   `jars=${before.jars}→${after.jars} fruits=${before.harvests}→${after.harvests} name="${shelfName.slice(0, 22)}"`,
 );
-// D2 (0.0.105, owner ask): the hero line speaks for the JAR — fresh fruits
-// only (the picture it sits under); the lifetime count lives in the register.
+// D2: the available-fruit count tracks fresh fruits only. History lives in the register.
 const freshAfter = after.harvests - after.preserved;
 const totalLine = ((await page.locator('.total-line').textContent().catch(() => '')) ?? '').trim();
 ok(
-  'D2 hero line counts the jar (fresh), not the lifetime register',
-  totalLine.includes(String(freshAfter)) && totalLine.includes('frasco') && !totalLine.includes(String(after.harvests)),
+  'D2 the available-fruit count excludes preserves',
+  Number(totalLine.match(/^\d+/)?.[0]) === freshAfter && freshAfter < after.harvests,
   `"${totalLine}" fresh=${freshAfter} lifetime=${after.harvests}`,
 );
 
@@ -675,6 +674,13 @@ await seedFresh(3, 'u');
 await page.goto(`${BASE}/cosecha`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(500);
 // ONE screen since 0.0.108: premio + vessel + Prometer (the premio IS the name).
+const desktopViewport = page.viewportSize();
+await page.setViewportSize({ width: 390, height: 844 });
+const jamDoor = await page.locator('.jam-door').boundingBox();
+const promiseDoor = await page.locator('.promise-door').boundingBox();
+ok('T0 both doors fit on the first mobile screen, with jam first',
+  jamDoor.y < promiseDoor.y && promiseDoor.y + promiseDoor.height < 844,
+  `jam=${jamDoor.y} promise=${promiseDoor.y}`);
 await page.locator('.promise-door').click();
 await page.waitForTimeout(300);
 await page.fill('#promise-premio', 'un café tranquilo');
@@ -692,6 +698,12 @@ ok(
   `jar=${JSON.stringify(promiseT ?? {}).slice(0, 90)}`,
 );
 ok('T2 the fill line shows 0 · caben 2 on the detail', /0/.test(fillT) && /2/.test(fillT), `"${fillT}"`);
+const pendingFocus = await page.locator('#pending-panel').evaluate((panel) => panel === document.activeElement);
+const nextAction = await page.locator('.add-fruit-btn').boundingBox();
+ok('T3 creation focuses the jar and shows the next action on mobile',
+  pendingFocus && nextAction.y >= 0 && nextAction.y + nextAction.height < 844,
+  `focused=${pendingFocus} action=${nextAction.y}`);
+await page.setViewportSize(desktopViewport);
 
 // U — place a SPECIFIC fruit; it leaves the pot tray and is re-placeable.
 await page.locator('.add-fruit-btn').click(); // open the tray once
@@ -723,7 +735,43 @@ ok('U2 a placed fruit is re-placeable while pending', promiseUback.members === 0
 // mermelada». Tray is still open.
 await page.locator('.add-pick', { hasText: 'Fruta u 1' }).click();
 await page.waitForTimeout(500);
-await page.locator('.add-pick', { hasText: 'Fruta u 2' }).click(); // 2nd fruit → capacity 2 → FULL (not sealed)
+const otherTab = await page.context().newPage();
+await otherTab.goto(`${BASE}/cosecha`, { waitUntil: 'networkidle' });
+await otherTab.locator('.pending-jar', { hasText: 'un café tranquilo' }).click();
+await otherTab.locator('.add-fruit-btn').click();
+const pickInFirstTab = page.locator('.add-pick', { hasText: 'Fruta u 2' });
+const pickInSecondTab = otherTab.locator('.add-pick', { hasText: 'Fruta u 3' });
+await Promise.all([pickInFirstTab.waitFor(), pickInSecondTab.waitFor()]);
+// Queue both clicks before either write can commit and hide the second tray.
+await page.evaluate(() => new Promise((resolve, reject) => {
+  const open = indexedDB.open('roadmap2u');
+  open.onerror = () => reject(open.error);
+  open.onsuccess = () => {
+    const db = open.result;
+    const tx = db.transaction('harvests', 'readwrite');
+    const store = tx.objectStore('harvests');
+    const deadline = performance.now() + 5000;
+    window.releaseLastSpaceTest = false;
+    const keepOpen = () => {
+      if (!window.releaseLastSpaceTest && performance.now() < deadline) {
+        store.get('last-space-test').onsuccess = keepOpen;
+      }
+    };
+    store.get('last-space-test').onsuccess = () => {
+      keepOpen();
+      resolve();
+    };
+    tx.oncomplete = () => db.close();
+  };
+}));
+try {
+  await Promise.all([
+    pickInFirstTab.evaluate((button) => button.click()),
+    pickInSecondTab.evaluate((button) => button.click()),
+  ]);
+} finally {
+  await page.evaluate(() => { window.releaseLastSpaceTest = true; });
+}
 await page.waitForTimeout(700);
 const fullV = (await readJars()).find((j) => j.name === 'un café tranquilo');
 const makeBtn = await page.locator('.make-jam-btn').count();
@@ -732,6 +780,12 @@ ok(
   fullV.sealedAt == null && fullV.members === 2 && makeBtn >= 1,
   `sealedAt=${fullV.sealedAt != null} members=${fullV.members} makeBtn=${makeBtn}`,
 );
+const addOnFull = await page.locator('.add-fruit-btn, .add-pick').count();
+const otherAddOnFull = await otherTab.locator('.add-fruit-btn, .add-pick').count();
+ok('V1 only one tab gets the last space, and both hide the fruit tray',
+  fullV.members === 2 && !addOnFull && !otherAddOnFull,
+  `members=${fullV.members} open=${addOnFull},${otherAddOnFull}`);
+await otherTab.close();
 // V2 — the user MAKES the jam: cook ceremony → Envasar → the POUR scene plays
 // (0.0.100, ~2.4s) → sealed (premio kept).
 await page.locator('.make-jam-btn').first().click();
@@ -778,7 +832,7 @@ const freedW = await page.evaluate(async () => {
   db.close();
   return rows.filter((h) => !h.deletedAt && h.nodeId.startsWith('u-') && !h.preserveId).length;
 });
-ok('W soltar frees fruits + tombstones the jar', goneW && freedW >= 1 && freshBeforeW >= 1, `gone=${goneW} freed=${freedW}`);
+ok('W soltar frees both members; the unused fruit was also kept', goneW && freedW === 3 && freshBeforeW >= 2, `gone=${goneW} fresh=${freedW}`);
 
 // X — the count line lives ONLY on the detail; shelves are numberless.
 await seedFresh(2, 'x');
@@ -831,12 +885,12 @@ ok(
   premioChipY === 0 && earnedY >= 1 && premioSaidY >= 1 && rainY >= 1,
   `premioChip=${premioChipY} earned=${earnedY} said=${premioSaidY} rain=${rainY}`,
 );
-await page.locator('.sheet button', { hasText: 'A disfrutarlo' }).click().catch(() => {});
+await page.locator('.sheet button', { hasText: 'A disfrutarlo' }).click({ timeout: 2000 }).catch(() => {});
 await page.waitForTimeout(400);
 
-// Z — filling from OUTSIDE (a sync merge places all fruits) does NOT auto-seal
-// (0.0.96): the jar waits full + pending, offering «Hacer mermelada».
-const zFresh = await seedFresh(5, 'z');
+// Z — an older over-capacity jar (or a sync merge) keeps all its fruit and
+// stays pending, offering «Hacer mermelada».
+const zFresh = await seedFresh(6, 'z');
 await page.goto(`${BASE}/cosecha`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(400);
 await page.locator('.promise-door').click();
@@ -846,7 +900,7 @@ await page.locator('.vessel-chip').nth(1).click(); // frasco, capacity 5
 await page.locator('.create-btn').click();
 await page.waitForTimeout(500);
 const jarZ = (await readJars()).find((j) => j.name === 'un premio Z');
-// simulate a sync merge: place all 5 fruits directly (never through place())
+// Simulate a sync merge: put all six fruits in the five-fruit jar.
 await page.evaluate(async ({ ids, jarId }) => {
   const open = indexedDB.open('roadmap2u');
   const db = await new Promise((res, rej) => { open.onsuccess = () => res(open.result); open.onerror = rej; });
@@ -866,11 +920,12 @@ const zJar = (await readJars()).find((j) => j.name === 'un premio Z');
 await page.locator('.pending-jar').first().click(); // «un premio Z» (only pending jar left)
 await page.waitForTimeout(300);
 const zMakeBtn = await page.locator('.make-jam-btn').count();
+const zAddBtn = await page.locator('.add-fruit-btn').count();
 const zNoToast = (await page.locator('.toast', { hasText: 'Se llenó' }).count()) === 0;
 ok(
-  'Z an externally-filled jar waits (no auto-seal) + offers «Hacer mermelada»',
-  !!zJar && zJar.sealedAt == null && zJar.members === 5 && zMakeBtn >= 1 && zNoToast,
-  `sealedAt=${zJar?.sealedAt != null} members=${zJar?.members} makeBtn=${zMakeBtn}`,
+  'Z an over-capacity jar keeps all six fruits and can be cooked',
+  !!zJar && zJar.sealedAt == null && zJar.members === 6 && zMakeBtn === 1 && !zAddBtn && zNoToast,
+  `sealedAt=${zJar?.sealedAt != null} members=${zJar?.members} makeBtn=${zMakeBtn} addBtn=${zAddBtn}`,
 );
 
 // ── 0.0.94 «la cocina despejada» ─────────────────────────────────────────
@@ -898,6 +953,9 @@ ok(
 
 // AB — one panel at a time. Make a pending jar, open it, then open a sealed
 // jam: the pending panel must close (single openId).
+await page.locator('.pending-jar', { hasText: 'un premio Z' }).click();
+await page.locator('.edit-toggle').click();
+await page.locator('.edit-name-input').fill('borrador de otro frasco');
 await page.locator('.promise-door').click();
 await page.waitForTimeout(300);
 await page.fill('#promise-premio', 'un premio AB');
@@ -906,6 +964,8 @@ await page.locator('.create-btn').click();
 await page.waitForTimeout(600);
 // the wizard auto-opens the new jar's detail — the pending panel is already up
 const panelsAfterPending = await page.locator('.jar-panel').count();
+const staleEdit = await page.locator('.edit-name-input').count();
+ok('AB1 the new jar opens without the previous jar’s draft', !staleEdit, `staleEdit=${staleEdit}`);
 await page.locator('.alacena .jam-shelf-jar').first().click();
 await page.waitForTimeout(400);
 const panelsAfterSealed = await page.locator('.jar-panel').count();
@@ -916,6 +976,59 @@ ok(
   panelsAfterPending === 1 && panelsAfterSealed === 1 && sealedPanel === 1 && pendingPanelGone,
   `pending=${panelsAfterPending} sealed=${panelsAfterSealed} isSealed=${sealedPanel} pendingGone=${pendingPanelGone}`,
 );
+
+// AC — the post-bloom picker offers the two jars with space, omitting the full one.
+await page.locator('.promise-limit').waitFor({ timeout: 5000 });
+const eligibleNames = (await readJars())
+  .filter((jar) => jar.plannedAt != null && jar.sealedAt == null && jar.id !== jarZ.id)
+  .map((jar) => jar.name);
+await page.goto(`${BASE}/tree/${siteC.treeId}?node=${siteC.nodeId}`, { waitUntil: 'networkidle' });
+const addStep = page.locator('.add-step input');
+for (const title of ['Pasito de la promesa', 'Pasito que sigue creciendo']) {
+  await addStep.fill(title);
+  await addStep.press('Enter');
+  await page.locator('.steps li', { hasText: title }).waitFor();
+}
+const newStepId = (await page.locator('.steps li', { hasText: 'Pasito de la promesa' }).getAttribute('id')).slice(5);
+await page.goto(`${BASE}/tree/${siteC.treeId}?node=${newStepId}`, { waitUntil: 'networkidle' });
+const statusPicker = page.locator('.status-row .chip.pick');
+const bloom = async () => {
+  await statusPicker.filter({ hasText: 'Florecida' }).click();
+  await page.locator('.status-row .chip.pick.selected', { hasText: 'Florecida' }).waitFor();
+};
+const bloomAgain = async () => {
+  await statusPicker.filter({ hasText: 'Creciendo' }).click();
+  await page.locator('.status-row .chip.pick.selected', { hasText: 'Creciendo' }).waitFor();
+  await bloom();
+};
+await bloom();
+await page.locator('.toast button', { hasText: 'Elegir' }).click({ timeout: 10000 });
+await page.locator('app-placement-picker .picker').waitFor();
+const eligibleJars = await page.locator('.jar-pick-name').allTextContents();
+ok('AC the post-bloom picker excludes the full jar',
+  eligibleJars.length === 2 && eligibleNames.length === 2 && eligibleNames.every((name) => eligibleJars.includes(name)),
+  eligibleJars.join(', '));
+const beforePickerCancel = await idbCounts();
+await page.keyboard.press('Escape');
+await page.locator('app-placement-picker .picker').waitFor({ state: 'detached' });
+const afterPickerCancel = await idbCounts();
+ok('AC1 dismissing the picker leaves the fruit available',
+  beforePickerCancel.harvests === afterPickerCancel.harvests &&
+    beforePickerCancel.preserved === afterPickerCancel.preserved);
+
+await bloomAgain();
+await page.locator('.toast button', { hasText: 'Elegir' }).click({ timeout: 10000 });
+await page.locator('.jar-pick', { hasText: 'un premio AB' }).click();
+await page.locator('app-placement-picker .picker').waitFor({ state: 'detached' });
+const afterPlacement = await idbCounts();
+await bloomAgain();
+await page.waitForTimeout(500);
+const afterRebloom = await idbCounts();
+const repeatedOffer = await page.locator('.toast button', { hasText: /Elegir|Guardarla/ }).count();
+ok('AD re-blooming preserves the fruit in its promise and makes no placement offer',
+  afterPlacement.preserved === beforePickerCancel.preserved + 1 &&
+    afterRebloom.preserved === afterPlacement.preserved &&
+    afterRebloom.harvests === afterPlacement.harvests && !repeatedOffer);
 
 console.log('conserveria done');
 await browser.close();

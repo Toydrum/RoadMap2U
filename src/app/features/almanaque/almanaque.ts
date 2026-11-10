@@ -5,11 +5,11 @@ import { TreesRepo } from '../../core/repos/trees.repo';
 import { NodesRepo } from '../../core/repos/nodes.repo';
 import { CheckinsRepo } from '../../core/repos/checkins.repo';
 import { SettingsService } from '../../core/repos/settings.service';
-import { ToastService, UNDO_MS } from '../../shared/ui/toast.service';
-import { BloomBurstService } from '../../shared/ui/bloom-burst';
+import { ToastService } from '../../shared/ui/toast.service';
 import { FEELING_EMOJI, Tree, TreeNode } from '../../core/db/schema';
 import { dayOf, today, weekdayOf } from '../../core/time';
-import { Cadence } from '../../core/cadence';
+import { Cadence, cadenceOf } from '../../core/cadence';
+import { ritualKind } from '../../core/harvest';
 import { inputValue } from '../../shared/ui/dom';
 import { SheetDirective } from '../../shared/ui/sheet.directive';
 import { CadencePicker } from '../node-detail/cadence-picker';
@@ -18,7 +18,9 @@ import { hash } from '../forest/tree-layout';
 import { FlowerSpec, flowerFor } from '../forest/flora';
 import { FlowerGlyph } from '../forest/flower';
 import { forestQuotaMessage } from '../forest/forest-quota-feedback';
+import { ForestQuotaError } from '../../core/repos/forest-mutations.service';
 import { DateReview } from '../check-in/date-review';
+import { RitualCompletion } from '../node-detail/ritual-completion';
 import { HintChip } from '../../shared/ui/hint-chip';
 import {
   Caminito,
@@ -94,7 +96,7 @@ export class AlmanaquePage {
   private readonly checkins = inject(CheckinsRepo);
   private readonly settings = inject(SettingsService);
   private readonly toast = inject(ToastService);
-  private readonly burst = inject(BloomBurstService);
+  private readonly ritualCompletion = inject(RitualCompletion);
   private readonly router = inject(Router);
 
   /* ------------------------------------------------------------- Hoy -- */
@@ -168,98 +170,92 @@ export class AlmanaquePage {
   protected readonly todayIsQuiet = computed(
     () =>
       !this.paths().length &&
+      !this.stones().length &&
+      !this.restingToday().length &&
       !this.todayChips().length &&
       !this.todayDatedRows().length &&
       !this.upcomingDates().length &&
       !this.pendingReviews().length,
   );
 
-  /** Bloom the «siguiente» stone right on the path — same verb as the tree,
-   *  with the undo law (re-read the LIVE record; never re-save a capture). */
-  private bloomingStone = false;
-
-  protected async bloomStone(step: TreeNode, ev?: Event): Promise<void> {
-    // Anchor captured before the await — currentTarget nulls after dispatch.
-    const anchor = (ev?.currentTarget as Element) ?? null;
-    if (this.bloomingStone) return;
-    const live = this.nodes.byId().get(step.id);
-    // archivedAt too (0.0.115 B1): a stone archived in another tab while
-    // this list was on screen must not bloom into an invisible drawer.
-    if (!live || live.deletedAt || live.archivedAt || live.status === 'achieved') return;
-    this.bloomingStone = true;
-    const prevStatus = live.status;
-    try {
-      await this.nodes.setStatus(live, 'achieved');
-    } finally {
-      this.bloomingStone = false;
-    }
-    // «El estallido» celebrates the ACT (equal dignity — senderos too);
-    // fruit stays out: stones are sendero pasitos and the jar never lies.
-    const tree = this.trees.byId().get(step.treeId);
-    if (tree) {
-      this.burst.burstAt(anchor, flowerFor(tree.accent, tree.id));
-    }
-    this.toast.show(
-      {
-        message: this.i18n.fill(this.i18n.t().almanaque.stoneBloomed, { title: step.title }),
-        actionLabel: this.i18n.t().common.undo,
-        action: () => {
-          const fresh = this.nodes.byId().get(step.id);
-          if (fresh && !fresh.deletedAt && fresh.status === 'achieved') {
-            void this.nodes.setStatus(fresh, prevStatus);
-          }
-        },
-      },
-      UNDO_MS,
-    );
+  protected bloomStone(step: TreeNode, ev: Event): Promise<void> {
+    return this.ritualCompletion.complete(this.nodes, this.trees, step.id, ev.currentTarget as Element);
   }
 
   /* ------------------------------------- Sembrar una piedrita (0.0.103) */
 
   protected readonly inputValue = inputValue;
-  protected readonly sowingStone = signal(false);
+  protected readonly sowingKind = signal<'spiral' | 'branch' | null>(null);
   protected readonly stoneTitle = signal('');
   protected readonly stoneTreeId = signal<string | null>(null);
   protected readonly stoneTree = computed(() =>
     this.trees.active().find((tree) => tree.id === this.stoneTreeId()),
   );
+  protected readonly branchTreeIsSendero = computed(() => {
+    const tree = this.stoneTree();
+    if (this.sowingKind() !== 'branch' || !tree) return false;
+    const heart = this.nodes.heartOf(tree.id);
+    return !!heart && ritualKind(heart) === 'path';
+  });
   protected readonly stoneCadence = signal<Cadence>('daily');
   protected readonly stoneSaving = signal(false);
   protected readonly stoneError = signal('');
+  protected readonly branchDate = signal<string | null>(null);
+  protected readonly useBranchDate = signal(false);
+  protected readonly branchDateLine = computed(() => {
+    const date = this.branchDate();
+    return date ? this.dateLine(date) : '';
+  });
 
-  protected openSowing(): void {
+  protected openSowing(kind: 'spiral' | 'branch', date: string | null = null): void {
     // Default tree = the first standing one — always a VISIBLE picker choice.
     this.stoneTreeId.set(this.trees.active()[0]?.id ?? null);
-    this.sowingStone.set(true);
+    this.branchDate.set(date);
+    this.useBranchDate.set(false);
+    this.sowingKind.set(kind);
   }
 
   protected closeSowing(): void {
     if (this.stoneSaving()) return;
-    this.sowingStone.set(false);
+    this.sowingKind.set(null);
     this.stoneTitle.set('');
     this.stoneCadence.set('daily');
     this.stoneError.set('');
   }
 
-  /** Plant a ritual leaf in the USER-PICKED tree (top level). The compat
-   *  shadow travels with it (nodes.plant mirrors repeatsDaily). */
-  protected async sowStone(): Promise<void> {
+  protected async sow(): Promise<void> {
     const title = this.stoneTitle().trim();
     const tree = this.stoneTree();
-    if (!title || !tree || this.stoneSaving()) return;
+    const kind = this.sowingKind();
+    if (!kind || !title || !tree || this.stoneSaving() || this.branchTreeIsSendero()) return;
+    const dict = this.i18n.t().almanaque;
     this.stoneSaving.set(true);
     this.stoneError.set('');
+    let node: TreeNode;
     try {
-      await this.nodes.plant(tree.id, null, { title, repeats: this.stoneCadence() });
+      const parentId = this.nodes.plantingParentId(tree.id);
+      node = await this.nodes.plant(tree.id, parentId, {
+        title,
+        repeats: kind === 'spiral' ? this.stoneCadence() : undefined,
+        targetDate: kind === 'branch' && this.useBranchDate() ? this.branchDate() : null,
+      });
     } catch (error) {
+      const treeUnavailable = error instanceof ForestQuotaError && error.decision.reason === 'TREE_NOT_ACTIVE';
       this.stoneError.set(
-        forestQuotaMessage(this.i18n, error) ?? this.i18n.t().familia.errors.unknown,
+        treeUnavailable ? dict.sowingTreeUnavailable :
+          forestQuotaMessage(this.i18n, error) ?? this.i18n.t().familia.errors.unknown,
       );
       return;
     } finally {
       this.stoneSaving.set(false);
     }
-    this.toast.show({ message: this.i18n.fill(this.i18n.t().almanaque.piedritaSown, { title }) });
+    this.toast.show(kind === 'spiral'
+      ? { message: this.i18n.fill(dict.piedritaSown, { title }) }
+      : {
+        message: this.i18n.fill(dict.branchSown, { title, tree: tree.name }),
+        actionLabel: dict.viewPlantedBranch,
+        action: () => this.openBranch(node),
+      });
     this.closeSowing();
   }
 
@@ -476,10 +472,18 @@ export class AlmanaquePage {
   protected readonly openIsPast = computed(() => (this.openDate() ?? '') < today());
   protected readonly openIsToday = computed(() => this.openDate() === today());
 
+  protected readonly openSpirals = computed(() => {
+    const date = this.openDate();
+    if (!date || date <= today()) return [];
+    return piedritas(this.trees.active(), this.nodes.byTree(), date)
+      .map(({ node, tree }) => ({ node, tree, weekly: cadenceOf(node) === 'weekly' }));
+  });
+
   protected readonly openIsEmpty = computed(() => {
     const m = this.openMarks();
     return (
-      !!m && !m.capullos.length && !m.flowers.length && !m.knots.length && !this.openFootprints().length
+      !!m && !m.capullos.length && !m.flowers.length && !m.knots.length &&
+      !this.openFootprints().length && !this.openSpirals().length
     );
   });
 

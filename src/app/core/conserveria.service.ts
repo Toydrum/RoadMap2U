@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { AccentToken, Harvest, JarVessel, Preserve, newSyncBase, stamp } from './db/schema';
-import { StoreName, putAcross } from './db/idb';
+import { StoreName, accountClosureGuardedWriteInDatabase, openDb, putAcross } from './db/idb';
+import { runAccountClosureGuardedWrite } from './db/account-closure-fence';
 import { broadcastChange, broadcastMutation } from './db/broadcast';
 import { deriveAccent, isPending, jarCapacity, jarSizeFor } from './harvest';
 import { HarvestsRepo } from './repos/harvests.repo';
@@ -126,7 +127,7 @@ export class ConserveriaService {
   }
 
   // ── «La promesa» (0.0.93): goal jars — an empty jar created ahead of its
-  //    fruit, filled by placements, auto-sealed at capacity. ────────────────
+  //    fruit, filled by placements, cooked by choice. ──────────────────────
 
   /** «La despedida» (0.0.95): distill a commemorative elixir when the user
    *  archives a fruited tree. It REFERENCES the tree (treeId) and carries «lo
@@ -214,21 +215,46 @@ export class ConserveriaService {
     harvestId: string,
     preserveId: string,
   ): Promise<{ jar: Preserve; fruit: Harvest; filled: boolean } | null> {
-    const h = this.harvests.byId().get(harvestId);
-    const jar = this.preserves.byId().get(preserveId);
-    if (!h || h.deletedAt || h.preserveId) return null;
-    if (!jar || jar.deletedAt || jar.sealedAt || jar.plannedAt == null) return null;
+    const placed = await this.withPendingContents(preserveId, (jar, fruits, tx) => {
+      const fruit = fruits.find((row) => row.id === harvestId);
+      if (!fruit || fruit.deletedAt || fruit.preserveId) return null;
+      const count = fruits.filter((row) => row.preserveId === jar.id && !row.deletedAt).length;
+      const capacity = jarCapacity(jar.size ?? 'frasco');
+      if (count >= capacity) return null;
 
-    const placed = stamp({ ...h, preserveId: jar.id });
-    const members = [...this.harvests.byId().values()].filter(
-      (x) => x.preserveId === jar.id && !x.deletedAt && x.id !== placed.id,
+      const updated = stamp({ ...fruit, preserveId: jar.id });
+      tx.objectStore('harvests').put(updated);
+      return { jar, fruit: updated, filled: count + 1 === capacity };
+    });
+    if (!placed) return null;
+    this.harvests.applyExternal(placed.fruit);
+    broadcastChange({ store: 'harvests', ids: [placed.fruit.id] });
+    return placed;
+  }
+
+  /** Read and change a pending jar's contents in one transaction. Two tabs
+   *  cannot both take the last space, or add a fruit while release frees it. */
+  private withPendingContents<T>(
+    preserveId: string,
+    change: (jar: Preserve, fruits: Harvest[], tx: IDBTransaction) => T | null,
+  ): Promise<T | null> {
+    return runAccountClosureGuardedWrite(
+      [{ store: 'preserves', value: preserveId }, { store: 'harvests', value: preserveId }],
+      async () => {
+        const db = await openDb();
+        let result: T | null = null;
+        await accountClosureGuardedWriteInDatabase(db, ['preserves', 'harvests'], (tx) => {
+          const jarRequest = tx.objectStore('preserves').get(preserveId);
+          const fruitsRequest = tx.objectStore('harvests').getAll();
+          fruitsRequest.onsuccess = () => {
+            const jar: Preserve | undefined = jarRequest.result;
+            if (!jar || jar.deletedAt || !isPending(jar)) return;
+            result = change(jar, fruitsRequest.result, tx);
+          };
+        });
+        return result;
+      },
     );
-    const filled = members.length + 1 >= jarCapacity(jar.size ?? 'frasco');
-
-    await putAcross([{ store: 'harvests', rows: [placed] }]);
-    this.harvests.applyExternal(placed);
-    broadcastChange({ store: 'harvests', ids: [placed.id] });
-    return { jar, fruit: placed, filled };
   }
 
   /** Edit a pending goal jar's words (name/premio) — editable while it
@@ -266,23 +292,26 @@ export class ConserveriaService {
   /** «Soltar» a pending goal jar: tombstone it and return every member to the
    *  fresh jar (same atomic shape as unseal). Only a pending promise can be
    *  released — a sealed jam is history. Always available (no lock, ever). */
-  async release(preserve: Preserve): Promise<void> {
-    const jar = this.preserves.byId().get(preserve.id) ?? preserve;
-    if (jar.deletedAt || jar.sealedAt || jar.plannedAt == null) return;
-    const tombstoned = stamp({ ...jar, deletedAt: Date.now() });
-    const freed = [...this.harvests.byId().values()]
-      .filter((h) => h.preserveId === jar.id && !h.deletedAt)
-      .map((h) => stamp({ ...h, preserveId: null }));
-    await putAcross([
-      { store: 'preserves', rows: [tombstoned] },
-      { store: 'harvests', rows: freed },
-    ]);
+  async release(preserve: Preserve): Promise<boolean> {
+    const released = await this.withPendingContents(preserve.id, (jar, fruits, tx) => {
+      const tombstoned = stamp({ ...jar, deletedAt: Date.now() });
+      const freed = fruits
+        .filter((h) => h.preserveId === jar.id && !h.deletedAt)
+        .map((h) => stamp({ ...h, preserveId: null }));
+      tx.objectStore('preserves').put(tombstoned);
+      const harvestStore = tx.objectStore('harvests');
+      for (const row of freed) harvestStore.put(row);
+      return { tombstoned, freed };
+    });
+    if (!released) return false;
+    const { tombstoned, freed } = released;
     this.preserves.applyExternal(tombstoned);
     for (const row of freed) this.harvests.applyExternal(row);
     broadcastMutation([
       { store: 'preserves', ids: [tombstoned.id] },
       ...(freed.length ? [{ store: 'harvests' as const, ids: freed.map((r) => r.id) }] : []),
     ]);
+    return true;
   }
 
   /** «Hacer mermelada» (0.0.96): the user seals a FULL goal jar themselves —
