@@ -161,8 +161,10 @@ describe('individual subscription page', () => {
     expect(root.textContent).toContain('Premium patrocinado · sin vencimiento');
     expect(root.textContent).toContain('Premium por suscripción');
     expect(root.querySelector('.billing-portal')).not.toBeNull();
+    expect(root.querySelector('.billing-settings-back')).not.toBeNull();
+    expect(root.querySelector('.billing-create-account')).toBeNull();
   });
-  it('gives a guest a calm sign-in door back to this subscription route', async () => {
+  it('gives guests direct paths to sign in, register, and view plans in their selected language', async () => {
     await TestBed.configureTestingModule({
       imports: [SubscriptionPage],
       providers: [provideRouter([]), { provide: AuthService, useValue: { user: signal(null) } }],
@@ -174,7 +176,17 @@ describe('individual subscription page', () => {
     expect(root.querySelector('.billing-sign-in')?.getAttribute('href')).toBe(
       '/account?intent=signIn&lang=es&volver=%2Faccount%2Fsubscription',
     );
+    expect(root.querySelector('.billing-create-account')?.getAttribute('href')).toBe(
+      '/account?intent=create&lang=es&volver=%2Faccount%2Fsubscription',
+    );
+    expect(root.querySelector('.billing-plans-back')?.getAttribute('href')).toBe('/?lang=es#plans');
+    expect(root.querySelector('.billing-settings-back')).toBeNull();
     expect(root.querySelector('.billing-checkout')).toBeNull();
+
+    await TestBed.inject(I18nService).set('en');
+    fixture.detectChanges();
+    expect(root.querySelector('.billing-create-account')?.getAttribute('href')).toContain('lang=en');
+    expect(root.querySelector('.billing-plans-back')?.getAttribute('href')).toBe('/?lang=en#plans');
   });
   it('labels a synthetic DEV financial date in Spanish and English without provider identifiers', async () => {
     const now = Date.now(),

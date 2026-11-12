@@ -87,49 +87,76 @@
         <h1 #stepHeading tabindex="-1">{{ i18n.t().account.createTitle }}</h1>
         <p class="sub">{{ i18n.t().account.createHint }}</p>
 
-        <form class="auth-form" (submit)="$event.preventDefault(); doCreate()">
+        <form #signupForm class="auth-form" novalidate (submit)="$event.preventDefault(); doCreate()">
           <label class="field">
             <span>{{ i18n.t().account.username }}</span>
             <input
               type="text"
+              name="username"
               autocomplete="username"
               autocapitalize="none"
               spellcheck="false"
+              required
+              aria-describedby="signup-username-hint"
+              [attr.aria-invalid]="signupFieldError() === 'invalidUsername' || null"
               [value]="username()"
-              (input)="username.set(inputValue($event))"
+              (input)="updateSignupField('username', $event)"
             />
           </label>
+          <p id="signup-username-hint" class="hint" [class.error-line]="signupFieldError() === 'invalidUsername'">
+            {{ i18n.t().account.errors.invalidUsername }}
+          </p>
           <!-- displayName severed from signup (0.0.108) — the profile already falls
      back to the username; one less field at the front door. -->
           <label class="field">
             <span>{{ i18n.t().account.email }}</span>
             <input
               type="email"
+              name="email"
               autocomplete="email"
+              required
+              [attr.aria-invalid]="signupFieldError() === 'invalidEmail' || null"
+              [attr.aria-describedby]="signupFieldError() === 'invalidEmail' ? 'signup-email-error' : null"
               [value]="email()"
-              (input)="email.set(inputValue($event))"
+              (input)="updateSignupField('email', $event)"
             />
           </label>
+          @if (signupFieldError() === 'invalidEmail') {
+            <p id="signup-email-error" class="error-line" role="alert">{{ i18n.t().account.errors.invalidEmail }}</p>
+          }
           <label class="field">
             <span>{{ i18n.t().account.passwordNew }}</span>
             <input
               type="password"
+              name="password"
               autocomplete="new-password"
+              required
               [attr.minlength]="minLength"
+              aria-describedby="signup-password-hint"
+              [attr.aria-invalid]="signupFieldError() === 'passwordPolicy' || null"
               [value]="password()"
-              (input)="password.set(inputValue($event))"
+              (input)="updateSignupField('password', $event)"
             />
           </label>
+          <p id="signup-password-hint" class="hint" [class.error-line]="signupFieldError() === 'passwordPolicy'">
+            {{ i18n.t().account.passwordHint }}
+          </p>
           <label class="field">
             <span>{{ i18n.t().account.passwordRepeat }}</span>
             <input
               type="password"
+              name="password2"
               autocomplete="new-password"
+              required
+              [attr.aria-invalid]="signupFieldError() === 'passwordMismatch' || null"
+              [attr.aria-describedby]="signupFieldError() === 'passwordMismatch' ? 'signup-password-match' : null"
               [value]="password2()"
-              (input)="password2.set(inputValue($event))"
+              (input)="updateSignupField('password2', $event)"
             />
           </label>
-          <p class="hint">{{ i18n.t().account.passwordHint }}</p>
+          @if (signupFieldError() === 'passwordMismatch') {
+            <p id="signup-password-match" class="error-line" role="alert">{{ i18n.t().account.passwordMismatch }}</p>
+          }
 
           @if (signupDocument(); as consentText) {
             <p class="hint">
@@ -150,6 +177,7 @@
             <label class="consent-choice"
               ><input
                 type="checkbox"
+                required
                 [checked]="acceptsTerms()"
                 (change)="acceptsTerms.set($any($event.target).checked)"
               />{{ consentText.document.declaration.terms }}</label

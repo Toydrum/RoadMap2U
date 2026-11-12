@@ -1,4 +1,4 @@
-import { Component, ElementRef, effect, inject, viewChild } from '@angular/core';
+import { Component, ElementRef, effect, inject, input, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Meta, Title } from '@angular/platform-browser';
 import { type MarketingLang, MarketingLocaleService } from './marketing-locale.service';
@@ -13,6 +13,7 @@ import { PlanCatalogService } from '../../core/access/plan-catalog.service';
   styleUrls: ['./landing.scss', './landing-responsive.scss'],
 })
 export class LandingPage {
+  readonly requestedLang = input<string>(undefined, { alias: 'lang' });
   protected readonly locale = inject(MarketingLocaleService);
   protected readonly copy = this.locale.copy;
   protected readonly lang = this.locale.lang;
@@ -24,6 +25,10 @@ export class LandingPage {
   constructor() {
     void this.plans.loadIndividual();
     void this.plans.load().catch(() => undefined);
+    effect(() => {
+      const requested = this.requestedLang();
+      if (requested === 'es' || requested === 'en') this.locale.set(requested);
+    });
     effect(() => {
       this.title.setTitle(this.copy().landing.seo.title);
       this.meta.updateTag({ name: 'description', content: this.copy().landing.seo.description });

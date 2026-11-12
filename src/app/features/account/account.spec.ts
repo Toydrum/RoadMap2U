@@ -203,8 +203,8 @@ describe('account create validation', () => {
       });
       const link = host.querySelector<HTMLAnchorElement>(`a[href^="/${kind}"]`)!;
       const username = host.querySelector<HTMLInputElement>('input[autocomplete="username"]')!;
-      const password = host.querySelector<HTMLInputElement>('input[autocomplete="new-password"]')!;
-      for (const [field, value] of [[username, 'brisa'], [password, 'Bosque123']] as const) {
+      const [password, password2] = host.querySelectorAll<HTMLInputElement>('input[autocomplete="new-password"]');
+      for (const [field, value] of [[username, 'brisa'], [password, 'Bosque123'], [password2, 'Bosque123']] as const) {
         field.value = value;
         field.dispatchEvent(new Event('input', { bubbles: true }));
       }
@@ -229,7 +229,72 @@ describe('account create validation', () => {
       expect(host.querySelector('input[autocomplete="username"]')).toBe(username);
       expect(username.value).toBe('brisa');
       expect(password.value).toBe('Bosque123');
+      expect(password2.value).toBe('Bosque123');
       expect(document.activeElement).toBe(link);
+      if (kind === 'terms') {
+        location.forward();
+        await vi.waitFor(() => {
+          route.detectChanges();
+          expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+        });
+        expect(password.value).toBe('Bosque123');
+        expect(password2.value).toBe('Bosque123');
+      }
+    },
+  );
+
+  it('clears signup passwords when leaving the flow and keeps the username', () => {
+    const harness = accountHarness();
+    harness.closure.receipt.set(null);
+    const fixture = TestBed.createComponent(AccountPage);
+    fixture.componentRef.setInput('intent', 'create');
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const username = host.querySelector<HTMLInputElement>('input[autocomplete="username"]')!;
+    const [password, password2] = host.querySelectorAll<HTMLInputElement>('input[autocomplete="new-password"]');
+    for (const [field, value] of [[username, 'brisa'], [password, 'Bosque123'], [password2, 'Bosque123']] as const) {
+      field.value = value;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const choose = (copy: string) => {
+      Array.from(host.querySelectorAll('button')).find((button) => button.textContent?.trim() === copy)!.click();
+      fixture.detectChanges();
+    };
+
+    host.querySelector<HTMLButtonElement>('.step-back')!.click();
+    fixture.detectChanges();
+    choose(ES.account.signInDoor);
+    expect(host.querySelector<HTMLInputElement>('input[autocomplete="current-password"]')?.value).toBe('');
+    expect(host.querySelector<HTMLInputElement>('input[autocomplete="username"]')?.value).toBe('brisa');
+
+    host.querySelector<HTMLButtonElement>('.step-back')!.click();
+    fixture.detectChanges();
+    choose(ES.account.createDoor);
+    expect(Array.from(host.querySelectorAll<HTMLInputElement>('input[autocomplete="new-password"]'), (field) => field.value)).toEqual(['', '']);
+  });
+
+  it.each([['es', ES], ['en', EN]] as const)(
+    'associates signup rules before submit and identifies the invalid username (%s)',
+    async (_language, dictionary) => {
+      const harness = accountHarness(dictionary);
+      harness.closure.receipt.set(null);
+      const fixture = TestBed.createComponent(AccountPage);
+      fixture.componentRef.setInput('intent', 'create');
+      fixture.detectChanges();
+      const host = fixture.nativeElement as HTMLElement;
+      const username = host.querySelector<HTMLInputElement>('input[autocomplete="username"]')!;
+      const password = host.querySelector<HTMLInputElement>('input[autocomplete="new-password"]')!;
+      const description = (field: HTMLInputElement) =>
+        host.querySelector('#' + field.getAttribute('aria-describedby'))?.textContent?.trim();
+
+      expect(description(username)).toBe(dictionary.account.errors.invalidUsername);
+      expect(description(password)).toBe(dictionary.account.passwordHint);
+      expect(username.getAttribute('aria-invalid')).not.toBe('true');
+      host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      expect(username.getAttribute('aria-invalid')).toBe('true');
+      expect(document.activeElement).toBe(username);
+      expect(harness.auth.signUp).not.toHaveBeenCalled();
     },
   );
 
@@ -301,6 +366,8 @@ describe('account create validation', () => {
       username: 'brisa', email: 'brisa@example.invalid', password: 'Bosque123', displayName: '',
     });
     expect(page.step()).toBe('confirmCode');
+    expect(page.password()).toBe('');
+    expect(page.password2()).toBe('');
     expect(harness.api.changePrivacyConsent).not.toHaveBeenCalled();
     harness.admission.set('absent');
     harness.adultDeclared.set(false);

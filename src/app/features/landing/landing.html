@@ -1,4 +1,4 @@
-<a class="skip-link" routerLink="/" fragment="landing-main" (click)="focusMain()">{{ copy().landing.skip }}</a>
+<a class="skip-link" routerLink="/" queryParamsHandling="preserve" fragment="landing-main" (click)="focusMain()">{{ copy().landing.skip }}</a>
 
 <div class="landing-shell">
   <header class="site-header">
@@ -7,9 +7,9 @@
     </a>
 
     <nav class="site-nav" [attr.aria-label]="copy().landing.nav.label">
-      <a routerLink="/" fragment="how-it-works">{{ copy().landing.nav.how }}</a>
-      <a routerLink="/" fragment="product">{{ copy().landing.nav.product }}</a>
-      <a routerLink="/" fragment="plans">{{ copy().landing.nav.plans }}</a>
+      <a routerLink="/" queryParamsHandling="preserve" fragment="how-it-works">{{ copy().landing.nav.how }}</a>
+      <a routerLink="/" queryParamsHandling="preserve" fragment="product">{{ copy().landing.nav.product }}</a>
+      <a routerLink="/" queryParamsHandling="preserve" fragment="plans">{{ copy().landing.nav.plans }}</a>
     </nav>
 
     <div class="header-actions">
@@ -60,10 +60,15 @@
           <p class="hero-body">{{ copy().landing.hero.body }}</p>
           <div class="hero-actions">
             <a class="button" routerLink="/account" [queryParams]="{ intent: 'create', lang: lang() }">{{ copy().landing.hero.primary }}</a>
-            <a class="text-link" routerLink="/" fragment="how-it-works">
-              {{ copy().landing.hero.secondary }}
-              <span aria-hidden="true">↓</span>
-            </a>
+            <div class="hero-secondary">
+              <a class="text-link" routerLink="/" queryParamsHandling="preserve" fragment="how-it-works">
+                {{ copy().landing.hero.secondary }}
+                <span aria-hidden="true">↓</span>
+              </a>
+              <a class="text-link hero-plans-link" routerLink="/" queryParamsHandling="preserve" fragment="plans">
+                {{ copy().access.planLimit.plansCta }}
+              </a>
+            </div>
           </div>
           @if (quotaText(copy().landing.hero.microcopy); as microcopy) {
             <p class="microcopy">{{ microcopy }}</p>
@@ -125,7 +130,7 @@
       </figure>
     </section>
 
-    <section id="plans" class="section plans-section reveal" aria-labelledby="plans-title">
+    <section id="plans" class="section plans-section reveal" aria-labelledby="plans-title" tabindex="-1">
       <div class="section-heading">
         <p class="eyebrow">{{ copy().landing.plans.eyebrow }}</p>
         <h2 id="plans-title">{{ copy().landing.plans.title }}</h2>
