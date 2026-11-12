@@ -4,6 +4,8 @@ interface InstallPrompt extends Event {
   prompt(): Promise<unknown>;
 }
 
+const FOREST_INSTALL_GUIDE_SEEN = 'rm2u.forest-install-guide-seen';
+
 @Injectable({ providedIn: 'root' })
 export class PwaInstallService {
   private readonly standaloneMode = window.matchMedia?.('(display-mode: standalone)');
@@ -11,10 +13,9 @@ export class PwaInstallService {
     this.standaloneMode?.matches === true || (navigator as Navigator & { standalone?: boolean }).standalone === true,
   );
   private readonly availablePrompt = signal<InstallPrompt | null>(null);
+  private forestGuideClaimed = false;
   readonly installed = this.installedState.asReadonly();
   readonly canPrompt = computed(() => !this.installed() && this.availablePrompt() !== null);
-  readonly isAppleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   constructor() {
     const capture = (event: Event) => {
@@ -38,6 +39,18 @@ export class PwaInstallService {
       window.removeEventListener('appinstalled', markInstalled);
       this.standaloneMode?.removeEventListener?.('change', onDisplayMode);
     });
+  }
+
+  claimForestGuide(): boolean {
+    if (this.forestGuideClaimed || this.installed()) return false;
+    this.forestGuideClaimed = true;
+    try {
+      if (localStorage.getItem(FOREST_INSTALL_GUIDE_SEEN) === '1') return false;
+      localStorage.setItem(FOREST_INSTALL_GUIDE_SEEN, '1');
+    } catch {
+      // When storage is unavailable, remember the offer for this app session.
+    }
+    return true;
   }
 
   async install(): Promise<void> {

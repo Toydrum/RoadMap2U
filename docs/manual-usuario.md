@@ -30,17 +30,19 @@ Si tienes un bosque guardado en la [dirección anterior](https://toydrum.github.
 
 RoadMap2U es una *PWA* (aplicación web instalable): funciona en el navegador, pero puedes instalarla como una app normal y usarla **sin internet**.
 
+Al entrar por primera vez al **Bosque**, puedes abrir **«Instalar en mi teléfono»** para ver los pasos. También los encuentras en **Ajustes → Instalar RoadMap2U**, tanto en Free como en Premium.
+
 ## En Android (Chrome o Edge)
 
 1. Abre la dirección de la app en el navegador.
-2. Toca el menú (⋮) y elige **"Agregar a pantalla de inicio"** o **"Instalar aplicación"**.
-3. Confirma. El icono aparecerá junto a tus demás apps.
+2. Toca el menú (⋮) y busca **«Instalar»**, **«Instalar y crear acceso directo»** o **«Agregar a la pantalla de inicio»**.
+3. Elige **«Instalar»** si aparece y confirma. El icono aparecerá junto a tus demás apps.
 
 ## En iPhone / iPad (Safari)
 
 1. Abre la dirección en Safari.
-2. Toca el botón **Compartir** (el cuadrito con flecha).
-3. Elige **"Agregar a pantalla de inicio"**.
+2. Toca **Compartir** (el cuadrito con flecha) y elige **«Agregar a Inicio»**.
+3. Si aparece **«Abrir como app web»**, actívalo. Toca **«Agregar»**.
 
 ## En computadora (Chrome o Edge)
 

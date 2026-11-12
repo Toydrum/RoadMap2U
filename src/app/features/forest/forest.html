@@ -58,6 +58,9 @@
 
   <div class="container hint-band">
     <app-hint-chip surface="forest" [text]="i18n.t().hints.forest" />
+    @if (showPhoneInstallGuide) {
+      <app-phone-install-guide />
+    }
   </div>
 
   @if (!creating()) {

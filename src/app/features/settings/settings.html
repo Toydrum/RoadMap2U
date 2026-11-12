@@ -456,13 +456,7 @@
   @if (!install.installed()) {
     <section class="card block install-overview" aria-labelledby="install-title">
       <h2 id="install-title">{{ i18n.t().settings.installTitle }}</h2>
-      @if (install.canPrompt()) {
-        <button type="button" class="btn btn-soft" (click)="install.install()">
-          {{ i18n.t().settings.installAction }}
-        </button>
-      } @else {
-        <p class="hint">{{ install.isAppleMobile ? i18n.t().settings.installAppleHint : i18n.t().settings.installBrowserHint }}</p>
-      }
+      <app-phone-install-guide />
     </section>
   }
 
