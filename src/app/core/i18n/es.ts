@@ -1154,28 +1154,10 @@ export const ES = {
     mockResetConfirmGo: 'Sí, reiniciar',
     aboutText: 'Hecho con cariño para mentes que crecen en espiral, no en línea recta.',
     installTitle: 'Instalar RoadMap2U',
-    installGuide: {
-      title: 'Instalar en mi teléfono',
-      action: 'Instalar en este dispositivo',
-      desktopHint: 'En computadora, busca el icono de instalación en la barra de direcciones o «Instalar aplicación» en el menú del navegador.',
-      iphone: {
-        title: 'iPhone',
-        steps: [
-          'Abre RoadMap2U en Safari.',
-          'Toca Compartir y elige «Agregar a Inicio».',
-          'Si aparece «Abrir como app web», actívalo. Toca «Agregar».',
-        ],
-      },
-      android: {
-        title: 'Android',
-        steps: [
-          'Abre RoadMap2U en Chrome.',
-          'Toca el menú ⋮ y busca «Instalar», «Instalar y crear acceso directo» o «Agregar a la pantalla de inicio».',
-          'Elige «Instalar» si aparece y confirma.',
-        ],
-      },
-      openFromIcon: 'Después puedes abrir RoadMap2U desde el icono de la pantalla de inicio.',
-    },
+    installAction: 'Instalar',
+    installAppleHint: 'En Safari, abre Compartir y elige Agregar a pantalla de inicio.',
+    installBrowserHint:
+      'En el menú del navegador, busca Instalar aplicación o Agregar a pantalla de inicio.',
     updatesTitle: 'Actualizaciones',
     checkNow: 'Buscar actualización ahora',
     checking: 'Buscando…',
@@ -1711,11 +1693,6 @@ export const ES = {
     settingsHint: 'Un paseo corto por todo lo que puedes hacer aquí',
     firstTime: '¿Primera vez por aquí? Mira cómo funciona →',
     sections: [
-      {
-        icon: '📱',
-        title: 'Instalar en mi teléfono',
-        body: 'Al entrar por primera vez al Bosque, encontrarás los pasos para iPhone y Android en «Instalar en mi teléfono». También puedes consultarlos en Ajustes → Instalar RoadMap2U cuando quieras, tanto en Free como en Premium.',
-      },
       {
         icon: '🧭',
         title: 'El check-in',

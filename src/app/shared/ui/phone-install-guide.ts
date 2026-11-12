@@ -1,12 +1,13 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { I18nService } from '../../core/i18n/i18n.service';
+import { PHONE_INSTALL_COPY } from '../../core/i18n/phone-install-copy';
 import { PwaInstallService } from '../../core/pwa-install.service';
 
 @Component({
   selector: 'app-phone-install-guide',
   template: `
     @if (!install.installed()) {
-      @let copy = i18n.t().settings.installGuide;
+      @let copy = guideCopy();
       <details class="install-guide">
         <summary>{{ copy.title }}</summary>
         <div class="install-steps">
@@ -85,6 +86,7 @@ import { PwaInstallService } from '../../core/pwa-install.service';
   `,
 })
 export class PhoneInstallGuide {
-  protected readonly i18n = inject(I18nService);
+  private readonly i18n = inject(I18nService);
   protected readonly install = inject(PwaInstallService);
+  protected readonly guideCopy = computed(() => PHONE_INSTALL_COPY[this.i18n.lang()]);
 }
