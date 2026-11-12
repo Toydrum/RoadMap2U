@@ -144,9 +144,10 @@ export class AccountPage {
   );
   protected readonly signupLegalCopy = computed(() => {
     if (this.step() !== 'create') return null;
+    const document = this.signupDocument()?.document;
+    if (document?.language !== this.i18n.lang()) return null;
     const kind = this.read();
-    const legal = this.i18n.t().legal;
-    return kind === 'privacy' ? legal.privacy : kind === 'terms' ? legal.terms : null;
+    return kind === 'privacy' ? document.notice : kind === 'terms' ? document.terms : null;
   });
   protected readonly signupLegalLinks = computed(() => {
     const queryParams = { lang: this.i18n.lang() };

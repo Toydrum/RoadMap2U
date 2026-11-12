@@ -141,7 +141,7 @@ function accountHarness(dict: Dict = ES, routed = false) {
       },
     ],
   });
-  return { auth, closure, constructed, restart, access, privacyScope, adultDeclared, admission, privateOnly, api };
+  return { auth, closure, constructed, restart, access, privacyScope, adultDeclared, admission, privateOnly, api, i18n };
 }
 
 describe('standard account admission copy', () => {
@@ -185,6 +185,32 @@ describe('account create validation', () => {
     expect(fixture.nativeElement.querySelector('a[href^="/privacy"]').getAttribute('href')).toBe('/privacy?lang=' + language);
     expect(fixture.nativeElement.querySelector('a[href^="/terms"]').getAttribute('href')).toBe('/terms?lang=' + language);
   });
+
+  it.each(['privacy', 'terms'] as const)(
+    'shows the accepted English %s document while the English UI dictionary is pending',
+    async (kind) => {
+      const harness = accountHarness(ES);
+      harness.closure.receipt.set(null);
+      harness.i18n.lang.set('en');
+      const fixture = TestBed.createComponent(AccountPage);
+      fixture.componentRef.setInput('intent', 'create');
+      fixture.componentRef.setInput('read', kind);
+      fixture.detectChanges();
+      const host = fixture.nativeElement as HTMLElement;
+      const { document } = await commonAccountDocument('en');
+      const legal = kind === 'privacy' ? document.notice : document.terms;
+
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(host.querySelector('.consent-choice')?.textContent?.trim()).toBe(document.declaration.terms);
+      });
+      expect(host.querySelector('h1')?.textContent?.trim()).toBe(ES.account.createTitle);
+      const viewer = host.querySelector('[role="dialog"]');
+      expect(viewer?.getAttribute('lang')).toBe('en');
+      expect(viewer?.querySelector('h2')?.textContent?.trim()).toBe(legal.title);
+      expect(viewer?.textContent).toContain(legal.intro);
+    },
+  );
 
   it.each([['privacy', ES.legal.privacy], ['terms', ES.legal.terms]] as const)(
     'keeps the signup form open while reading %s',
