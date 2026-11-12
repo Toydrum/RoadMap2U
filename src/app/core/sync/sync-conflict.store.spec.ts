@@ -90,7 +90,10 @@ describe('SyncConflictStore', () => {
       recordRefs: [ref('nodes', 'node-a')],
     });
 
-    await service.open('owner-b');
+    const nextOwner = service.open('owner-b');
+    expect(service.forOwner('owner-a')).toEqual([]);
+    expect(service.forOwner('owner-b')).toEqual([]);
+    await nextOwner;
     expect(service.conflicts()).toEqual([]);
     await service.record('owner-b', {
       mutationGroupId: 'mg-b',

@@ -425,65 +425,6 @@
   }
 }
 
-/* ‹ › — walking between clearings */
-.clearing-nav {
-  position: absolute;
-  bottom: 42%;
-  z-index: 50;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  border: 1.5px solid var(--border-strong);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  color: var(--text);
-  font-size: 1.5rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: border-color 0.2s ease, opacity 0.2s ease;
-
-  &.prev {
-    left: -6px;
-  }
-
-  &.next {
-    right: -6px;
-  }
-
-  &:hover:not([disabled]) {
-    border-color: var(--primary);
-  }
-
-  &[disabled] {
-    opacity: 0.25;
-    cursor: default;
-  }
-}
-
-.clearing-dots {
-  position: absolute;
-  left: 50%;
-  bottom: -14px;
-  transform: translateX(-50%);
-  z-index: 50;
-  display: flex;
-  gap: 0.55rem;
-
-  .dot {
-    width: 11px;
-    height: 11px;
-    padding: 0;
-    border-radius: 50%;
-    border: 1.5px solid var(--border-strong);
-    background: color-mix(in srgb, var(--surface) 85%, transparent);
-    cursor: pointer;
-
-    &.on {
-      background: var(--primary);
-      border-color: var(--primary);
-    }
-  }
-}
-
 /* A lone tree owns the whole meadow — let it stand taller. */
 .plots:has(> .plot:only-child) .plot {
   width: clamp(190px, 34vw, 250px);
@@ -854,14 +795,6 @@
   .starters-blank {
     font-size: 0.85rem;
   }
-}
-
-.sr-live {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
 }
 
 /* Full clearings tighten the plots a step so hearts stay tappable. */

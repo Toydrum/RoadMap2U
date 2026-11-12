@@ -128,6 +128,23 @@ function configure(
 describe('commercial backup replacement', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
+  it('previews a migrated backup without downloading, replacing, or scheduling sync', () => {
+    const replace = vi.fn(async () => undefined);
+    const { service, repos, assertImport, settings, sync } = configure(replacementStorage(replace));
+    const download = vi.spyOn(service, 'download').mockResolvedValue();
+    const backup = JSON.parse(legacyEnvelope());
+    backup.data.nodes.push({ ...node('restored-branch', 'restored'), parentId: 'restored-root' });
+    const preview = service.previewImport(JSON.stringify(backup));
+
+    expect(preview).toEqual({ exportedAt: '2026-08-19T00:00:00.000Z', trees: 1, branches: 1 });
+    expect(assertImport).toHaveBeenCalledOnce();
+    expect(download).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
+    expect(repos.every((repo) => repo.resetTo.mock.calls.length === 0)).toBe(true);
+    expect(settings.patch).not.toHaveBeenCalled();
+    expect(sync.noteRestore).not.toHaveBeenCalled();
+  });
+
   it('uses a supplied stable settings snapshot for a terminal copy', async () => {
     const { service, settings } = configure(
       replacementStorage(vi.fn(async () => undefined)),
@@ -252,9 +269,10 @@ describe('commercial backup replacement', () => {
     const messages: DbChangeMessage[] = [];
     const stop = onLocalWrite((message) => messages.push(message));
 
+    expect(() => service.previewImport(legacyEnvelope())).toThrow(denial);
     await expect(service.importReplace(legacyEnvelope())).rejects.toBe(denial);
 
-    expect(assertImport).toHaveBeenCalledOnce();
+    expect(assertImport).toHaveBeenCalledTimes(2);
     expect(download).not.toHaveBeenCalled();
     expect(replace).not.toHaveBeenCalled();
     expect(repos.every((repo) => repo.resetTo.mock.calls.length === 0)).toBe(true);

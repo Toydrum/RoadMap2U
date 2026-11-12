@@ -89,9 +89,32 @@ const browser = first.browser;
   await page.waitForTimeout(400);
   await page.locator('.sow-toggle input').check();
   await page.waitForTimeout(250);
-  await page
-    .locator('#sow-box')
-    .fill('Elegir canciones\n\tLa balada\n\tLa movida\nEnsayar juntos\nGrabar demo\nCompartirlo');
+  const sowBox = page.locator('#sow-box');
+  const indent = page.getByRole('button', { name: 'Aumentar sangría' });
+  const outdent = page.getByRole('button', { name: 'Reducir sangría' });
+  const focused = (locator) => locator.evaluate((el) => document.activeElement === el);
+  const original = 'Elegir canciones\nLa balada\n\tLa movida\nEnsayar juntos\nGrabar demo\nCompartirlo';
+  await sowBox.fill(original);
+  await sowBox.evaluate((el) => {
+    const position = el.value.indexOf('La balada') + 1;
+    el.setSelectionRange(position, position);
+  });
+  await page.keyboard.press('Tab');
+  ok('B Tab leaves the sowing box without modifying the list',
+    await focused(indent) && await sowBox.inputValue() === original);
+  await page.keyboard.press('Enter');
+  const nested = original.replace('La balada', '\tLa balada');
+  ok('B Enter indents the selected line', await sowBox.inputValue() === nested);
+  await page.keyboard.press('Tab');
+  ok('B Tab reaches the outdent action', await focused(outdent));
+  await page.keyboard.press('Enter');
+  ok('B Enter restores the original indentation', await sowBox.inputValue() === original);
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Enter');
+  ok('B Shift+Tab returns to the indent action', await focused(indent) && await sowBox.inputValue() === nested);
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  ok('B Tab continues to the form controls', await focused(page.locator('.sow-toggle input')));
   await page.locator('form.sheet button[type=submit]').click();
   await page.waitForTimeout(700);
   // Sembrar CLOSES the sheet itself (0.0.109) — the tree is the next thing

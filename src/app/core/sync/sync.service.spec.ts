@@ -605,9 +605,17 @@ describe('commercial sync conflicts', () => {
       rejected: [],
       serverRecords: [],
     }));
+    const getSyncChanges = vi.fn<ApiClient['getSyncChanges']>()
+      .mockResolvedValueOnce({
+        changes: [{ store: 'trees', record: { ...tree('tree-local', NOW + 2, 3), name: 'Cloud version' } }],
+        cursor: 'cursor-1',
+        more: false,
+      })
+      .mockResolvedValue({ changes: [], cursor: 'cursor-2', more: false });
     const { service, conflicts, trees } = configure({
       trees: [tree('tree-local', NOW - 1), tree('tree-pending', NOW - 1)],
       pushSync,
+      getSyncChanges,
     });
     await conflicts.open('owner-a');
     const conflict = await conflicts.record('owner-a', {
@@ -622,7 +630,9 @@ describe('commercial sync conflicts', () => {
     await expect(resolution.resolveConflict(conflict.id, 'local-only')).resolves.toBe(true);
     await expect(service.connect()).resolves.toBe(true);
 
-    expect(trees.byId().has('tree-local')).toBe(true);
+    expect(trees.byId().get('tree-local')).toEqual(tree('tree-local', NOW - 1));
+    expect(service.forestStatus()).toBe('local-only');
+    expect(service.deviceConflicts().map(({ id }) => id)).toEqual([conflict.id]);
     expect(conflicts.conflicts()).toEqual([
       expect.objectContaining({ id: conflict.id, state: 'local-only' }),
     ]);
@@ -630,6 +640,7 @@ describe('commercial sync conflicts', () => {
       'tree-pending',
     ]);
 
+    vi.mocked(Date.now).mockReturnValue(NOW + 2);
     trees.reset([tree('tree-local', NOW + 1, 2), tree('tree-pending', NOW - 1)]);
     await expect(service.syncNow()).resolves.toBe(true);
 
@@ -639,6 +650,8 @@ describe('commercial sync conflicts', () => {
     expect(conflicts.conflicts()).toEqual([
       expect.objectContaining({ id: conflict.id, state: 'local-only' }),
     ]);
+    expect(service.deviceConflicts()).toEqual([]);
+    expect(service.forestStatus()).toBe('current');
   });
 
   it('never retries an atomically rejected group as a subset', async () => {

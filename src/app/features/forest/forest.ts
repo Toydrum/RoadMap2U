@@ -1,4 +1,14 @@
-import { Component, DestroyRef, ElementRef, computed, effect, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  afterRenderEffect,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FinderSheet } from './finder-sheet';
 import {
   CATTAILS,
@@ -76,7 +86,7 @@ type PlanLimitDecision = Extract<
     PlanLimitSheet,
   ],
   templateUrl: './forest.html',
-  styleUrl: './forest.scss',
+  styleUrls: ['./forest.scss', './clearing-pagination.scss'],
   // Drag listeners live on the document: live reordering moves the grip in
   // the DOM, which breaks pointer capture mid-drag.
   host: {
@@ -550,6 +560,23 @@ export class ForestPage {
     Math.max(1, Math.ceil(this.trees.active().length / this.pageSizeValue)),
   );
   protected readonly dots = computed(() => Array.from({ length: this.pageCount() }, (_, i) => i));
+  private readonly clearingDots = viewChild<ElementRef<HTMLDivElement>>('clearingDots');
+
+  private readonly keepCurrentDotVisible = afterRenderEffect({
+    mixedReadWrite: () => {
+      const rail = this.clearingDots()?.nativeElement;
+      if (!rail) return;
+      const current = rail.children.item(this.page()) as HTMLButtonElement | null;
+      if (!current) return;
+      const left = current.offsetLeft;
+      const right = left + current.offsetWidth;
+      if (left < rail.scrollLeft) {
+        rail.scrollLeft = left;
+      } else if (right > rail.scrollLeft + rail.clientWidth) {
+        rail.scrollLeft = right - rail.clientWidth;
+      }
+    },
+  });
 
   /** The trees standing in the current clearing (drag preview respected).
    *  A tree being CARRIED rides along into whatever clearing is shown: if

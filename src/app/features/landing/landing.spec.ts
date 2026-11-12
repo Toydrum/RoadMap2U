@@ -152,6 +152,7 @@ describe('commercial landing foundation', () => {
     expect(plans?.textContent?.trim()).toBe(ES.access.planLimit.plansCta);
     expect(root.querySelector('#plans')?.getAttribute('tabindex')).toBe('-1');
     expect(root.querySelector('.key-section')).toBeNull();
+    expect(root.querySelector('.free-plan a')?.getAttribute('href')).toBe('/account?intent=create&lang=es&volver=%2Fforest');
     expect(document.title).toMatch(/metas.*tareas/i);
     expect(document.querySelector('meta[name="description"]')?.getAttribute('content')).toMatch(/árboles visuales/i);
     (root.querySelector('[data-lang="en"]') as HTMLButtonElement).click();
@@ -165,7 +166,7 @@ describe('commercial landing foundation', () => {
     expect(root.querySelector('.premium-plan a')?.getAttribute('href')).toBe('/account/subscription?lang=en');
     expect(root.querySelector('.sign-in')?.getAttribute('href')).toBe('/account?intent=signIn&lang=en');
     for (const selector of ['.header-actions .button', '.hero-actions .button', '.free-plan a', '.final-cta a']) {
-      expect(root.querySelector(selector)?.getAttribute('href')).toBe('/account?intent=create&lang=en');
+      expect(root.querySelector(selector)?.getAttribute('href')).toBe('/account?intent=create&lang=en&volver=%2Fforest');
     }
   });
 

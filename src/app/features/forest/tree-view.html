@@ -142,16 +142,40 @@
             <div class="field">
               <label for="sow-box">{{ i18n.t().sow.label }}</label>
               <textarea
+                #sowBox
                 id="sow-box"
                 class="sow-box"
+                aria-describedby="sow-hint"
                 [value]="sowText()"
                 (input)="sowText.set(inputValue($event))"
-                (keydown.tab)="$event.preventDefault(); insertTab(inputEl($event))"
                 [placeholder]="i18n.t().sow.placeholder"
                 rows="6"
                 autofocus
               ></textarea>
-              <span class="hint">{{ i18n.t().sow.hint }}</span>
+              <div class="sow-actions">
+                <button
+                  type="button"
+                  class="btn btn-ghost"
+                  aria-controls="sow-box"
+                  (click)="changeSowIndent(sowBox, 1)"
+                >
+                  {{ i18n.t().sow.indent }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost"
+                  aria-controls="sow-box"
+                  (click)="changeSowIndent(sowBox, -1)"
+                >
+                  {{ i18n.t().sow.outdent }}
+                </button>
+              </div>
+              <span id="sow-hint" class="hint">{{ i18n.t().sow.hint }}</span>
+              <span class="sow-status" role="status">{{
+                sowIndentDepth() === null
+                  ? ''
+                  : i18n.fill(i18n.t().sow.indentDepth, { n: sowIndentDepth()! })
+              }}</span>
             </div>
           }
 

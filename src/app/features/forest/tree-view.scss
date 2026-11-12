@@ -272,6 +272,24 @@
   font: inherit;
 }
 
+.sow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+
+  button {
+    min-height: 44px;
+  }
+}
+
+.sow-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
 /* ------------------------- the "tablita": floating branch outline */
 
 .outline-rail {

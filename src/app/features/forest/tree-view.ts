@@ -1,6 +1,6 @@
 import { Component, ElementRef, computed, effect, inject, input, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { inputEl, inputValue } from '../../shared/ui/dom';
+import { inputValue } from '../../shared/ui/dom';
 import { ConfirmSheet } from '../../shared/ui/confirm-sheet';
 import { HintChip } from '../../shared/ui/hint-chip';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -36,6 +36,12 @@ type PlanLimitDecision = Extract<
   { readonly reason: 'ACTIVE_TREE_LIMIT' | 'VISIBLE_BRANCH_LIMIT' }
 >;
 
+function sowDepth(leading: string): number {
+  const spaces = leading.replaceAll('\t', '').length;
+  const tabs = leading.length - spaces;
+  return tabs + Math.floor(spaces / 2);
+}
+
 @Component({
   selector: 'app-tree-view',
   imports: [
@@ -58,7 +64,6 @@ type PlanLimitDecision = Extract<
 })
 export class TreeViewPage {
   protected readonly inputValue = inputValue;
-  protected readonly inputEl = inputEl;
   /** Route param via withComponentInputBinding. */
   readonly id = input.required<string>();
 
@@ -152,6 +157,7 @@ export class TreeViewPage {
   /** "Varios a la vez": one line = one branch; indent = child of the line above. */
   protected readonly sowMode = signal(false);
   protected readonly sowText = signal('');
+  protected readonly sowIndentDepth = signal<number | null>(null);
   private readonly toast = inject(ToastService);
   private readonly focus = inject(FocusSessionService);
   /** First branch planted this sheet session — the burst invitation's door. */
@@ -243,6 +249,7 @@ export class TreeViewPage {
     this.plantedCount.set(0);
     this.newTitle.set('');
     this.sowText.set('');
+    this.sowIndentDepth.set(null);
     this.plantCadence.set(null); // «una vez» is always the fresh default
     this.burstFirstId = null;
     this.planting.set({ parent });
@@ -316,9 +323,7 @@ export class TreeViewPage {
       .split('\n')
       .map((raw) => {
         const lead = raw.match(/^[\t ]*/)![0];
-        const tabs = lead.split('\t').length - 1;
-        const spacePairs = Math.floor(lead.replaceAll('\t', '').length / 2);
-        return { depth: tabs + spacePairs, title: raw.trim() };
+        return { depth: sowDepth(lead), title: raw.trim() };
       })
       .filter((l) => l.title);
     if (!lines.length) return;
@@ -379,13 +384,23 @@ export class TreeViewPage {
     });
   }
 
-  /** Tab indents inside the sowing box instead of walking focus away. */
-  protected insertTab(el: HTMLInputElement | HTMLTextAreaElement): void {
-    const start = el.selectionStart ?? el.value.length;
-    const end = el.selectionEnd ?? start;
-    el.value = el.value.slice(0, start) + '\t' + el.value.slice(end);
-    el.selectionStart = el.selectionEnd = start + 1;
-    this.sowText.set(el.value);
+  /** Adjust the line at the start of the selection and keep focus on the action. */
+  protected changeSowIndent(box: HTMLTextAreaElement, direction: 1 | -1): void {
+    const selection = box.selectionStart ?? box.value.length;
+    const lineStart = box.value.slice(0, selection).lastIndexOf('\n') + 1;
+    const leading = box.value.slice(lineStart).match(/^[\t ]*/)![0];
+    const depth = sowDepth(leading);
+
+    if (direction === 1) {
+      box.setRangeText('\t', lineStart, lineStart, 'preserve');
+    } else if (depth > 0) {
+      const tab = leading.indexOf('\t');
+      const from = tab >= 0 ? lineStart + tab : lineStart;
+      box.setRangeText('', from, from + (tab >= 0 ? 1 : 2), 'preserve');
+    }
+
+    this.sowText.set(box.value);
+    this.sowIndentDepth.set(Math.max(0, depth + direction));
   }
 
   protected notFoundGoHome(): void {

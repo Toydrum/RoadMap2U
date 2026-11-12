@@ -17,15 +17,16 @@ assert.ok(closeServer, 'The recovery fixture requires its own loopback server');
 
 const externalRequests = [];
 const pageErrors = [];
+function guardRequest(route) {
+  const url = new URL(route.request().url());
+  if (url.origin === origin && !url.pathname.startsWith('/v1/')) return route.continue();
+  externalRequests.push(`${url.origin}${url.pathname}`);
+  return route.abort();
+}
 const options = {
   commercialAccess: false,
   contextOptions: { serviceWorkers: 'block' },
-  prepareContext: (context) => context.route('**/*', (route) => {
-    const url = new URL(route.request().url());
-    if (url.origin === origin && !url.pathname.startsWith('/v1/')) return route.continue();
-    externalRequests.push(`${url.origin}${url.pathname}`);
-    return route.abort();
-  }),
+  prepareContext: (context) => context.route('**/*', guardRequest),
 };
 
 function observe(page) {
@@ -76,6 +77,27 @@ async function waitFor(read, condition, message) {
     await delay(100);
   } while (Date.now() < deadline);
   assert.fail(message);
+}
+
+async function waitForAppCache(page) {
+  const response = await page.request.get(`${BASE}/ngsw.json`);
+  assert.ok(response.ok(), 'The PWA manifest must be available');
+  const manifest = await response.json();
+  const assets = manifest.assetGroups.find((group) => group.name === 'app')?.urls;
+  assert.ok(assets?.includes('/index.html'), 'The prefetched app group must contain the shell');
+  await waitFor(
+    () => page.evaluate(async (urls) => {
+      if (!navigator.serviceWorker.controller) return false;
+      for (const key of (await caches.keys()).filter((name) => name.includes(':assets:app:'))) {
+        const cache = await caches.open(key);
+        const paths = new Set((await cache.keys()).map((request) => new URL(request.url).pathname));
+        if (urls.every((url) => paths.has(url))) return true;
+      }
+      return false;
+    }, assets),
+    (ready) => ready,
+    'The active service worker did not finish caching the app group',
+  );
 }
 
 // The mock server uses a separate IndexedDB per browser context. Mirror only
@@ -160,8 +182,10 @@ try {
     'The uploaded tree must include its root node');
   console.log('Device A uploads a tree and its root only after explicit consent.');
 
-  const second = await newProbePage(browser, { width: 1200, height: 900 }, options);
-  const b = observe(second.page);
+  const second = await newProbePage(browser, { width: 1200, height: 900 }, {
+    ...options, contextOptions: { serviceWorkers: 'allow' },
+  });
+  let b = observe(second.page);
   // The guest landing leaves the mock database lazy. A rejected local lookup
   // initializes its real schema without signing in or creating an identity.
   await signInAs(b, 'recovery_schema_probe', 'SyntheticProbe123!', { expect: 'error', commercialAccess: false });
@@ -183,8 +207,12 @@ try {
   await b.locator('nav a[href="/forest"]').click();
   await b.locator('.plot-link', { hasText: treeName }).click();
   await b.getByRole('button', { name: /Plantar aquí/ }).waitFor();
+  const treePath = new URL(b.url()).pathname;
+  await waitForAppCache(b);
   await second.context.setOffline(true);
   await b.waitForFunction(() => !navigator.onLine);
+  // Let the worker handle the new navigation directly while Chromium is offline.
+  await second.context.unroute('**/*', guardRequest);
   await b.getByRole('button', { name: /Plantar aquí/ }).click();
   await b.locator('#root-title').fill(branchTitle);
   await b.locator('form.sheet button[type="submit"]').click();
@@ -194,6 +222,13 @@ try {
   assert.equal(branch?.parentId, tree.heartId, 'Offline edit is saved locally under the original tree');
   assert.equal((await readCloud(b)).records.some((row) => row.record.id === branch.id), false);
 
+  await b.close();
+  b = observe(await second.context.newPage());
+  const reopened = await b.goto(`${BASE}${treePath}`, { waitUntil: 'domcontentloaded' });
+  assert.ok(reopened?.ok() && reopened.fromServiceWorker(), 'The worker must reopen the tree offline');
+  await b.getByRole('treeitem', { name: new RegExp('^' + branchTitle) }).waitFor();
+  assert.ok((await readLocal(b)).nodes.some((row) => row.id === branch.id), 'The exact branch survives reopening');
+  await second.context.route('**/*', guardRequest);
   await second.context.setOffline(false);
   await waitFor(
     () => readCloud(b),
@@ -211,6 +246,71 @@ try {
   assert.equal(roundTrip.nodes.filter((row) => row.id === branch.id).length, 1);
   console.log('An offline edit uploads on reconnection and appears once on the other device.');
 
+  const versionOf = (node) => node && {
+    id: node.id, parentId: node.parentId, title: node.title, rev: node.rev, updatedAt: node.updatedAt,
+  };
+  const localBranch = async (page) => {
+    const { nodes } = await readLocal(page);
+    return versionOf(nodes.find((node) => node.id === branch.id));
+  };
+  const cloudBranch = async (page) => {
+    const { records } = await readCloud(page);
+    return versionOf(records.find((row) =>
+      row.ownerId === ownerId && row.store === 'nodes' && row.record.id === branch.id)?.record);
+  };
+  const baseVersion = versionOf(branch);
+  assert.deepEqual(await localBranch(a), baseVersion);
+  assert.deepEqual(await localBranch(b), baseVersion);
+  assert.deepEqual(await cloudBranch(b), baseVersion);
+
+  // Edit the same base revision from two real UI sessions. B changes first
+  // while offline, so equal revs must resolve by updatedAt when B reconnects.
+  const editPath = treePath + '?node=' + encodeURIComponent(branch.id);
+  await Promise.all([open(a, editPath), open(b, editPath)]);
+  const rename = async (page, title) => {
+    const input = page.getByRole('dialog', { name: branchTitle, exact: true }).locator('#nd-title');
+    await input.fill(title);
+    await input.blur();
+  };
+  const titleB = 'Rama renombrada sin conexión en B';
+  const titleA = 'Rama renombrada después en A';
+  await second.context.setOffline(true);
+  await b.waitForFunction(() => !navigator.onLine);
+  assert.equal(await a.evaluate(() => navigator.onLine), true);
+  await rename(b, titleB);
+  const pendingB = await waitFor(
+    () => localBranch(b),
+    (version) => version?.title === titleB,
+    'Device B did not persist its pending rename locally',
+  );
+  assert.equal(pendingB.rev, baseVersion.rev + 1);
+  assert.deepEqual(await cloudBranch(b), baseVersion, 'Offline B must leave the cloud revision unchanged');
+
+  await waitFor(() => Date.now(), (now) => now > pendingB.updatedAt, 'The edits need distinct timestamps');
+  await rename(a, titleA);
+  const winner = await waitFor(
+    () => cloudBranch(a),
+    (version) => version?.title === titleA,
+    'Online device A did not upload its rename',
+  );
+  assert.equal(winner.rev, pendingB.rev, 'Both edits must increment the same base revision once');
+  assert.ok(winner.updatedAt > pendingB.updatedAt, 'A must win the equal-revision timestamp comparison');
+  await mirrorCloud(a, b, owner);
+  assert.deepEqual(await cloudBranch(b), winner);
+  assert.deepEqual(await localBranch(b), pendingB, 'B must keep its pending revision while offline');
+
+  await second.context.setOffline(false);
+  const converged = await waitFor(
+    () => localBranch(b),
+    (version) => version?.title === titleA,
+    'Device B did not adopt the winning cloud revision after reconnecting',
+  );
+  assert.deepEqual(converged, winner);
+  assert.deepEqual(await localBranch(a), winner);
+  assert.deepEqual(await cloudBranch(b), winner, 'The stale rename must not overwrite the cloud winner');
+  await b.getByRole('dialog', { name: titleA, exact: true }).waitFor();
+  console.log('Two isolated devices edit the same branch and converge on the later timestamp at equal revision.');
+
   await writeCloud(b, {
     kv: { put: [{
       key: paidKey(owner),
@@ -220,14 +320,14 @@ try {
   await open(b, '/account/subscription');
   await b.locator('.billing-access').filter({ hasText: 'Free' }).waitFor();
   await b.getByText(/Mi periodo pagado terminó/).waitFor();
-  assert.ok((await readLocal(b)).nodes.some((row) => row.id === branch.id), 'Expiry must preserve the local edit');
+  assert.deepEqual(await localBranch(b), winner, 'Expiry must preserve the winning local edit');
   await open(b, '/settings');
   const downloaded = b.waitForEvent('download');
   await b.getByRole('button', { name: /Exportar/ }).click();
   const backup = await readFile(await (await downloaded).path());
   const envelope = JSON.parse(backup.toString('utf8'));
   assert.deepEqual(envelope.data.trees.map((row) => row.id), [tree.id]);
-  assert.ok(envelope.data.nodes.some((row) => row.id === branch.id));
+  assert.deepEqual(versionOf(envelope.data.nodes.find((row) => row.id === branch.id)), winner);
   assert.equal(envelope.data.meta, undefined, 'A backup must not export device identity or link metadata');
   await second.context.close();
 
@@ -238,11 +338,16 @@ try {
   await restored.locator('input[type="file"]').setInputFiles({
     name: 'synthetic-recovery.json', mimeType: 'application/json', buffer: backup,
   });
+  const preview = restored.getByRole('dialog', { name: 'Restaurar respaldo' });
+  await preview.waitFor();
+  assert.equal((await readLocal(restored)).trees.length, 0, 'File selection must not restore data');
+  await preview.getByRole('button', { name: 'Restaurar bosque' }).click();
   await waitFor(
     () => readLocal(restored),
     ({ trees, nodes }) => trees.some((row) => row.id === tree.id) && nodes.some((row) => row.id === branch.id),
     'A fresh browser could not restore the exported copy within the Free limit',
   );
+  assert.deepEqual(await localBranch(restored), winner);
   console.log('Expired Premium leaves local data exportable; a clean browser can restore the copy.');
   assert.deepEqual(externalRequests, [], 'The browser fixture must never call a live API');
   assert.deepEqual(pageErrors, [], 'Unhandled errors during the recovery journey');

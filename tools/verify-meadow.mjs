@@ -155,6 +155,26 @@ const fits = mob.every((r) => r.left >= -6 && r.right <= 396 && r.top > 200);
 // Phones hold THREE per clearing (0.0.63 — four grown crowns jostle at 390px).
 console.log(`F mobile: visible=${mob.length} dots=${dotsM} all-inside=${fits} | OK=${mob.length === 3 && dotsM === 6 && fits}`);
 
+{
+  const pagination = page.getByRole('navigation', { name: 'Claros del bosque' });
+  const buttons = pagination.getByRole('button');
+  const targets = await buttons.evaluateAll((items) => items.map((item) => {
+    const { width, height } = item.getBoundingClientRect();
+    return Math.min(width, height);
+  }));
+  const next = pagination.getByRole('button', { name: 'Siguiente claro' });
+  const second = pagination.getByRole('button', { name: 'Ir al claro 2' });
+  await next.click();
+  await page.waitForFunction(() =>
+    document.querySelector('.clearing-dots .dot[aria-current="page"]')?.getAttribute('aria-label') ===
+    'Ir al claro 2',
+  );
+  const position = (await pagination.getByRole('status').textContent()).trim();
+  ok('F pagination has touch targets, a named current page and a live position',
+    targets.length === 8 && targets.every((target) => target >= 44) &&
+    await second.getAttribute('aria-current') === 'page' && position === 'Claro 2 de 6');
+}
+
 // G — DRY FEET on a WIDE window (Hector's case): no trunk stands in the river.
 await page.setViewportSize({ width: 1700, height: 800 });
 await page.reload({ waitUntil: 'networkidle' });
