@@ -1,6 +1,7 @@
 import { APP_BASE_HREF } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { PUBLIC_INDIVIDUAL_CATALOG, PUBLIC_PLAN_CATALOG } from '../../core/api/public-individual-catalog';
 import { CLOSED_INDIVIDUAL_BILLING_CATALOG, REDUCED_PLAN_CATALOG } from '../../core/api/contracts';
@@ -14,6 +15,30 @@ import { LandingPage } from './landing';
 import { marketingTreeModel } from './marketing-tree';
 
 describe('commercial landing foundation', () => {
+  it('omits all unconfirmed Free limits when the public plan read is pending or fails', async () => {
+    let rejectCatalog!: (error: Error) => void;
+    const read = new Promise<typeof REDUCED_PLAN_CATALOG>((_resolve, reject) => {
+      rejectCatalog = reject;
+    });
+    await TestBed.configureTestingModule({
+      imports: [LandingPage],
+      providers: [provideRouter([]), { provide: PUBLIC_PLAN_CATALOG, useValue: () => read }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(LandingPage);
+    const root = fixture.nativeElement as HTMLElement;
+    const displayedQuota = () =>
+      ['.hero', '.free-plan', '#faq', '.final-cta']
+        .map((selector) => root.querySelector(selector)?.textContent)
+        .join(' ');
+    fixture.detectChanges();
+    expect(displayedQuota()).not.toMatch(/2 árboles|10 ramas|\{trees\}|\{branches\}/);
+    rejectCatalog(new Error('catalog unavailable'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(displayedQuota()).not.toMatch(/2 árboles|10 ramas|\{trees\}|\{branches\}/);
+    expect(root.querySelector('.free-plan')?.textContent).toContain('Check-in');
+  });
+
   it('shows the actual individual catalog availability and opens the subscription account door', async () => {
     await TestBed.configureTestingModule({
       imports: [LandingPage],
@@ -37,7 +62,7 @@ describe('commercial landing foundation', () => {
       expect(root.querySelector('.microcopy')?.textContent).toContain('1 árbol activo y 5 ramas');
     });
     expect(root.querySelector('.premium-plan a')?.getAttribute('href')).toBe(
-      '/account/subscription',
+      '/account/subscription?lang=es',
     );
     expect(root.querySelector('.premium-prices')?.textContent).toContain('$114.84 MXN');
     expect(root.querySelector('.premium-prices')?.textContent).toContain('$1,100.84 MXN');
@@ -102,17 +127,38 @@ describe('commercial landing foundation', () => {
     const how = root.querySelector('.hero-actions .text-link') as HTMLAnchorElement;
     expect(new URL(how.href).hash).toBe('#how-it-works');
     expect(root.querySelector(new URL(how.href).hash)).not.toBeNull();
+    const plans = root.querySelector('.hero-actions a[href="/#plans"]');
+    expect(plans?.textContent?.trim()).toBe(ES.access.planLimit.plansCta);
+    expect(root.querySelector('#plans')?.getAttribute('tabindex')).toBe('-1');
     expect(root.querySelector('.key-section')).toBeNull();
     expect(document.title).toMatch(/metas.*tareas/i);
     expect(document.querySelector('meta[name="description"]')?.getAttribute('content')).toMatch(/árboles visuales/i);
     (root.querySelector('[data-lang="en"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(document.title).toMatch(/goals.*tasks/i);
+    expect(plans?.textContent?.trim()).toBe(EN.access.planLimit.plansCta);
     expect(document.querySelector('meta[name="description"]')?.getAttribute('content')).toMatch(/visual trees/i);
     for (const route of ['privacy', 'terms', 'subscription-terms', 'support']) {
       expect(root.querySelector(`.site-footer a[href="/${route}?lang=en"]`)).not.toBeNull();
     }
-    expect(root.querySelector('.premium-plan a')?.getAttribute('href')).toBe('/account/subscription');
+    expect(root.querySelector('.premium-plan a')?.getAttribute('href')).toBe('/account/subscription?lang=en');
+    expect(root.querySelector('.sign-in')?.getAttribute('href')).toBe('/account?intent=signIn&lang=en');
+    for (const selector of ['.header-actions .button', '.hero-actions .button', '.free-plan a', '.final-cta a']) {
+      expect(root.querySelector(selector)?.getAttribute('href')).toBe('/account?intent=create&lang=en');
+    }
+  });
+
+  it('uses the explicit language when arriving at Plans from Premium', async () => {
+    await TestBed.configureTestingModule({
+      imports: [LandingPage],
+      providers: [provideRouter([{ path: '', component: LandingPage }], withComponentInputBinding())],
+    }).compileComponents();
+    const harness = await RouterTestingHarness.create('/?lang=en#plans');
+    expect(harness.routeNativeElement?.querySelector('h1')?.textContent).toBe(EN.landing.hero.title);
+    expect(document.documentElement.lang).toBe('en');
+    await harness.navigateByUrl('/?lang=es#plans', LandingPage);
+    expect(harness.routeNativeElement?.querySelector('h1')?.textContent).toBe(ES.landing.hero.title);
+    expect(document.documentElement.lang).toBe('es');
   });
 
   it('builds the product tree deterministically with the real pure tree brain', () => {
@@ -156,7 +202,7 @@ describe('commercial landing foundation', () => {
 
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('.brand')?.getAttribute('href')).toBe('/RoadMap2U/');
-    expect(root.querySelector('.sign-in')?.getAttribute('href')).toBe('/RoadMap2U/account');
+    expect(root.querySelector('.sign-in')?.getAttribute('href')).toBe('/RoadMap2U/account?intent=signIn&lang=es');
   });
 
   it('constructs no storage, auth, sync, or reminder service', async () => {

@@ -53,9 +53,27 @@
     monospace;
 }
 
+.hero-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.2rem;
+}
+
+.hero-plans-link {
+  display: none;
+}
+
 @media (max-width: 960px) {
   .site-nav {
     display: none;
+  }
+
+  .hero-actions {
+    flex-wrap: wrap;
+  }
+
+  .hero-plans-link {
+    display: inline-flex;
   }
 
   .site-header {
@@ -231,9 +249,19 @@
     gap: 0.5rem;
   }
 
-  .hero-actions .button,
-  .hero-actions .text-link {
+  .hero-actions .button {
     inline-size: 100%;
+    justify-content: center;
+  }
+
+  .hero-secondary {
+    justify-content: center;
+    gap: 0.25rem 0.75rem;
+  }
+
+  .hero-secondary .text-link {
+    min-inline-size: 44px;
+    padding-inline: 0.5rem;
     justify-content: center;
   }
 

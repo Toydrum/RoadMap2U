@@ -7,7 +7,7 @@ export type MarketingLang = 'es' | 'en';
 /**
  * Ephemeral locale for the public surface. It deliberately does not use the
  * product I18nService because that service reads persistent app settings.
- * Leaving or refreshing the landing resets to Spanish by design.
+ * Public routes start in Spanish unless the incoming link specifies a language.
  */
 @Injectable()
 export class MarketingLocaleService {

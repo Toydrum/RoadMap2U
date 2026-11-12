@@ -115,7 +115,8 @@ try {
   );
   ok(
     'A1 landing account CTA respects base href',
-    (await page.locator('app-landing .sign-in').getAttribute('href')) === `${expectedBasePath}account`,
+    (await page.locator('app-landing .sign-in').getAttribute('href')) ===
+      `${expectedBasePath}account?intent=signIn&lang=es`,
   );
   ok(
     'A2 landing lockup stays inside its link container',
@@ -151,7 +152,8 @@ try {
   await page.locator('app-account').waitFor();
   ok(
     'D1 landing account CTA navigates inside the configured base href',
-    new URL(page.url()).pathname === `${appBase}account`,
+    new URL(page.url()).pathname === `${appBase}account` &&
+      (await page.getByRole('heading', { name: 'Entrar a mi cuenta' }).isVisible()),
   );
 
   await page.goto(appUrl('account'), { waitUntil: 'networkidle' });
@@ -163,10 +165,83 @@ try {
   ok('E account keeps product chrome asleep', (await page.locator('.tabbar').count()) === 0);
   ok('F account registers no service worker', accountRegistrations === 0);
   ok('F1 account owns exactly one main landmark', (await page.locator('main').count()) === 1);
+  await page.locator('.skip-link').focus();
+  await page.keyboard.press('Enter');
   ok(
-    'F2 account skip link targets its main landmark',
-    (await page.locator('.skip-link').getAttribute('href')) === '#account-main' &&
-      (await page.locator('main#account-main').count()) === 1,
+    'F2 account skip link focuses main without leaving the route',
+    new URL(page.url()).pathname === `${appBase}account` &&
+      (await page.evaluate(() => document.activeElement?.id)) === 'account-main',
+  );
+
+  const guestSubscription = appUrl('account/subscription?lang=es');
+  await page.goto(guestSubscription, { waitUntil: 'networkidle' });
+  const premium = page.locator('#billing-main');
+  const plansHref = await premium
+    .getByRole('link', { name: 'Ver planes', exact: true })
+    .getAttribute('href');
+  const plans = new URL(plansHref ?? '', page.url());
+  ok(
+    'F3 Premium guest can return to plans',
+    plans.pathname === appBase && plans.searchParams.get('lang') === 'es' && plans.hash === '#plans',
+  );
+  for (const { label, intent, heading } of [
+    { label: 'Iniciar sesión', intent: 'signIn', heading: 'Entrar a mi cuenta' },
+    { label: 'Crear cuenta', intent: 'create', heading: 'Crear mi cuenta' },
+  ]) {
+    if (intent === 'create') await page.goto(guestSubscription, { waitUntil: 'networkidle' });
+    await premium.getByRole('link', { name: label, exact: true }).click();
+    await page.getByRole('heading', { name: heading, exact: true }).waitFor();
+    const destination = new URL(page.url());
+    ok(
+      `F4 Premium guest opens the ${intent} form with a return to subscription`,
+      destination.pathname === `${appBase}account` &&
+        destination.searchParams.get('intent') === intent &&
+        destination.searchParams.get('lang') === 'es' &&
+        destination.searchParams.get('volver') === '/account/subscription',
+    );
+  }
+
+  const signup = page.locator('app-account form.auth-form');
+  const signupUsername = signup.locator('input[autocomplete="username"]');
+  const signupEmail = signup.locator('input[type="email"]');
+  const signupPasswords = signup.locator('input[autocomplete="new-password"]');
+  const signupConsent = signup.getByRole('checkbox');
+  const draftUsername = 'draft_probe';
+  const draftEmail = 'draft-probe@example.invalid';
+  const draftPassword = 'ProbeOnly*1234';
+  await signupUsername.fill(draftUsername);
+  await signupEmail.fill(draftEmail);
+  await signupPasswords.nth(0).fill(draftPassword);
+  await signupPasswords.nth(1).fill(draftPassword);
+  await signupConsent.check();
+  await signup.getByRole('link', { name: 'Leer los términos de uso', exact: true }).click();
+  const legalDialog = page.getByRole('dialog');
+  await legalDialog.waitFor();
+  await legalDialog.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await legalDialog.waitFor({ state: 'hidden' });
+  ok(
+    'F5 reading signup terms preserves the draft and subscription return',
+    (await signupUsername.inputValue()) === draftUsername &&
+      (await signupEmail.inputValue()) === draftEmail &&
+      (await signupPasswords.nth(0).inputValue()) === draftPassword &&
+      (await signupPasswords.nth(1).inputValue()) === draftPassword &&
+      (await signupConsent.isChecked()) &&
+      new URL(page.url()).searchParams.get('volver') === '/account/subscription',
+  );
+  await page.getByRole('button', { name: /Volver/ }).click();
+  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
+  await page.getByRole('heading', { name: 'Entrar a mi cuenta', exact: true }).waitFor();
+  ok(
+    'F6 leaving signup clears the password before sign-in',
+    (await page.locator('app-account input[autocomplete="current-password"]').inputValue()) === '',
+  );
+  await page.getByRole('button', { name: /Volver/ }).click();
+  await page.getByRole('button', { name: 'Crear cuenta', exact: true }).click();
+  await page.getByRole('heading', { name: 'Crear mi cuenta', exact: true }).waitFor();
+  ok(
+    'F7 returning to signup leaves both password fields empty',
+    (await signupPasswords.nth(0).inputValue()) === '' &&
+      (await signupPasswords.nth(1).inputValue()) === '',
   );
 
   await page.goto(appUrl('forest?seed=demo'), { waitUntil: 'networkidle' });
@@ -184,6 +259,13 @@ try {
     registrations: (await navigator.serviceWorker.getRegistrations()).length,
   }));
   ok('G product shell restores its navigation', (await page.locator('.tabbar').count()) === 1);
+  await page.locator('.skip-link').focus();
+  await page.keyboard.press('Enter');
+  ok(
+    'G1 product skip link focuses main and preserves the route and query',
+    page.url() === appUrl('forest?seed=demo') &&
+      (await page.evaluate(() => document.activeElement?.id)) === 'main',
+  );
   ok('H product initializes its local database', productState.databases.includes('roadmap2u'));
   ok('I product registers the PWA once', productState.registrations === 1);
 

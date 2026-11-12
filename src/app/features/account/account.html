@@ -1,10 +1,12 @@
-<a class="skip-link" href="#account-main">{{ i18n.t().a11y.skipToContent }}</a>
-<main id="account-main" class="ritual">
+<a class="skip-link" href="#account-main" (click)="focusMain($event)">{{
+  i18n.t().a11y.skipToContent
+}}</a>
+<main #main id="account-main" class="ritual" tabindex="-1">
   @switch (step()) {
     @case ('welcome') {
       <section class="stage" aria-live="polite">
         <img class="logo" src="icons/logo.svg" alt="" width="64" height="64" />
-        <h1>{{ i18n.t().account.welcomeTitle }}</h1>
+        <h1 #stepHeading tabindex="-1">{{ i18n.t().account.welcomeTitle }}</h1>
         <p class="sub">{{ i18n.t().account.welcomeBody }}</p>
         @if (intent() === 'redeem') {
           <p class="hint">{{ i18n.t().access.key.signInHint }}</p>
@@ -31,7 +33,7 @@
         <button type="button" class="btn btn-ghost step-back" (click)="go('welcome')">
           ← {{ i18n.t().common.back }}
         </button>
-        <h1>{{ i18n.t().account.signInTitle }}</h1>
+        <h1 #stepHeading tabindex="-1">{{ i18n.t().account.signInTitle }}</h1>
 
         @if (notice()) {
           <p class="notice">{{ notice() }}</p>
@@ -82,61 +84,100 @@
         <button type="button" class="btn btn-ghost step-back" (click)="go('welcome')">
           ← {{ i18n.t().common.back }}
         </button>
-        <h1>{{ i18n.t().account.createTitle }}</h1>
+        <h1 #stepHeading tabindex="-1">{{ i18n.t().account.createTitle }}</h1>
         <p class="sub">{{ i18n.t().account.createHint }}</p>
 
-        <form class="auth-form" (submit)="$event.preventDefault(); doCreate()">
+        <form #signupForm class="auth-form" novalidate (submit)="$event.preventDefault(); doCreate()">
           <label class="field">
             <span>{{ i18n.t().account.username }}</span>
             <input
               type="text"
+              name="username"
               autocomplete="username"
               autocapitalize="none"
               spellcheck="false"
+              required
+              aria-describedby="signup-username-hint"
+              [attr.aria-invalid]="signupFieldError() === 'invalidUsername' || null"
               [value]="username()"
-              (input)="username.set(inputValue($event))"
+              (input)="updateSignupField('username', $event)"
             />
           </label>
+          <p id="signup-username-hint" class="hint" [class.error-line]="signupFieldError() === 'invalidUsername'">
+            {{ i18n.t().account.errors.invalidUsername }}
+          </p>
           <!-- displayName severed from signup (0.0.108) — the profile already falls
      back to the username; one less field at the front door. -->
           <label class="field">
             <span>{{ i18n.t().account.email }}</span>
             <input
               type="email"
+              name="email"
               autocomplete="email"
+              required
+              [attr.aria-invalid]="signupFieldError() === 'invalidEmail' || null"
+              [attr.aria-describedby]="signupFieldError() === 'invalidEmail' ? 'signup-email-error' : null"
               [value]="email()"
-              (input)="email.set(inputValue($event))"
+              (input)="updateSignupField('email', $event)"
             />
           </label>
+          @if (signupFieldError() === 'invalidEmail') {
+            <p id="signup-email-error" class="error-line" role="alert">{{ i18n.t().account.errors.invalidEmail }}</p>
+          }
           <label class="field">
             <span>{{ i18n.t().account.passwordNew }}</span>
             <input
               type="password"
+              name="password"
               autocomplete="new-password"
+              required
               [attr.minlength]="minLength"
+              aria-describedby="signup-password-hint"
+              [attr.aria-invalid]="signupFieldError() === 'passwordPolicy' || null"
               [value]="password()"
-              (input)="password.set(inputValue($event))"
+              (input)="updateSignupField('password', $event)"
             />
           </label>
+          <p id="signup-password-hint" class="hint" [class.error-line]="signupFieldError() === 'passwordPolicy'">
+            {{ i18n.t().account.passwordHint }}
+          </p>
           <label class="field">
             <span>{{ i18n.t().account.passwordRepeat }}</span>
             <input
               type="password"
+              name="password2"
               autocomplete="new-password"
+              required
+              [attr.aria-invalid]="signupFieldError() === 'passwordMismatch' || null"
+              [attr.aria-describedby]="signupFieldError() === 'passwordMismatch' ? 'signup-password-match' : null"
               [value]="password2()"
-              (input)="password2.set(inputValue($event))"
+              (input)="updateSignupField('password2', $event)"
             />
           </label>
-          <p class="hint">{{ i18n.t().account.passwordHint }}</p>
+          @if (signupFieldError() === 'passwordMismatch') {
+            <p id="signup-password-match" class="error-line" role="alert">{{ i18n.t().account.passwordMismatch }}</p>
+          }
 
           @if (signupDocument(); as consentText) {
             <p class="hint">
-              <a routerLink="/privacy" [queryParams]="{ lang: i18n.lang() }">{{ i18n.t().privacy.readNotice }}</a> ·
-              <a routerLink="/terms" [queryParams]="{ lang: i18n.lang() }">{{ i18n.t().privacy.readTerms }}</a>
+              <a
+                [href]="signupLegalLinks().privacy"
+                aria-haspopup="dialog"
+                (click)="openSignupLegal($event, 'privacy')"
+                >{{ i18n.t().privacy.readNotice }}</a
+              >
+              ·
+              <a
+                [href]="signupLegalLinks().terms"
+                aria-haspopup="dialog"
+                (click)="openSignupLegal($event, 'terms')"
+                >{{ i18n.t().privacy.readTerms }}</a
+              >
             </p>
             <label class="consent-choice"
               ><input
                 type="checkbox"
+                required
                 [checked]="acceptsTerms()"
                 (change)="acceptsTerms.set($any($event.target).checked)"
               />{{ consentText.document.declaration.terms }}</label
@@ -174,7 +215,7 @@
         <button type="button" class="btn btn-ghost step-back" (click)="go('welcome')">
           ← {{ i18n.t().common.back }}
         </button>
-        <h1>{{ i18n.t().account.codeTitle }}</h1>
+        <h1 #stepHeading tabindex="-1">{{ i18n.t().account.codeTitle }}</h1>
         <p class="sub">
           @if (auth.deliveryHint(); as hint) {
             {{ i18n.fill(i18n.t().account.codeBody, { hint }) }}
@@ -224,7 +265,7 @@
         <button type="button" class="btn btn-ghost step-back" (click)="go('signIn')">
           ← {{ i18n.t().common.back }}
         </button>
-        <h1>{{ i18n.t().account.newPasswordTitle }}</h1>
+        <h1 #stepHeading tabindex="-1">{{ i18n.t().account.newPasswordTitle }}</h1>
         <p class="sub">{{ i18n.t().account.newPasswordBody }}</p>
 
         <form class="auth-form" (submit)="$event.preventDefault(); doNewPassword()">
@@ -273,7 +314,7 @@
         <button type="button" class="btn btn-ghost step-back" (click)="go('signIn')">
           ← {{ i18n.t().common.back }}
         </button>
-        <h1>{{ i18n.t().account.forgotTitle }}</h1>
+        <h1 #stepHeading tabindex="-1">{{ i18n.t().account.forgotTitle }}</h1>
         <p class="sub">{{ i18n.t().account.forgotBody }}</p>
 
         <form class="auth-form" (submit)="$event.preventDefault(); doForgot()">
@@ -310,7 +351,7 @@
         <button type="button" class="btn btn-ghost step-back" (click)="go('forgot')">
           ← {{ i18n.t().common.back }}
         </button>
-        <h1>{{ i18n.t().account.forgotCodeTitle }}</h1>
+        <h1 #stepHeading tabindex="-1">{{ i18n.t().account.forgotCodeTitle }}</h1>
         <p class="sub">
           @if (auth.deliveryHint(); as hint) {
             {{ i18n.fill(i18n.t().account.codeBody, { hint }) }}
@@ -374,7 +415,7 @@
 
     @case ('admission') {
       <section class="stage" aria-live="polite">
-        <h1>{{ i18n.t().privacy.accountTitle }}</h1>
+        <h1 #stepHeading tabindex="-1">{{ i18n.t().privacy.accountTitle }}</h1>
         @if (localError()) {
           <p role="alert">{{ localError() }}</p>
         }
@@ -387,7 +428,7 @@
     }
     @case ('closureRecovery') {
       <section class="stage closure-recovery" aria-live="polite">
-        <h1>{{ i18n.t().account.closureStatusTitle }}</h1>
+        <h1 #stepHeading tabindex="-1">{{ i18n.t().account.closureStatusTitle }}</h1>
         @if (closure.receipt(); as receipt) {
           <div class="card closure-card" role="status" aria-live="polite">
             <p>{{ closureStateText(receipt.state) }}</p>
@@ -410,7 +451,7 @@
 
     @case ('profile') {
       <section class="stage" aria-live="polite">
-        <h1>{{ i18n.t().account.profileTitle }}</h1>
+        <h1 #stepHeading tabindex="-1">{{ i18n.t().account.profileTitle }}</h1>
         <a class="btn btn-ghost account-settings-back" routerLink="/settings"
           >← {{ i18n.t().accountStatus.backSettings }}</a
         >
@@ -533,3 +574,34 @@
     }
   }
 </main>
+
+@if (signupLegalCopy(); as documentCopy) {
+  <div class="legal-backdrop" (click)="closeSignupLegal()">
+    <section
+      class="card legal-sheet"
+      appSheet
+      (sheetClose)="closeSignupLegal()"
+      (click)="$event.stopPropagation()"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="signup-legal-title"
+      [attr.lang]="i18n.lang()"
+    >
+      <header class="legal-sheet-heading">
+        <h2 id="signup-legal-title">{{ documentCopy.title }}</h2>
+        <button type="button" class="btn btn-soft" (click)="closeSignupLegal()">
+          {{ i18n.t().common.close }}
+        </button>
+      </header>
+      <p>{{ documentCopy.intro }}</p>
+      @for (section of documentCopy.sections; track section.title) {
+        <section>
+          <h3>{{ section.title }}</h3>
+          @for (paragraph of section.paragraphs; track paragraph) {
+            <p>{{ paragraph }}</p>
+          }
+        </section>
+      }
+    </section>
+  </div>
+}

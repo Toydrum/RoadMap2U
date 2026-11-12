@@ -1,4 +1,4 @@
-import { Component, ElementRef, effect, inject, viewChild } from '@angular/core';
+import { Component, ElementRef, effect, inject, input, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Meta, Title } from '@angular/platform-browser';
 import { type MarketingLang, MarketingLocaleService } from './marketing-locale.service';
@@ -13,6 +13,7 @@ import { PlanCatalogService } from '../../core/access/plan-catalog.service';
   styleUrls: ['./landing.scss', './landing-responsive.scss'],
 })
 export class LandingPage {
+  readonly requestedLang = input<string>(undefined, { alias: 'lang' });
   protected readonly locale = inject(MarketingLocaleService);
   protected readonly copy = this.locale.copy;
   protected readonly lang = this.locale.lang;
@@ -25,13 +26,19 @@ export class LandingPage {
     void this.plans.loadIndividual();
     void this.plans.load().catch(() => undefined);
     effect(() => {
+      const requested = this.requestedLang();
+      if (requested === 'es' || requested === 'en') this.locale.set(requested);
+    });
+    effect(() => {
       this.title.setTitle(this.copy().landing.seo.title);
       this.meta.updateTag({ name: 'description', content: this.copy().landing.seo.description });
     });
   }
 
-  protected quotaText(message: string): string {
-    const limits = this.plans.catalog().plans.free.limits;
+  protected quotaText(message: string): string | null {
+    if (!message.includes('{trees}') && !message.includes('{branches}')) return message;
+    const limits = this.plans.confirmedCatalog()?.plans.free.limits;
+    if (!limits) return null;
     const trees = this.copy().landing.plans.free.activeTrees;
     const treeCount = limits.maxActiveTrees === 1
       ? trees.one

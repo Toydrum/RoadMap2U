@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   PREPAYMENT_PLAN_CATALOG,
   REDUCED_PLAN_CATALOG,
@@ -51,11 +51,11 @@ function launchCatalog(value: unknown): PlanCatalog {
 export class PlanCatalogService {
   private readonly readPlans = inject(PUBLIC_PLAN_CATALOG);
   private readonly readIndividual = inject(PUBLIC_INDIVIDUAL_CATALOG);
-  private readonly catalogSignal = signal<PlanCatalog>(PREPAYMENT_PLAN_CATALOG);
-  private loaded = false;
+  private readonly catalogSignal = signal<PlanCatalog | null>(null);
   private inFlight: Promise<PlanCatalog> | null = null;
 
-  readonly catalog = this.catalogSignal.asReadonly();
+  readonly confirmedCatalog = this.catalogSignal.asReadonly();
+  readonly catalog = computed(() => this.confirmedCatalog() ?? PREPAYMENT_PLAN_CATALOG);
   private readonly individualCatalogState = signal<IndividualBillingCatalog | null>(null);
   private readonly individualLoadingState = signal(false);
   private readonly individualErrorState = signal(false);
@@ -97,7 +97,8 @@ export class PlanCatalogService {
   }
 
   load(): Promise<PlanCatalog> {
-    if (this.loaded) return Promise.resolve(this.catalogSignal());
+    const catalog = this.confirmedCatalog();
+    if (catalog) return Promise.resolve(catalog);
     return this.inFlight ?? this.fetch();
   }
 
@@ -112,7 +113,6 @@ export class PlanCatalogService {
         // Canonicalize to the frozen client constant so extra wire fields and
         // mutable response objects never become application configuration.
         this.catalogSignal.set(catalog);
-        this.loaded = true;
         return catalog;
       })
       .finally(() => {

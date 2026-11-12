@@ -100,7 +100,10 @@ test('the install entrypoint opens Ahora and index uses the approved favicon var
 test('account owns one accessible main landmark outside the product shell', () => {
   const account = source('src/app/features/account/account.html');
   assert.match(account, /href="#account-main"/);
-  assert.match(account, /<main\s+id="account-main"\s+class="ritual">/);
+  const landmarks = account.match(/<main\b[^>]*>/g) ?? [];
+  assert.equal(landmarks.length, 1);
+  assert.match(landmarks[0], /\bid="account-main"/);
+  assert.match(landmarks[0], /\btabindex="-1"/);
   assert.doesNotMatch(account, /<div\s+class="ritual">/);
 });
 

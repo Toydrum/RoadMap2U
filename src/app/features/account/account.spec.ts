@@ -1,6 +1,9 @@
+import { Location } from '@angular/common';
+import { provideLocationMocks } from '@angular/common/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AccountClosureService } from '../../core/account-closure.service';
@@ -24,7 +27,7 @@ import {
   safeLocalReturnUrl,
 } from './account';
 
-function accountHarness(dict: Dict = ES) {
+function accountHarness(dict: Dict = ES, routed = false) {
   const privacyScope = signal<'adult' | 'adolescent_private'>('adult');
   const adultDeclared = signal(true);
   const admission = signal<'standard' | 'absent'>('standard');
@@ -104,7 +107,8 @@ function accountHarness(dict: Dict = ES) {
   TestBed.configureTestingModule({
     imports: [AccountPage],
     providers: [
-      provideRouter([]),
+      provideRouter(routed ? [{ path: 'account', component: AccountPage }] : [], withComponentInputBinding()),
+      ...(routed ? provideLocationMocks() : []),
       { provide: AuthService, useValue: auth },
       {
         provide: API_CLIENT,
@@ -137,7 +141,7 @@ function accountHarness(dict: Dict = ES) {
       },
     ],
   });
-  return { auth, closure, constructed, restart, access, privacyScope, adultDeclared, admission, privateOnly, api };
+  return { auth, closure, constructed, restart, access, privacyScope, adultDeclared, admission, privateOnly, api, i18n };
 }
 
 describe('standard account admission copy', () => {
@@ -181,6 +185,174 @@ describe('account create validation', () => {
     expect(fixture.nativeElement.querySelector('a[href^="/privacy"]').getAttribute('href')).toBe('/privacy?lang=' + language);
     expect(fixture.nativeElement.querySelector('a[href^="/terms"]').getAttribute('href')).toBe('/terms?lang=' + language);
   });
+
+  it.each(['privacy', 'terms'] as const)(
+    'shows the accepted English %s document while the English UI dictionary is pending',
+    async (kind) => {
+      const harness = accountHarness(ES);
+      harness.closure.receipt.set(null);
+      harness.i18n.lang.set('en');
+      const fixture = TestBed.createComponent(AccountPage);
+      fixture.componentRef.setInput('intent', 'create');
+      fixture.componentRef.setInput('read', kind);
+      fixture.detectChanges();
+      const host = fixture.nativeElement as HTMLElement;
+      const { document } = await commonAccountDocument('en');
+      const legal = kind === 'privacy' ? document.notice : document.terms;
+
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(host.querySelector('.consent-choice')?.textContent?.trim()).toBe(document.declaration.terms);
+      });
+      expect(host.querySelector('h1')?.textContent?.trim()).toBe(ES.account.createTitle);
+      const viewer = host.querySelector('[role="dialog"]');
+      expect(viewer?.getAttribute('lang')).toBe('en');
+      expect(viewer?.querySelector('h2')?.textContent?.trim()).toBe(legal.title);
+      expect(viewer?.textContent).toContain(legal.intro);
+    },
+  );
+
+  it.each([['privacy', ES.legal.privacy], ['terms', ES.legal.terms]] as const)(
+    'keeps the signup form open while reading %s',
+    async (kind, documentCopy) => {
+      const harness = accountHarness(ES, true);
+      harness.closure.receipt.set(null);
+      const router = TestBed.inject(Router);
+      router.setUpLocationChangeListener();
+      const location = TestBed.inject(Location);
+      const start = '/account?intent=create';
+      const route = await RouterTestingHarness.create(start);
+      const host = route.routeNativeElement!;
+      await vi.waitFor(() => {
+        route.detectChanges();
+        expect(host.querySelector(`a[href^="/${kind}"]`)).not.toBeNull();
+      });
+      const link = host.querySelector<HTMLAnchorElement>(`a[href^="/${kind}"]`)!;
+      const username = host.querySelector<HTMLInputElement>('input[autocomplete="username"]')!;
+      const [password, password2] = host.querySelectorAll<HTMLInputElement>('input[autocomplete="new-password"]');
+      for (const [field, value] of [[username, 'brisa'], [password, 'Bosque123'], [password2, 'Bosque123']] as const) {
+        field.value = value;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      link.focus();
+      link.click();
+      await vi.waitFor(() => {
+        route.detectChanges();
+        expect(location.path()).toBe(`${start}&read=${kind}`);
+      });
+
+      const dialog = host.querySelector('[role="dialog"]');
+      expect(dialog?.querySelector('h2')?.textContent?.trim()).toBe(documentCopy.title);
+      expect(dialog?.textContent).toContain(documentCopy.sections.at(-1)?.paragraphs.at(-1));
+      if (kind === 'terms') location.back();
+      else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await vi.waitFor(() => {
+        route.detectChanges();
+        expect(location.path()).toBe(start);
+        expect(host.querySelector('[role="dialog"]')).toBeNull();
+      });
+      expect(host.querySelector('input[autocomplete="username"]')).toBe(username);
+      expect(username.value).toBe('brisa');
+      expect(password.value).toBe('Bosque123');
+      expect(password2.value).toBe('Bosque123');
+      expect(document.activeElement).toBe(link);
+      if (kind === 'terms') {
+        location.forward();
+        await vi.waitFor(() => {
+          route.detectChanges();
+          expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+        });
+        expect(password.value).toBe('Bosque123');
+        expect(password2.value).toBe('Bosque123');
+      }
+    },
+  );
+
+  it('clears signup passwords when leaving the flow and keeps the username', () => {
+    const harness = accountHarness();
+    harness.closure.receipt.set(null);
+    const fixture = TestBed.createComponent(AccountPage);
+    fixture.componentRef.setInput('intent', 'create');
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const username = host.querySelector<HTMLInputElement>('input[autocomplete="username"]')!;
+    const [password, password2] = host.querySelectorAll<HTMLInputElement>('input[autocomplete="new-password"]');
+    for (const [field, value] of [[username, 'brisa'], [password, 'Bosque123'], [password2, 'Bosque123']] as const) {
+      field.value = value;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const choose = (copy: string) => {
+      Array.from(host.querySelectorAll('button')).find((button) => button.textContent?.trim() === copy)!.click();
+      fixture.detectChanges();
+    };
+
+    host.querySelector<HTMLButtonElement>('.step-back')!.click();
+    fixture.detectChanges();
+    choose(ES.account.signInDoor);
+    expect(host.querySelector<HTMLInputElement>('input[autocomplete="current-password"]')?.value).toBe('');
+    expect(host.querySelector<HTMLInputElement>('input[autocomplete="username"]')?.value).toBe('brisa');
+
+    host.querySelector<HTMLButtonElement>('.step-back')!.click();
+    fixture.detectChanges();
+    choose(ES.account.createDoor);
+    expect(Array.from(host.querySelectorAll<HTMLInputElement>('input[autocomplete="new-password"]'), (field) => field.value)).toEqual(['', '']);
+  });
+
+  it.each([['es', ES], ['en', EN]] as const)(
+    'associates signup rules before submit and identifies the invalid username (%s)',
+    async (_language, dictionary) => {
+      const harness = accountHarness(dictionary);
+      harness.closure.receipt.set(null);
+      const fixture = TestBed.createComponent(AccountPage);
+      fixture.componentRef.setInput('intent', 'create');
+      fixture.detectChanges();
+      const host = fixture.nativeElement as HTMLElement;
+      const username = host.querySelector<HTMLInputElement>('input[autocomplete="username"]')!;
+      const password = host.querySelector<HTMLInputElement>('input[autocomplete="new-password"]')!;
+      const description = (field: HTMLInputElement) =>
+        host.querySelector('#' + field.getAttribute('aria-describedby'))?.textContent?.trim();
+
+      expect(description(username)).toBe(dictionary.account.errors.invalidUsername);
+      expect(description(password)).toBe(dictionary.account.passwordHint);
+      expect(username.getAttribute('aria-invalid')).not.toBe('true');
+      host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      expect(username.getAttribute('aria-invalid')).toBe('true');
+      expect(document.activeElement).toBe(username);
+      expect(harness.auth.signUp).not.toHaveBeenCalled();
+    },
+  );
+
+  it('moves keyboard focus to the heading when starting signup', async () => {
+    const harness = accountHarness();
+    harness.closure.receipt.set(null);
+    const fixture = TestBed.createComponent(AccountPage);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const button = Array.from(host.querySelectorAll('button')).find(
+      (element) => element.textContent?.trim() === ES.account.createDoor,
+    )!;
+    button.focus();
+    button.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const heading = host.querySelector('h1');
+    expect(heading?.textContent?.trim()).toBe(ES.account.createTitle);
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it('moves keyboard focus to the account main when using its skip link', () => {
+    accountHarness();
+    const fixture = TestBed.createComponent(AccountPage);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const skip = host.querySelector<HTMLAnchorElement>('.skip-link')!;
+    skip.focus();
+    skip.click();
+    expect(document.activeElement).toBe(host.querySelector('main'));
+  });
   it('offers a standard signup with unchecked terms and no age or guardian choice', async () => {
     TestBed.resetTestingModule();
     const harness = accountHarness();
@@ -220,6 +392,8 @@ describe('account create validation', () => {
       username: 'brisa', email: 'brisa@example.invalid', password: 'Bosque123', displayName: '',
     });
     expect(page.step()).toBe('confirmCode');
+    expect(page.password()).toBe('');
+    expect(page.password2()).toBe('');
     expect(harness.api.changePrivacyConsent).not.toHaveBeenCalled();
     harness.admission.set('absent');
     harness.adultDeclared.set(false);

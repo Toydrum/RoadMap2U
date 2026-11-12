@@ -4,7 +4,9 @@
 
 Goals are branches. Achieved ones bloom. Missed deadlines are never failures: they become **branch points** where new alternative paths grow. Every session opens with one gentle question: **"¿Dónde sientes que estás?"** (*Where do you feel you are?*) — and the journey continues from wherever you actually are.
 
-**Live:** https://toydrum.github.io/RoadMap2U/
+**Live:** https://roadmap2u.com/
+
+If you still have a forest saved on the [previous site](https://toydrum.github.io/RoadMap2U/), export a backup there and import it on the current site. Each address has its own local storage.
 
 ## Principles
 

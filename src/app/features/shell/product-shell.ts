@@ -33,7 +33,7 @@ export class ProductShell {
   protected readonly toast = inject(ToastService);
   protected readonly focus = inject(FocusSessionService);
   protected readonly promise = inject(PromiseService);
-  protected readonly cloudActivation = inject(PremiumCloudActivation).status;
+  protected readonly cloudActivation = inject(PremiumCloudActivation);
   private readonly router = inject(Router);
   private readonly anchor = inject(PerchAnchorService);
 

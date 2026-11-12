@@ -34,7 +34,10 @@ const intent: PremiumCloudIntent = {
   source: { kind: 'checkout', afterRevision: 1 },
 };
 
-afterEach(() => TestBed.resetTestingModule());
+afterEach(() => {
+  TestBed.resetTestingModule();
+  vi.useRealTimers();
+});
 
 describe('automatic Premium cloud authorization', () => {
   it('reuses existing consent only when the exact displayed document is current', async () => {
@@ -110,5 +113,44 @@ describe('automatic Premium cloud authorization', () => {
       allowLocalUpload: false,
     }));
     expect(clear).toHaveBeenCalledWith(intent.id);
+  });
+
+  it('offers a retry after confirmation stays pending, then checks access and consent again', async () => {
+    vi.useFakeTimers();
+    const activatePremiumCloud = vi.fn(async () => true);
+    const refresh = vi.fn(async () => valid);
+    const verified = vi.fn<() => Promise<ReturnType<typeof createFreeAccessSummary> | null>>()
+      .mockResolvedValue(null);
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: AuthService, useValue: { user: signal(owner), sessionStale: signal(false) } },
+        { provide: PrivacyService, useValue: { cloudBlocked: () => false, refresh } },
+        {
+          provide: PremiumCloudIntentService,
+          useValue: { pending: async () => intent, verified, clear: async () => undefined },
+        },
+        { provide: SyncService, useValue: { activatePremiumCloud } },
+      ],
+    });
+    const service = TestBed.inject(PremiumCloudActivation);
+
+    service.start();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(verified).toHaveBeenCalledTimes(6);
+    expect(service.status()).toBe('retry');
+    expect(refresh).not.toHaveBeenCalled();
+    expect(activatePremiumCloud).not.toHaveBeenCalled();
+
+    verified.mockResolvedValue(createFreeAccessSummary());
+    service.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(verified).toHaveBeenCalledTimes(7);
+    expect(refresh).toHaveBeenCalledWith(intent.language);
+    expect(activatePremiumCloud).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      privacyRevision: intent.revision,
+      session: intent.session,
+      allowLocalUpload: false,
+    }));
+    expect(service.status()).toBe('current');
   });
 });

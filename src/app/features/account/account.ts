@@ -1,6 +1,20 @@
-import { Component, InjectionToken, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { Location } from '@angular/common';
+import {
+  Component,
+  ElementRef,
+  InjectionToken,
+  afterRenderEffect,
+  computed,
+  effect,
+  inject,
+  input,
+  linkedSignal,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { inputValue } from '../../shared/ui/dom';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { APP_CONFIG } from '../../core/config';
@@ -13,6 +27,18 @@ import { PrivacyService } from '../../core/privacy.service';
 import { ApiError } from '../../core/api/contracts';
 import { commonAccountDocument } from '../../core/api/privacy-document';
 import { AccountAccessSummary } from '../../shared/ui/account-access-summary';
+import { SheetDirective } from '../../shared/ui/sheet.directive';
+
+type SignupLegalDocument = 'privacy' | 'terms';
+type SignupField = 'username' | 'email' | 'password' | 'password2';
+type SignupInputError = 'invalidUsername' | 'invalidEmail' | 'passwordPolicy' | 'passwordMismatch';
+
+const SIGNUP_ERROR_FIELD: Record<SignupInputError, SignupField> = {
+  invalidUsername: 'username',
+  invalidEmail: 'email',
+  passwordPolicy: 'password',
+  passwordMismatch: 'password2',
+};
 
 type Step =
   | 'welcome'
@@ -57,7 +83,7 @@ export function createAccountInputError(
   email: string,
   password: string,
   password2: string,
-): 'invalidUsername' | 'invalidEmail' | 'passwordPolicy' | 'passwordMismatch' | null {
+): SignupInputError | null {
   if (!USERNAME_PATTERN.test(normalizedUsername(username))) return 'invalidUsername';
   if (!EMAIL_PATTERN.test(email.trim())) return 'invalidEmail';
   if (!passwordMeetsPolicy(password)) return 'passwordPolicy';
@@ -74,7 +100,7 @@ export function createAccountInputError(
  */
 @Component({
   selector: 'app-account',
-  imports: [RouterLink, AccessKeyForm, PrivacyPanel, AccountAccessSummary],
+  imports: [RouterLink, AccessKeyForm, PrivacyPanel, AccountAccessSummary, SheetDirective],
   templateUrl: './account.html',
   styleUrl: './account.scss',
 })
@@ -87,13 +113,20 @@ export class AccountPage {
   protected readonly bugReportUrl =
     'https://docs.google.com/forms/d/e/1FAIpQLSelXiTkj1W9hKmgw1z_fLVFKy_a2bpWDFT8FdSABTLteHxmew/viewform';
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly location = inject(Location);
   private readonly restartAfterClosure = inject(ACCOUNT_CLOSURE_RESTART);
+  private readonly main = viewChild.required<ElementRef<HTMLElement>>('main');
+  private readonly stepHeading = viewChild<ElementRef<HTMLHeadingElement>>('stepHeading');
+  private readonly signupForm = viewChild<ElementRef<HTMLFormElement>>('signupForm');
 
   /** Where the auth gate was headed — internal paths only. */
   readonly volver = input<string>();
   /** Sponsored-access entry intent and a same-origin route to return to. */
   readonly intent = input<string>();
   readonly returnUrl = input<string>();
+  readonly read = input<string>();
+  private readonly closingSignupLegal = linkedSignal({ source: this.read, computation: () => false });
 
   protected readonly isMock = APP_CONFIG.backend === 'mock';
   protected readonly minLength = PASSWORD_POLICY.minLength;
@@ -109,6 +142,21 @@ export class AccountPage {
   protected readonly signupDocument = signal<Awaited<ReturnType<typeof commonAccountDocument>> | null>(
     null,
   );
+  protected readonly signupLegalCopy = computed(() => {
+    if (this.step() !== 'create') return null;
+    const document = this.signupDocument()?.document;
+    if (document?.language !== this.i18n.lang()) return null;
+    const kind = this.read();
+    return kind === 'privacy' ? document.notice : kind === 'terms' ? document.terms : null;
+  });
+  protected readonly signupLegalLinks = computed(() => {
+    const queryParams = { lang: this.i18n.lang() };
+    const href = (kind: SignupLegalDocument) => {
+      const url = this.router.createUrlTree(['/' + kind], { queryParams });
+      return this.location.prepareExternalUrl(this.router.serializeUrl(url));
+    };
+    return { privacy: href('privacy'), terms: href('terms') };
+  });
   protected readonly canCloseOwnAccount = computed(
     () => this.auth.user()?.accountType === 'adult' && this.privacy.status()?.scope === 'adult',
   );
@@ -118,7 +166,8 @@ export class AccountPage {
     hash: string;
   } | null = null;
 
-  /** Client-side-only complaint (password mismatch) — not an auth error. */
+  protected readonly signupFieldError = signal<SignupInputError | null>(null);
+  /** Client-side complaint outside signup field validation. */
   protected readonly localError = signal('');
   /** Gentle success line ("your new password is ready"). */
   protected readonly notice = signal('');
@@ -127,11 +176,17 @@ export class AccountPage {
   protected readonly safeReturnUrl = computed(() => safeLocalReturnUrl(this.returnUrl()));
 
   constructor() {
+    afterRenderEffect({
+      write: () => {
+        this.step();
+        untracked(() => this.stepHeading()?.nativeElement.focus());
+      },
+    });
     effect(() => {
       const intent = this.intent();
       if (!this.auth.user() && !this.closure.receipt() && untracked(() => this.step()) === 'welcome') {
-        if (intent === 'create') this.step.set('create');
-        if (intent === 'signIn') this.step.set('signIn');
+        if (intent === 'create') this.showStep('create');
+        if (intent === 'signIn') this.showStep('signIn');
       }
     });
     effect(() => {
@@ -144,7 +199,7 @@ export class AccountPage {
         })
         .catch(() => this.localError.set(this.i18n.t().privacy.saveError));
     });
-    if (this.auth.status() === 'signedIn') this.step.set('profile');
+    if (this.auth.status() === 'signedIn') this.showStep('profile');
     // Auth is the only eager graph on /account. Receipt hydration stays local
     // meta-only; Backup/Sync/repos remain behind the explicit closure click.
     effect(() => {
@@ -157,12 +212,12 @@ export class AccountPage {
       const status = this.auth.status();
       const receipt = this.closure.receipt();
       if (status === 'guest' && receipt?.state === 'completed') {
-        this.step.set('closureRecovery');
+        this.showStep('closureRecovery');
       } else if (
         status === 'guest' &&
         (this.step() === 'profile' || this.step() === 'closureRecovery')
       ) {
-        this.step.set('welcome');
+        this.showStep('welcome');
       }
     });
   }
@@ -171,6 +226,42 @@ export class AccountPage {
     const code = this.auth.lastError();
     return code ? this.i18n.t().account.errors[code] : '';
   });
+
+  protected focusMain(event: Event): void {
+    event.preventDefault();
+    this.main().nativeElement.focus();
+  }
+
+  protected openSignupLegal(event: MouseEvent, kind: SignupLegalDocument): void {
+    if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    (event.currentTarget as HTMLAnchorElement).focus();
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { intent: 'create', read: kind },
+      queryParamsHandling: 'merge',
+      scroll: 'manual',
+      state: { signupLegalSheet: true },
+    });
+  }
+
+  protected closeSignupLegal(): void {
+    if (this.closingSignupLegal()) return;
+    this.closingSignupLegal.set(true);
+    const state = this.location.getState() as { signupLegalSheet?: boolean } | null;
+    if (state?.signupLegalSheet) {
+      this.location.back();
+      return;
+    }
+    // A directly opened viewer has no preceding signup entry to return to.
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { read: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+      scroll: 'manual',
+    });
+  }
 
   protected go(step: Step): void {
     if (step !== 'confirmCode') {
@@ -181,7 +272,27 @@ export class AccountPage {
     this.localError.set('');
     this.notice.set('');
     this.confirmingDelete.set(false);
+    this.showStep(step);
+  }
+
+  private clearPasswords(): void {
+    this.password.set('');
+    this.password2.set('');
+  }
+
+  private showStep(step: Step): void {
+    // AuthService owns any pending confirmation credentials. These are only the form fields.
+    this.clearPasswords();
+    this.signupFieldError.set(null);
     this.step.set(step);
+  }
+
+  protected updateSignupField(field: SignupField, event: Event): void {
+    this[field].set(inputValue(event));
+    const error = this.signupFieldError();
+    if (error && (SIGNUP_ERROR_FIELD[error] === field || (error === 'passwordMismatch' && field === 'password'))) {
+      this.signupFieldError.set(null);
+    }
   }
 
   protected async doSignIn(): Promise<void> {
@@ -189,31 +300,25 @@ export class AccountPage {
     this.notice.set('');
     const result = await this.auth.signIn(this.username().trim(), this.password());
     if (result === 'done') await this.afterAuth();
-    else if (result === 'confirmSignUp') this.step.set('confirmCode');
-    else if (result === 'newPasswordRequired') {
-      this.password.set('');
-      this.password2.set('');
-      this.step.set('newPassword');
-    }
+    else if (result === 'confirmSignUp') this.showStep('confirmCode');
+    else if (result === 'newPasswordRequired') this.showStep('newPassword');
   }
 
   protected async doCreate(): Promise<void> {
     this.notice.set('');
+    this.localError.set('');
     const inputError = createAccountInputError(
       this.username(),
       this.email(),
       this.password(),
       this.password2(),
     );
+    this.signupFieldError.set(inputError);
     if (inputError) {
-      this.localError.set(
-        inputError === 'passwordMismatch'
-          ? this.i18n.t().account.passwordMismatch
-          : this.i18n.t().account.errors[inputError],
-      );
+      const field = this.signupForm()?.nativeElement.elements.namedItem(SIGNUP_ERROR_FIELD[inputError]);
+      if (field instanceof HTMLInputElement) field.focus();
       return;
     }
-    this.localError.set('');
     if (!this.acceptsTerms()) {
       this.localError.set(this.i18n.t().privacy.accountTermsRequired);
       return;
@@ -238,18 +343,14 @@ export class AccountPage {
       // Severed from signup (0.0.108): providers fall back to the username.
       displayName: '',
     });
-    if (result === 'confirmSignUp') this.step.set('confirmCode');
+    if (result === 'confirmSignUp') this.showStep('confirmCode');
     else if (result === 'done') await this.afterAuth();
   }
 
   protected async doConfirmCode(): Promise<void> {
     const result = await this.auth.confirmCode(this.code().trim());
     if (result === 'done') await this.afterAuth();
-    else if (result === 'newPasswordRequired') {
-      this.password.set('');
-      this.password2.set('');
-      this.step.set('newPassword');
-    }
+    else if (result === 'newPasswordRequired') this.showStep('newPassword');
   }
 
   protected async doResend(): Promise<void> {
@@ -274,9 +375,7 @@ export class AccountPage {
     const result = await this.auth.forgotPassword(this.username().trim());
     if (result === 'done') {
       this.code.set('');
-      this.password.set('');
-      this.password2.set('');
-      this.step.set('forgotCode');
+      this.showStep('forgotCode');
     }
   }
 
@@ -288,17 +387,14 @@ export class AccountPage {
     this.localError.set('');
     const result = await this.auth.confirmForgotPassword(this.code().trim(), this.password());
     if (result === 'done') {
-      this.password.set('');
-      this.password2.set('');
       this.notice.set(this.i18n.t().account.forgotDone);
-      this.step.set('signIn');
+      this.showStep('signIn');
     }
   }
 
   protected async doSignOut(): Promise<void> {
     this.pendingSignup = null;
     await this.auth.signOut();
-    this.password.set('');
     this.go('welcome');
   }
 
@@ -335,12 +431,11 @@ export class AccountPage {
 
   /** A finished sign-in returns to `volver` (internal only) or shows profile. */
   private async afterAuth(): Promise<void> {
-    this.password.set('');
-    this.password2.set('');
+    this.clearPasswords();
     this.code.set('');
     await this.closure.hydrate();
     if (this.closure.receipt()) {
-      this.step.set('profile');
+      this.showStep('profile');
       return;
     }
     try {
@@ -358,7 +453,7 @@ export class AccountPage {
         status.accountAdmission !== 'standard' &&
         (status.scope !== 'adolescent_private' || !status.adolescentUnderstood)
       ) {
-        this.step.set('admission');
+        this.showStep('admission');
         return;
       }
     } catch (error) {
@@ -367,14 +462,14 @@ export class AccountPage {
           ? this.i18n.t().familia.errors[error.code]
           : this.i18n.t().privacy.saveError,
       );
-      this.step.set('admission');
+      this.showStep('admission');
       return;
     }
     this.finishAdmission();
   }
   protected finishAdmission(): void {
     if (this.intent() === 'redeem') {
-      this.step.set('profile');
+      this.showStep('profile');
       return;
     }
     const target = safeLocalReturnUrl(this.volver(), '');
@@ -382,6 +477,6 @@ export class AccountPage {
       void this.router.navigateByUrl(target);
       return;
     }
-    this.step.set('profile');
+    this.showStep('profile');
   }
 }

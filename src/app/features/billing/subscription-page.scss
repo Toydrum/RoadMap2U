@@ -6,6 +6,9 @@
   padding-block: 1.5rem 4rem;
   overflow-wrap: anywhere;
 }
+a:not(.btn) {
+  color: var(--focus);
+}
 header,
 .billing-languages {
   display: flex;
@@ -20,6 +23,11 @@ h1 {
 .billing-card {
   margin-block: 1rem;
   padding: clamp(1rem, 4vw, 1.6rem);
+}
+.billing-guest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
 }
 .billing-prices {
   display: flex;
