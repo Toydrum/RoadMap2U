@@ -4,7 +4,7 @@ import { PrivacyService } from '../privacy.service';
 import { PremiumCloudIntentService } from './premium-cloud-intent';
 import { SyncService } from './sync.service';
 
-type ActivationPhase = 'idle' | 'waiting' | 'syncing' | 'current' | 'attention';
+type ActivationPhase = 'idle' | 'waiting' | 'syncing' | 'current' | 'attention' | 'retry';
 
 @Injectable({ providedIn: 'root' })
 export class PremiumCloudActivation {
@@ -40,11 +40,15 @@ export class PremiumCloudActivation {
     if (this.pending) return;
     clearTimeout(this.retry);
     this.pending = this.activate().catch(() => {
-      this.phase.set(this.remaining > 1 ? 'waiting' : 'attention');
+      this.phase.set('waiting');
     }).finally(() => {
       this.pending = null;
-      if (this.phase() === 'waiting' && navigator.onLine && --this.remaining > 0)
+      if (this.phase() !== 'waiting' || !navigator.onLine) return;
+      if (--this.remaining > 0) {
         this.retry = setTimeout(() => this.attempt(), 5_000);
+      } else {
+        this.phase.set('retry');
+      }
     });
   }
 
@@ -85,7 +89,7 @@ export class PremiumCloudActivation {
       await this.intents.clear(intent.id);
       if (this.auth.user() === owner) this.phase.set('current');
     } else {
-      this.phase.set(this.remaining > 1 ? 'waiting' : 'attention');
+      this.phase.set('waiting');
     }
   }
 }

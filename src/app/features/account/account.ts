@@ -1,6 +1,20 @@
-import { Component, InjectionToken, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { Location } from '@angular/common';
+import {
+  Component,
+  ElementRef,
+  InjectionToken,
+  afterRenderEffect,
+  computed,
+  effect,
+  inject,
+  input,
+  linkedSignal,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { inputValue } from '../../shared/ui/dom';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { APP_CONFIG } from '../../core/config';
@@ -13,6 +27,9 @@ import { PrivacyService } from '../../core/privacy.service';
 import { ApiError } from '../../core/api/contracts';
 import { commonAccountDocument } from '../../core/api/privacy-document';
 import { AccountAccessSummary } from '../../shared/ui/account-access-summary';
+import { SheetDirective } from '../../shared/ui/sheet.directive';
+
+type SignupLegalDocument = 'privacy' | 'terms';
 
 type Step =
   | 'welcome'
@@ -74,7 +91,7 @@ export function createAccountInputError(
  */
 @Component({
   selector: 'app-account',
-  imports: [RouterLink, AccessKeyForm, PrivacyPanel, AccountAccessSummary],
+  imports: [RouterLink, AccessKeyForm, PrivacyPanel, AccountAccessSummary, SheetDirective],
   templateUrl: './account.html',
   styleUrl: './account.scss',
 })
@@ -87,13 +104,19 @@ export class AccountPage {
   protected readonly bugReportUrl =
     'https://docs.google.com/forms/d/e/1FAIpQLSelXiTkj1W9hKmgw1z_fLVFKy_a2bpWDFT8FdSABTLteHxmew/viewform';
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly location = inject(Location);
   private readonly restartAfterClosure = inject(ACCOUNT_CLOSURE_RESTART);
+  private readonly main = viewChild.required<ElementRef<HTMLElement>>('main');
+  private readonly stepHeading = viewChild<ElementRef<HTMLHeadingElement>>('stepHeading');
 
   /** Where the auth gate was headed — internal paths only. */
   readonly volver = input<string>();
   /** Sponsored-access entry intent and a same-origin route to return to. */
   readonly intent = input<string>();
   readonly returnUrl = input<string>();
+  readonly read = input<string>();
+  private readonly closingSignupLegal = linkedSignal({ source: this.read, computation: () => false });
 
   protected readonly isMock = APP_CONFIG.backend === 'mock';
   protected readonly minLength = PASSWORD_POLICY.minLength;
@@ -109,6 +132,20 @@ export class AccountPage {
   protected readonly signupDocument = signal<Awaited<ReturnType<typeof commonAccountDocument>> | null>(
     null,
   );
+  protected readonly signupLegalCopy = computed(() => {
+    if (this.step() !== 'create') return null;
+    const kind = this.read();
+    const legal = this.i18n.t().legal;
+    return kind === 'privacy' ? legal.privacy : kind === 'terms' ? legal.terms : null;
+  });
+  protected readonly signupLegalLinks = computed(() => {
+    const queryParams = { lang: this.i18n.lang() };
+    const href = (kind: SignupLegalDocument) => {
+      const url = this.router.createUrlTree(['/' + kind], { queryParams });
+      return this.location.prepareExternalUrl(this.router.serializeUrl(url));
+    };
+    return { privacy: href('privacy'), terms: href('terms') };
+  });
   protected readonly canCloseOwnAccount = computed(
     () => this.auth.user()?.accountType === 'adult' && this.privacy.status()?.scope === 'adult',
   );
@@ -127,6 +164,12 @@ export class AccountPage {
   protected readonly safeReturnUrl = computed(() => safeLocalReturnUrl(this.returnUrl()));
 
   constructor() {
+    afterRenderEffect({
+      write: () => {
+        this.step();
+        untracked(() => this.stepHeading()?.nativeElement.focus());
+      },
+    });
     effect(() => {
       const intent = this.intent();
       if (!this.auth.user() && !this.closure.receipt() && untracked(() => this.step()) === 'welcome') {
@@ -171,6 +214,42 @@ export class AccountPage {
     const code = this.auth.lastError();
     return code ? this.i18n.t().account.errors[code] : '';
   });
+
+  protected focusMain(event: Event): void {
+    event.preventDefault();
+    this.main().nativeElement.focus();
+  }
+
+  protected openSignupLegal(event: MouseEvent, kind: SignupLegalDocument): void {
+    if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    (event.currentTarget as HTMLAnchorElement).focus();
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { intent: 'create', read: kind },
+      queryParamsHandling: 'merge',
+      scroll: 'manual',
+      state: { signupLegalSheet: true },
+    });
+  }
+
+  protected closeSignupLegal(): void {
+    if (this.closingSignupLegal()) return;
+    this.closingSignupLegal.set(true);
+    const state = this.location.getState() as { signupLegalSheet?: boolean } | null;
+    if (state?.signupLegalSheet) {
+      this.location.back();
+      return;
+    }
+    // A directly opened viewer has no preceding signup entry to return to.
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { read: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+      scroll: 'manual',
+    });
+  }
 
   protected go(step: Step): void {
     if (step !== 'confirmCode') {

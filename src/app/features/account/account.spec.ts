@@ -1,6 +1,9 @@
+import { Location } from '@angular/common';
+import { provideLocationMocks } from '@angular/common/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AccountClosureService } from '../../core/account-closure.service';
@@ -24,7 +27,7 @@ import {
   safeLocalReturnUrl,
 } from './account';
 
-function accountHarness(dict: Dict = ES) {
+function accountHarness(dict: Dict = ES, routed = false) {
   const privacyScope = signal<'adult' | 'adolescent_private'>('adult');
   const adultDeclared = signal(true);
   const admission = signal<'standard' | 'absent'>('standard');
@@ -104,7 +107,8 @@ function accountHarness(dict: Dict = ES) {
   TestBed.configureTestingModule({
     imports: [AccountPage],
     providers: [
-      provideRouter([]),
+      provideRouter(routed ? [{ path: 'account', component: AccountPage }] : [], withComponentInputBinding()),
+      ...(routed ? provideLocationMocks() : []),
       { provide: AuthService, useValue: auth },
       {
         provide: API_CLIENT,
@@ -180,6 +184,83 @@ describe('account create validation', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('a[href^="/privacy"]').getAttribute('href')).toBe('/privacy?lang=' + language);
     expect(fixture.nativeElement.querySelector('a[href^="/terms"]').getAttribute('href')).toBe('/terms?lang=' + language);
+  });
+
+  it.each([['privacy', ES.legal.privacy], ['terms', ES.legal.terms]] as const)(
+    'keeps the signup form open while reading %s',
+    async (kind, documentCopy) => {
+      const harness = accountHarness(ES, true);
+      harness.closure.receipt.set(null);
+      const router = TestBed.inject(Router);
+      router.setUpLocationChangeListener();
+      const location = TestBed.inject(Location);
+      const start = '/account?intent=create';
+      const route = await RouterTestingHarness.create(start);
+      const host = route.routeNativeElement!;
+      await vi.waitFor(() => {
+        route.detectChanges();
+        expect(host.querySelector(`a[href^="/${kind}"]`)).not.toBeNull();
+      });
+      const link = host.querySelector<HTMLAnchorElement>(`a[href^="/${kind}"]`)!;
+      const username = host.querySelector<HTMLInputElement>('input[autocomplete="username"]')!;
+      const password = host.querySelector<HTMLInputElement>('input[autocomplete="new-password"]')!;
+      for (const [field, value] of [[username, 'brisa'], [password, 'Bosque123']] as const) {
+        field.value = value;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      link.focus();
+      link.click();
+      await vi.waitFor(() => {
+        route.detectChanges();
+        expect(location.path()).toBe(`${start}&read=${kind}`);
+      });
+
+      const dialog = host.querySelector('[role="dialog"]');
+      expect(dialog?.querySelector('h2')?.textContent?.trim()).toBe(documentCopy.title);
+      expect(dialog?.textContent).toContain(documentCopy.sections.at(-1)?.paragraphs.at(-1));
+      if (kind === 'terms') location.back();
+      else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await vi.waitFor(() => {
+        route.detectChanges();
+        expect(location.path()).toBe(start);
+        expect(host.querySelector('[role="dialog"]')).toBeNull();
+      });
+      expect(host.querySelector('input[autocomplete="username"]')).toBe(username);
+      expect(username.value).toBe('brisa');
+      expect(password.value).toBe('Bosque123');
+      expect(document.activeElement).toBe(link);
+    },
+  );
+
+  it('moves keyboard focus to the heading when starting signup', async () => {
+    const harness = accountHarness();
+    harness.closure.receipt.set(null);
+    const fixture = TestBed.createComponent(AccountPage);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const button = Array.from(host.querySelectorAll('button')).find(
+      (element) => element.textContent?.trim() === ES.account.createDoor,
+    )!;
+    button.focus();
+    button.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const heading = host.querySelector('h1');
+    expect(heading?.textContent?.trim()).toBe(ES.account.createTitle);
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it('moves keyboard focus to the account main when using its skip link', () => {
+    accountHarness();
+    const fixture = TestBed.createComponent(AccountPage);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const skip = host.querySelector<HTMLAnchorElement>('.skip-link')!;
+    skip.focus();
+    skip.click();
+    expect(document.activeElement).toBe(host.querySelector('main'));
   });
   it('offers a standard signup with unchecked terms and no age or guardian choice', async () => {
     TestBed.resetTestingModule();

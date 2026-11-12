@@ -1,6 +1,6 @@
 <main class="container billing-page" id="billing-main">
   <header>
-    <a routerLink="/account">← {{ i18n.t().billing.accountBack }}</a>
+    <a routerLink="/account" [queryParams]="{ lang: i18n.lang() }">← {{ i18n.t().billing.accountBack }}</a>
     <a class="billing-settings-back" routerLink="/settings">{{
       i18n.t().accountStatus.backSettings
     }}</a>
@@ -31,7 +31,7 @@
       <a
         class="btn billing-sign-in"
         routerLink="/account"
-        [queryParams]="{ volver: '/account/subscription' }"
+        [queryParams]="{ intent: 'signIn', lang: i18n.lang(), volver: '/account/subscription' }"
         >{{ i18n.t().billing.signIn }}</a
       >
     </section>
@@ -195,6 +195,6 @@
         i18n.t().billing.invoiceRequest
       }}</a>
     </p>
-    <a routerLink="/support">{{ i18n.t().billing.support }}</a>
+    <a routerLink="/support" [queryParams]="{ lang: i18n.lang() }">{{ i18n.t().billing.support }}</a>
   </section>
 </main>

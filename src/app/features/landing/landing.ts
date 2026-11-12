@@ -30,8 +30,10 @@ export class LandingPage {
     });
   }
 
-  protected quotaText(message: string): string {
-    const limits = this.plans.catalog().plans.free.limits;
+  protected quotaText(message: string): string | null {
+    if (!message.includes('{trees}') && !message.includes('{branches}')) return message;
+    const limits = this.plans.confirmedCatalog()?.plans.free.limits;
+    if (!limits) return null;
     const trees = this.copy().landing.plans.free.activeTrees;
     const treeCount = limits.maxActiveTrees === 1
       ? trees.one

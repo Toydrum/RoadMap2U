@@ -6,6 +6,9 @@
   padding-block: 1.5rem 4rem;
   overflow-wrap: anywhere;
 }
+a:not(.btn) {
+  color: var(--focus);
+}
 header,
 .billing-languages {
   display: flex;

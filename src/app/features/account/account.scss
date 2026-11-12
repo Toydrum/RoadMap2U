@@ -111,6 +111,45 @@
   margin: 0.3rem 0 0.8rem;
 }
 
+.legal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 700;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(20, 26, 18, 0.48);
+}
+
+.legal-sheet {
+  width: min(680px, 100%);
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.25rem 1.4rem calc(1.25rem + env(safe-area-inset-bottom));
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+  overflow-wrap: anywhere;
+
+  h2 {
+    margin: 0;
+  }
+
+  h3 {
+    margin: 1.2rem 0 0.4rem;
+  }
+}
+
+.legal-sheet-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.8rem;
+}
+
 .notice {
   width: 100%;
   padding: 0.7rem 0.9rem;

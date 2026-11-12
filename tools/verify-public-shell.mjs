@@ -115,7 +115,8 @@ try {
   );
   ok(
     'A1 landing account CTA respects base href',
-    (await page.locator('app-landing .sign-in').getAttribute('href')) === `${expectedBasePath}account`,
+    (await page.locator('app-landing .sign-in').getAttribute('href')) ===
+      `${expectedBasePath}account?intent=signIn&lang=es`,
   );
   ok(
     'A2 landing lockup stays inside its link container',
@@ -151,7 +152,8 @@ try {
   await page.locator('app-account').waitFor();
   ok(
     'D1 landing account CTA navigates inside the configured base href',
-    new URL(page.url()).pathname === `${appBase}account`,
+    new URL(page.url()).pathname === `${appBase}account` &&
+      (await page.getByRole('heading', { name: 'Entrar a mi cuenta' }).isVisible()),
   );
 
   await page.goto(appUrl('account'), { waitUntil: 'networkidle' });
@@ -163,10 +165,12 @@ try {
   ok('E account keeps product chrome asleep', (await page.locator('.tabbar').count()) === 0);
   ok('F account registers no service worker', accountRegistrations === 0);
   ok('F1 account owns exactly one main landmark', (await page.locator('main').count()) === 1);
+  await page.locator('.skip-link').focus();
+  await page.keyboard.press('Enter');
   ok(
-    'F2 account skip link targets its main landmark',
-    (await page.locator('.skip-link').getAttribute('href')) === '#account-main' &&
-      (await page.locator('main#account-main').count()) === 1,
+    'F2 account skip link focuses main without leaving the route',
+    new URL(page.url()).pathname === `${appBase}account` &&
+      (await page.evaluate(() => document.activeElement?.id)) === 'account-main',
   );
 
   await page.goto(appUrl('forest?seed=demo'), { waitUntil: 'networkidle' });

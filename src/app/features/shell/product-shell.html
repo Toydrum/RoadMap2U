@@ -1,15 +1,23 @@
-<a class="skip-link" href="#main">{{ i18n.t().a11y.skipToContent }}</a>
+<a class="skip-link" href="#main" (click)="$event.preventDefault(); main.focus()">
+  {{ i18n.t().a11y.skipToContent }}
+</a>
 
-<main id="main" [class.with-tabs]="showTabs()">
-  @if (cloudActivation() !== 'idle') {
+<main #main id="main" tabindex="-1" [class.with-tabs]="showTabs()">
+  @let activation = cloudActivation.status();
+  @if (activation !== 'idle') {
     <p class="premium-cloud-status hint" role="status">
-      @switch (cloudActivation()) {
+      @switch (activation) {
         @case ('waiting') { {{ i18n.t().premiumCloud.waiting }} }
         @case ('syncing') { {{ i18n.t().premiumCloud.syncing }} }
         @case ('current') { {{ i18n.t().premiumCloud.current }} }
-        @case ('attention') { {{ i18n.t().premiumCloud.attention }} }
+        @default { {{ i18n.t().premiumCloud.attention }} }
       }
     </p>
+    @if (activation === 'retry') {
+      <button type="button" class="btn btn-soft" (click)="cloudActivation.start()">
+        {{ i18n.t().billing.refresh }}
+      </button>
+    }
   }
   <router-outlet />
 </main>

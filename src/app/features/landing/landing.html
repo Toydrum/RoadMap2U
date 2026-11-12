@@ -36,8 +36,8 @@
           EN
         </button>
       </div>
-      <a class="sign-in" routerLink="/account">{{ copy().landing.nav.signIn }}</a>
-      <a class="button button-small" routerLink="/account">{{ copy().landing.nav.start }}</a>
+      <a class="sign-in" routerLink="/account" [queryParams]="{ intent: 'signIn', lang: lang() }">{{ copy().landing.nav.signIn }}</a>
+      <a class="button button-small" routerLink="/account" [queryParams]="{ intent: 'create', lang: lang() }">{{ copy().landing.nav.start }}</a>
     </div>
   </header>
 
@@ -59,13 +59,15 @@
           <h1 id="hero-title">{{ copy().landing.hero.title }}</h1>
           <p class="hero-body">{{ copy().landing.hero.body }}</p>
           <div class="hero-actions">
-            <a class="button" routerLink="/account">{{ copy().landing.hero.primary }}</a>
+            <a class="button" routerLink="/account" [queryParams]="{ intent: 'create', lang: lang() }">{{ copy().landing.hero.primary }}</a>
             <a class="text-link" routerLink="/" fragment="how-it-works">
               {{ copy().landing.hero.secondary }}
               <span aria-hidden="true">↓</span>
             </a>
           </div>
-          <p class="microcopy">{{ quotaText(copy().landing.hero.microcopy) }}</p>
+          @if (quotaText(copy().landing.hero.microcopy); as microcopy) {
+            <p class="microcopy">{{ microcopy }}</p>
+          }
         </div>
 
         <div class="hero-visual" aria-hidden="true">
@@ -144,11 +146,13 @@
             <p class="included">{{ copy().landing.plans.included }}</p>
             <ul>
               @for (feature of copy().landing.plans.free.features; track feature) {
-                <li><span aria-hidden="true">✓</span>{{ quotaText(feature) }}</li>
+                @if (quotaText(feature); as label) {
+                  <li><span aria-hidden="true">✓</span>{{ label }}</li>
+                }
               }
             </ul>
           </div>
-          <a class="button" routerLink="/account">{{ copy().landing.plans.free.cta }}</a>
+          <a class="button" routerLink="/account" [queryParams]="{ intent: 'create', lang: lang() }">{{ copy().landing.plans.free.cta }}</a>
         </article>
 
         <article class="plan premium-plan">
@@ -186,8 +190,8 @@
               {{ copy().billing.sameCapabilities }} {{ copy().billing.recurring }}
             </p>
           </div>
-          <a class="button button-quiet" routerLink="/account/subscription">{{
-            copy().billing.accountLink
+          <a class="button button-quiet" routerLink="/account/subscription" [queryParams]="{ lang: lang() }">{{
+            copy().landing.plans.premium.cta
           }}</a>
         </article>
       </div>
@@ -205,7 +209,7 @@
               {{ item.question }}
               <span aria-hidden="true"></span>
             </summary>
-            <p>{{ quotaText(item.answer) }}</p>
+            <p>{{ quotaText(item.answer) ?? copy().landing.plans.body }}</p>
           </details>
         }
       </div>
@@ -219,8 +223,8 @@
       <div>
         <p class="eyebrow">{{ copy().landing.final.eyebrow }}</p>
         <h2 id="final-title">{{ copy().landing.final.title }}</h2>
-        <p>{{ quotaText(copy().landing.final.body) }}</p>
-        <a class="button button-light" routerLink="/account">{{ copy().landing.final.cta }}</a>
+        <p>{{ quotaText(copy().landing.final.body) ?? copy().landing.plans.free.summary }}</p>
+        <a class="button button-light" routerLink="/account" [queryParams]="{ intent: 'create', lang: lang() }">{{ copy().landing.final.cta }}</a>
       </div>
     </section>
   </main>

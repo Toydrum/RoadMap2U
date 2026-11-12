@@ -171,8 +171,8 @@ describe('individual subscription page', () => {
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('h1')?.textContent).toContain('Mi suscripción');
-    expect(root.querySelector('.billing-sign-in')?.getAttribute('href')).toContain(
-      'volver=%2Faccount%2Fsubscription',
+    expect(root.querySelector('.billing-sign-in')?.getAttribute('href')).toBe(
+      '/account?intent=signIn&lang=es&volver=%2Faccount%2Fsubscription',
     );
     expect(root.querySelector('.billing-checkout')).toBeNull();
   });

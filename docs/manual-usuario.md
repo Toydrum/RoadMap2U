@@ -18,7 +18,11 @@ Está pensada especialmente para mentes neurodivergentes (TDAH, autismo, y cualq
 - **Nada se borra jamás.** Lo que ya no quieres ver se guarda en el archivo, recuperable siempre.
 - **Todo es tuyo.** Tus datos viven únicamente en tu dispositivo. Nada sale de ahí sin ti.
 
-**Dirección de la app:** `https://toydrum.github.io/RoadMap2U/`
+**Dirección de la app:** [roadmap2u.com](https://roadmap2u.com/).
+
+Necesitas conexión para crear tu cuenta y confirmar tu correo. Después puedes trabajar en el bosque sin conexión en el dispositivo donde ya entraste. La sincronización entre dispositivos es opcional.
+
+Si tienes un bosque guardado en la [dirección anterior](https://toydrum.github.io/RoadMap2U/), exporta un respaldo allí e impórtalo en la dirección actual. Cada dirección guarda su propia copia local.
 
 ---
 
