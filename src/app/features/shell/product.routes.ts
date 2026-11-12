@@ -8,6 +8,7 @@ import { VisitNodesRepo, VisitTreesRepo } from '../../core/visit/visit-repos';
 import { VisitSession } from '../../core/visit/visit-session';
 import { productReadyGate } from './product-initializer';
 import { ProductShell } from './product-shell';
+import { consumeUpdateRouteContinuity } from '../../core/update.service';
 
 /** Social visits are outside this launch. Stop before loading any visited data. */
 const visitGate: CanActivateFn = () => inject(Router).createUrlTree(['/settings']);
@@ -25,6 +26,7 @@ const checkInGate: CanActivateFn = () => {
   const gate = inject(SessionGate);
   if (gate.consumed) return true;
   gate.consumed = true;
+  if (consumeUpdateRouteContinuity()) return true;
   const settings = inject(SettingsService).settings();
   const fresh =
     settings.lastCheckInAt !== null && Date.now() - settings.lastCheckInAt < CHECK_IN_COOLDOWN_MS;

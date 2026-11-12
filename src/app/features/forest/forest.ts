@@ -709,13 +709,11 @@ export class ForestPage {
     return this.harvests.all().some((h) => h.treeId === tree.id);
   }
 
-  protected askArchive(event: Event, tree: Tree): void {
-    // The button lives inside the plot link — don't navigate.
-    event.preventDefault();
-    event.stopPropagation();
+  protected askArchive(opener: HTMLButtonElement, tree: Tree): void {
     // A second finger tapping a 🗃 mid-drag must not pop the confirm sheet
     // over the gesture.
     if (this.draggingId()) return;
+    opener.focus({ preventScroll: true });
     // A fruited tree closes with a despedida (elixir); a fruitless one with the
     // plain confirm.
     if (this.boreFruit(tree)) this.farewelling.set(tree);

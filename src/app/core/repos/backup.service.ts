@@ -11,7 +11,7 @@ import {
   TreeNode,
 } from '../db/schema';
 import { migrateBackupEnvelope } from '../db/migrations';
-import { getAll } from '../db/idb';
+import { getAll, storageAvailable } from '../db/idb';
 import { broadcastMutation } from '../db/broadcast';
 import { SyncService } from '../sync/sync.service';
 import { TreesRepo } from './trees.repo';
@@ -37,16 +37,22 @@ export class BackupService {
   private readonly mutations = inject(ForestMutationsService);
   private readonly replacement = inject(FOREST_REPLACEMENT_STORAGE);
 
-  async buildEnvelope(settingsSnapshot?: Settings): Promise<ExportEnvelope> {
-    // Read from disk (includes tombstones — a backup is a full copy).
-    const [trees, nodes, checkins, sessions, harvests, preserves] = await Promise.all([
-      getAll<Tree>('trees'),
-      getAll<TreeNode>('nodes'),
-      getAll<CheckIn>('checkins'),
-      getAll<TimerSession>('sessions'),
-      getAll<Harvest>('harvests'),
-      getAll<Preserve>('preserves'),
-    ]);
+  async buildEnvelope(settingsSnapshot?: Settings, allowMemoryCopy = false): Promise<ExportEnvelope> {
+    // Only explicit exports may use the live in-memory copy if storage could not open.
+    // Safety copies before replacing or deleting anything must read the full disk contents.
+    const [trees, nodes, checkins, sessions, harvests, preserves]: [
+      Tree[], TreeNode[], CheckIn[], TimerSession[], Harvest[], Preserve[],
+    ] =
+      allowMemoryCopy && !await storageAvailable()
+        ? [
+            [...this.trees.byId().values()], [...this.nodes.byId().values()],
+            [...this.checkins.byId().values()], [...this.sessions.byId().values()],
+            [...this.harvests.byId().values()], [...this.preserves.byId().values()],
+          ]
+        : await Promise.all([
+            getAll<Tree>('trees'), getAll<TreeNode>('nodes'), getAll<CheckIn>('checkins'),
+            getAll<TimerSession>('sessions'), getAll<Harvest>('harvests'), getAll<Preserve>('preserves'),
+          ]);
     return {
       app: 'roadmap2u',
       schemaVersion: SCHEMA_VERSION,
@@ -65,9 +71,11 @@ export class BackupService {
 
   async download(
     filenamePrefix = 'roadmap2u-backup',
-    options: { recordCopy?: boolean; settingsSnapshot?: Settings } = {},
+    options: { recordCopy?: boolean; settingsSnapshot?: Settings; allowMemoryCopy?: boolean } = {},
   ): Promise<void> {
-    const envelope = await this.buildEnvelope(options.settingsSnapshot);
+    const envelope = options.allowMemoryCopy
+      ? await this.buildEnvelope(options.settingsSnapshot, true)
+      : await this.buildEnvelope(options.settingsSnapshot);
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

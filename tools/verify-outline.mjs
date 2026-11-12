@@ -1,6 +1,6 @@
 // The "tablita" (0.0.42/0.0.43): branch outline rail — locate on tap, open on
 // second tap, ordered-steps numbering, close, and auto-collapse on big trees.
-import { BASE, launchPage, newProbePage } from './lib/harness.mjs';
+import { BASE, launchPage, newProbePage, ok } from './lib/harness.mjs';
 const first = await launchPage({ width: 1280, height: 800 });
 const browser = first.browser;
 
@@ -30,6 +30,11 @@ async function centers(p) {
   await page.waitForTimeout(800);
   await page.locator('.tree-outline-toggle').click();
   await page.waitForTimeout(400);
+  ok(
+    'Outline announces its heading and controls relationship',
+    (await page.locator('.tree-outline-toggle').getAttribute('aria-controls')) === 'tree-branch-outline' &&
+      (await page.evaluate(() => document.activeElement?.id)) === 'tree-branch-outline-title',
+  );
   const rows = await page.locator('.outline-rail .row').count();
   const pinned = (await page.locator('.outline-rail .row:has(.pin)').count()) === 1;
   const indents = await page.evaluate(() =>
@@ -60,11 +65,24 @@ async function centers(p) {
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
 
-  // E — ✕ closes the rail
-  await page.locator('.outline-rail .close').click();
-  await page.waitForTimeout(300);
-  const gone = (await page.locator('.outline-rail').count()) === 0;
-  console.log(`E close: rail-gone=${gone} | OK=${gone}`);
+  const mapBranch = page.getByRole('treeitem', { name: /Grabarme y escucharme/ });
+  await mapBranch.dispatchEvent('click', { detail: 0, clientX: 0, clientY: 0 });
+  const branchDialog = page.getByRole('dialog', { name: 'Grabarme y escucharme' });
+  await branchDialog.waitFor();
+  await page.keyboard.press('Escape');
+  await branchDialog.waitFor({ state: 'hidden' });
+  ok('Branch opens without pointer coordinates and restores focus', await mapBranch.evaluate(
+    (node) => document.activeElement === node,
+  ));
+
+  // E — Escape closes the outline and returns to the disclosure.
+  const toggle = page.locator('.tree-outline-toggle');
+  await page.locator('.outline-rail .close').focus();
+  await page.keyboard.press('Escape');
+  await page.locator('.outline-rail').waitFor({ state: 'hidden' });
+  ok('E close restores outline toggle focus', await toggle.evaluate(
+    (node) => document.activeElement === node,
+  ));
   await page.close();
 }
 

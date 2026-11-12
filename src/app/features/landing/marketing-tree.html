@@ -166,6 +166,7 @@
             <span
               class="demo-label"
               [class.demo-label--goal]="anchor.key === 'goal'"
+              [class.demo-label--highlighted]="anchor.key === highlightedBranch()"
               [style.left.%]="(anchor.labelX / 520) * 100"
               [style.top.%]="(anchor.labelY / 420) * 100"
               >{{ labels[anchor.key] }}</span

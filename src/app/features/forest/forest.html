@@ -282,61 +282,66 @@
         @for (tree of pageTrees(); track tree.id; let i = $index) {
           @let slot = slotFor(i, tree);
           @let drag = draggingId() === tree.id ? dragPos() : null;
-          <a
+          <div
             class="plot"
-            [routerLink]="['/tree', tree.id]"
             [attr.data-tree-id]="tree.id"
             [class.dragging]="draggingId() === tree.id"
             [class.settling]="settlingId() === tree.id"
-            (pointerdown)="plotDown($event, tree)"
-            (click)="plotClick($event)"
-            (keydown)="nudge($event, tree)"
-            (contextmenu)="draggingId() ? $event.preventDefault() : null"
-            (dragstart)="$event.preventDefault()"
-            [attr.aria-label]="i18n.fill(i18n.t().forest.plotAria, { name: tree.name })"
-            [title]="i18n.t().forest.plotHint"
             [style.--plot-accent]="'var(--accent-' + tree.accent + ')'"
             [style.left.%]="drag ? drag.x : slot.x"
             [style.bottom.%]="drag ? drag.b : slot.b"
             [style.zIndex]="slot.z"
             [style.transform]="'translateX(-50%) scale(' + (drag ? drag.s : slot.s) + ')'"
           >
+            <a
+              class="plot-link"
+              [routerLink]="['/tree', tree.id]"
+              (pointerdown)="plotDown($event, tree)"
+              (click)="plotClick($event)"
+              (keydown)="nudge($event, tree)"
+              (contextmenu)="draggingId() ? $event.preventDefault() : null"
+              (dragstart)="$event.preventDefault()"
+              [attr.aria-label]="i18n.fill(i18n.t().forest.plotAria, { name: tree.name })"
+              [title]="i18n.t().forest.plotHint"
+            >
+              <span class="mound" aria-hidden="true"></span>
+              <app-mini-tree [tree]="tree" />
+              <span class="plot-grass" aria-hidden="true">
+                <svg viewBox="0 0 60 14" width="60" height="14">
+                  <path
+                    d="M 6 13 q -2 -9 -5 -11 M 12 13 q 1 -10 0 -12 M 18 13 q 3 -8 6 -10 M 40 13 q -2 -8 -4 -10 M 48 13 q 2 -9 4 -11"
+                  />
+                </svg>
+              </span>
+              <span class="sign">
+                <span class="name">{{ tree.name }}</span>
+                <span class="caption">
+                  {{ i18n.plural(countFor(tree.id), i18n.t().forest.branches) }}
+                  @if (bloomsFor(tree.id)) {
+                    · {{ bloomsFor(tree.id) }} 🌸
+                  }
+                  @if (hasSun(tree.id)) {
+                    <span class="sign-sun" [title]="i18n.t().light.sunlit">☀️</span>
+                  }
+                  @if (hasRituals(tree.id)) {
+                    <svg class="sign-spiral" viewBox="-14 -14 28 28" aria-hidden="true">
+                      <g appSpiral [animated]="false" [scale]="0.9" />
+                    </svg>
+                  }
+                </span>
+              </span>
+            </a>
             <button
+              #archiveButton
               type="button"
               class="plot-archive"
-              (click)="askArchive($event, tree)"
+              (click)="askArchive(archiveButton, tree)"
               [attr.aria-label]="i18n.t().tree.archiveAction + ': ' + tree.name"
               [title]="i18n.t().tree.archiveAction"
             >
               🗃
             </button>
-            <span class="mound" aria-hidden="true"></span>
-            <app-mini-tree [tree]="tree" />
-            <span class="plot-grass" aria-hidden="true">
-              <svg viewBox="0 0 60 14" width="60" height="14">
-                <path
-                  d="M 6 13 q -2 -9 -5 -11 M 12 13 q 1 -10 0 -12 M 18 13 q 3 -8 6 -10 M 40 13 q -2 -8 -4 -10 M 48 13 q 2 -9 4 -11"
-                />
-              </svg>
-            </span>
-            <span class="sign">
-              <span class="name">{{ tree.name }}</span>
-              <span class="caption">
-                {{ i18n.plural(countFor(tree.id), i18n.t().forest.branches) }}
-                @if (bloomsFor(tree.id)) {
-                  · {{ bloomsFor(tree.id) }} 🌸
-                }
-                @if (hasSun(tree.id)) {
-                  <span class="sign-sun" [title]="i18n.t().light.sunlit">☀️</span>
-                }
-                @if (hasRituals(tree.id)) {
-                  <svg class="sign-spiral" viewBox="-14 -14 28 28" aria-hidden="true">
-                    <g appSpiral [animated]="false" [scale]="0.9" />
-                  </svg>
-                }
-              </span>
-            </span>
-          </a>
+          </div>
         }
 
         <!-- The parakeet waits on the crown of the tree you're working on -->
@@ -455,11 +460,14 @@
       <form
         class="sheet card"
         appSheet
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="plant-tree-title"
         (sheetClose)="closeCreate()"
         (click)="$event.stopPropagation()"
         (submit)="$event.preventDefault(); create()"
       >
-        <h2>{{ i18n.t().forest.newTree }}</h2>
+        <h2 id="plant-tree-title">{{ i18n.t().forest.newTree }}</h2>
         <div class="field">
           <label for="tree-name">{{ i18n.t().forest.treeNameLabel }}</label>
           <input

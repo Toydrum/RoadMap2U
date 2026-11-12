@@ -73,6 +73,7 @@
           @if (quotaText(copy().landing.hero.microcopy); as microcopy) {
             <p class="microcopy">{{ microcopy }}</p>
           }
+          <p class="hero-access-note">{{ copy().landing.hero.accessNote }}</p>
         </div>
 
         <div class="hero-visual" aria-hidden="true">
@@ -124,10 +125,44 @@
           }
         </ul>
       </div>
-      <figure class="product-visual">
-        <app-marketing-tree variant="demo" [demoLabels]="copy().landing.product.example" />
-        <figcaption>{{ copy().landing.product.treeLabel }}</figcaption>
-      </figure>
+      <div class="product-demo">
+        <figure class="product-visual">
+          <app-marketing-tree
+            variant="demo"
+            [demoLabels]="copy().landing.product.example"
+            [highlightedBranch]="demoBranch() ?? demoNextStep()"
+          />
+          <figcaption>{{ copy().landing.product.treeLabel }}</figcaption>
+        </figure>
+        <fieldset class="demo-branches">
+          <legend>{{ copy().landing.product.demo.branches }}</legend>
+          <div class="demo-branch-actions">
+            @for (branch of demoBranches; track branch) {
+              <button
+                type="button"
+                [attr.data-demo-branch]="branch"
+                [attr.aria-expanded]="demoBranch() === branch"
+                aria-controls="demo-branch-detail"
+                (click)="toggleDemoBranch(branch)"
+              >{{ copy().landing.product.example[branch] }}</button>
+            }
+          </div>
+        </fieldset>
+        <div id="demo-branch-detail" [hidden]="!demoBranch()" class="demo-branch-detail">
+          @if (demoBranch(); as branch) {
+            <p>{{ copy().landing.product.demo.steps[branch] }}</p>
+            <button type="button" class="demo-choose-step" (click)="demoNextStep.set(branch)">
+              {{ copy().landing.product.demo.choose }}
+            </button>
+          }
+        </div>
+        <p class="demo-next-step" role="status">
+          @if (demoNextStep(); as branch) {
+            <strong>{{ copy().landing.product.demo.chosen }}</strong>
+            {{ copy().landing.product.demo.steps[branch] }}
+          }
+        </p>
+      </div>
     </section>
 
     <section id="plans" class="section plans-section reveal" aria-labelledby="plans-title" tabindex="-1">

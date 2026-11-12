@@ -16,6 +16,8 @@ const entrypoints = [
   'index.csr.html',
   'safety-worker.js',
   'worker-basic.min.js',
+  'robots.txt',
+  'sitemap.xml',
 ];
 const required = new Set(entrypoints.slice(0, 5));
 const inside = (root, path) => {

@@ -1,11 +1,9 @@
-import { createServer } from 'node:http';
-import { mkdir, readFile, stat } from 'node:fs/promises';
-import { dirname, extname, resolve, sep } from 'node:path';
+import { mkdir } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import { BASE, launchPage, ok } from './lib/harness.mjs';
-import { ensureProbeServer } from './lib/probe-server.mjs';
+import { createProbeBuildServer, ensureProbeServer } from './lib/probe-server.mjs';
 
 const buildRoot = resolve(process.env.RM_BUILD_ROOT ?? 'dist/roadmap2u/browser');
-const indexPath = resolve(buildRoot, 'index.html');
 const rawAppBase = process.env.RM_APP_BASE ?? '/';
 const appBase = `${rawAppBase.startsWith('/') ? '' : '/'}${rawAppBase}`.replace(/\/*$/, '/');
 const appUrl = (path = '') => `${BASE}${appBase}${path.replace(/^\/+/, '')}`;
@@ -14,55 +12,7 @@ const viewport = {
   height: Number(process.env.RM_VIEWPORT_HEIGHT ?? 760),
 };
 const screenshotPath = process.env.RM_SCREENSHOT ? resolve(process.env.RM_SCREENSHOT) : null;
-const mime = {
-  '.css': 'text/css',
-  '.html': 'text/html',
-  '.ico': 'image/x-icon',
-  '.js': 'text/javascript',
-  '.json': 'application/json',
-  '.png': 'image/png',
-  '.svg': 'image/svg+xml',
-  '.webmanifest': 'application/manifest+json',
-};
-
-const server = createServer(async (request, response) => {
-  try {
-    const requestPath = decodeURIComponent(new URL(request.url ?? '/', BASE).pathname);
-    const baseWithoutSlash = appBase === '/' ? '/' : appBase.slice(0, -1);
-    let pathname;
-    if (appBase === '/') {
-      pathname = requestPath;
-    } else if (requestPath === baseWithoutSlash || requestPath === appBase) {
-      pathname = '/';
-    } else if (requestPath.startsWith(appBase)) {
-      pathname = `/${requestPath.slice(appBase.length)}`;
-    } else {
-      response.writeHead(404).end();
-      return;
-    }
-    const candidate = resolve(buildRoot, `.${pathname}`);
-    if (candidate !== buildRoot && !candidate.startsWith(`${buildRoot}${sep}`)) {
-      response.writeHead(403).end();
-      return;
-    }
-    let file = candidate;
-    try {
-      if (!(await stat(file)).isFile()) file = indexPath;
-    } catch {
-      file = indexPath;
-    }
-    const extension = extname(file);
-    response
-      .writeHead(200, {
-        'content-type': mime[extension] ?? 'application/octet-stream',
-        'cache-control': 'no-store',
-      })
-      .end(await readFile(file));
-  } catch (error) {
-    response.writeHead(500).end(String(error));
-  }
-});
-
+const server = createProbeBuildServer({ base: BASE, buildRoot, appBase });
 const closeOwnedServer = await ensureProbeServer({ base: BASE, server });
 
 const { browser, page } = await launchPage(viewport, { commercialAccess: false });
@@ -128,6 +78,24 @@ try {
     'A3 landing lockup leaves a painted safety inset at the right edge',
     brandMetrics.rightInset >= 1,
     JSON.stringify(brandMetrics),
+  );
+
+  const demo = page.locator('app-landing .product-demo');
+  const demoBranch = demo.getByRole('button', { name: 'Escucho un audio' });
+  await demoBranch.focus();
+  await page.keyboard.press('Enter');
+  const step = demo.getByText('Escuchar un minuto de audio y repetir una frase.');
+  await step.waitFor();
+  ok(
+    'A4 the public tree opens a branch with the keyboard',
+    (await demoBranch.getAttribute('aria-expanded')) === 'true',
+  );
+  await demo.getByRole('button', { name: 'Elegir como siguiente paso' }).click();
+  const chosen = demo.getByRole('status').getByText('Siguiente paso elegido');
+  await chosen.waitFor();
+  ok(
+    'A5 the public example announces the chosen step',
+    await chosen.isVisible(),
   );
 
   const landingState = await page.evaluate(async () => ({

@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, input, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { inputEl, inputValue } from '../../shared/ui/dom';
 import { ConfirmSheet } from '../../shared/ui/confirm-sheet';
@@ -186,8 +186,21 @@ export class TreeViewPage {
   /* -------------------------------------------- the "tablita" outline */
 
   protected readonly outlineOpen = signal(false);
+  private readonly outlineToggle = viewChild<ElementRef<HTMLButtonElement>>('outlineToggle');
   private readonly canvas = viewChild(TreeCanvas);
   protected readonly outlineFocusId = computed(() => this.canvas()?.focusedId() ?? null);
+
+  protected toggleOutline(): void {
+    if (this.outlineOpen()) this.closeOutline();
+    else this.outlineOpen.set(true);
+  }
+
+  protected closeOutline(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.outlineOpen.set(false);
+    this.outlineToggle()?.nativeElement.focus({ preventScroll: true });
+  }
 
   /** Outline tap: put the branch in view and speak its name — nothing opens. */
   protected locateNode(node: TreeNode): void {
@@ -201,8 +214,11 @@ export class TreeViewPage {
       this.locateNode(node);
       return;
     }
+    if (window.innerWidth < 980) {
+      this.outlineOpen.set(false);
+      this.canvas()?.focusNode(node.id);
+    }
     this.openNode.set(node);
-    if (window.innerWidth < 980) this.outlineOpen.set(false);
   }
 
   /** Keep the sheet showing the live version of the node — and close it if

@@ -81,6 +81,12 @@
   font-weight: 850;
 }
 
+.demo-label--highlighted {
+  background: #f2e6ad;
+  outline: 2px solid #e1c96c;
+  outline-offset: 2px;
+}
+
 .canopy-pad {
   fill: #5c8a58;
   opacity: 0.64;

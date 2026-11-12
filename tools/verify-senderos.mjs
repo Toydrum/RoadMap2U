@@ -21,7 +21,7 @@ await page.locator('button:has-text("Plantar mi primer árbol")').first().click(
 await page.fill('#tree-name', 'Mañanas');
 await page.locator('form.sheet button[type=submit]').click();
 await page.waitForTimeout(400);
-const href = await page.evaluate(() => document.querySelector('.plot')?.getAttribute('href'));
+const href = await page.evaluate(() => document.querySelector('.plot-link')?.getAttribute('href'));
 await page.goto(`${BASE}${href}`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(800);
 // «El corazón del árbol» (0.0.112): the heart is not a ritual — the sendero

@@ -55,6 +55,8 @@ aws s3 sync "$BUILD_DIR" "s3://$SITE_BUCKET" \
   --exclude 'index.csr.html' \
   --exclude 'ngsw.json' \
   --exclude 'manifest.webmanifest' \
+  --exclude 'robots.txt' \
+  --exclude 'sitemap.xml' \
   --cache-control 'public,max-age=86400' \
   --only-show-errors
 
@@ -66,6 +68,8 @@ mutable_entrypoints=(
   safety-worker.js
   worker-basic.min.js
   manifest.webmanifest
+  robots.txt
+  sitemap.xml
 )
 
 publish_mutable() {
@@ -80,6 +84,8 @@ publish_mutable() {
     index.html | index.csr.html) content_type='text/html; charset=utf-8' ;;
     manifest.webmanifest) content_type='application/manifest+json' ;;
     ngsw.json) content_type='application/json' ;;
+    robots.txt) content_type='text/plain; charset=utf-8' ;;
+    sitemap.xml) content_type='application/xml; charset=utf-8' ;;
     *.js) content_type='text/javascript; charset=utf-8' ;;
     *)
       echo "No explicit content type configured for $entrypoint." >&2
@@ -123,6 +129,8 @@ invalidation_id="$(aws cloudfront create-invalidation \
     '/safety-worker.js' \
     '/worker-basic.min.js' \
     '/manifest.webmanifest' \
+    '/robots.txt' \
+    '/sitemap.xml' \
   --query 'Invalidation.Id' \
   --output text)"
 aws cloudfront wait invalidation-completed \

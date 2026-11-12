@@ -11,6 +11,7 @@ import { SyncService } from '../../core/sync/sync.service';
 import { PremiumCloudActivation } from '../../core/sync/premium-cloud-activation';
 import { ThemeService } from '../../core/theme/theme.service';
 import { UpdateService } from '../../core/update.service';
+import { PwaInstallService } from '../../core/pwa-install.service';
 import { AuthInitializer } from './auth-initializer';
 import { markProductActive } from './product-activation';
 
@@ -49,6 +50,7 @@ export class ProductInitializer {
 
     this.injector.get(ThemeService);
     this.injector.get(MotionService);
+    this.injector.get(PwaInstallService);
     this.injector.get(UpdateService).init();
     this.injector.get(AccompanimentService).init();
     this.injector.get(RemindersService).init();

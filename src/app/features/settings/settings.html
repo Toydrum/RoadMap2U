@@ -79,6 +79,36 @@
     }
   </section>
 
+  <section class="card block data-overview" aria-labelledby="forest-data-title">
+    <h2 id="forest-data-title">{{ i18n.t().settings.data }}</h2>
+    <p class="forest-storage-status" role="status">{{ forestStatusText() }}</p>
+    <p class="hint">{{ i18n.t().settings.dataHint }}</p>
+    <div class="data-actions">
+      <button type="button" class="btn btn-soft" (click)="exportData()" [disabled]="exporting()">
+        <span aria-hidden="true">⬇</span> {{ i18n.t().settings.export }}
+      </button>
+      <label class="btn btn-soft import">
+        <span aria-hidden="true">⬆</span> {{ i18n.t().settings.import }}
+        <input
+          type="file"
+          accept="application/json"
+          (change)="onImportFile($event)"
+          [disabled]="importing()"
+        />
+      </label>
+    </div>
+    <p class="hint">{{ i18n.t().settings.importWarning }}</p>
+    <p class="hint backup-mark">{{ lastBackupText() }}</p>
+    <div class="row">
+      <span class="label">{{ i18n.t().settings.backupRemindersLabel }}</span>
+      <app-switch
+        [checked]="settings.settings().backupReminders"
+        [ariaLabel]="i18n.t().settings.backupRemindersLabel"
+        (toggled)="toggleBackupReminders()"
+      />
+    </div>
+  </section>
+
   <!-- Appearance -->
   <section class="card block">
     <h2>{{ i18n.t().settings.appearance }}</h2>
@@ -370,36 +400,6 @@
     </section>
   }
 
-  <!-- Data -->
-  <section class="card block">
-    <h2>{{ i18n.t().settings.data }}</h2>
-    <p class="hint">{{ i18n.t().settings.dataHint }}</p>
-    <div class="data-actions">
-      <button type="button" class="btn btn-soft" (click)="exportData()">
-        ⬇ {{ i18n.t().settings.export }}
-      </button>
-      <label class="btn btn-soft import">
-        ⬆ {{ i18n.t().settings.import }}
-        <input
-          type="file"
-          accept="application/json"
-          (change)="onImportFile($event)"
-          [disabled]="importing()"
-        />
-      </label>
-    </div>
-    <p class="hint">{{ i18n.t().settings.importWarning }}</p>
-    <p class="hint backup-mark">{{ lastBackupText() }}</p>
-    <div class="row">
-      <span class="label">{{ i18n.t().settings.backupRemindersLabel }}</span>
-      <app-switch
-        [checked]="settings.settings().backupReminders"
-        [ariaLabel]="i18n.t().settings.backupRemindersLabel"
-        (toggled)="toggleBackupReminders()"
-      />
-    </div>
-  </section>
-
   <!-- Archive -->
   <section class="card block">
     <h2>{{ i18n.t().settings.archive }}</h2>
@@ -453,22 +453,40 @@
     </a>
   </section>
 
-  <!-- Updates: never wonder which version you're on again -->
+  @if (!install.installed()) {
+    <section class="card block install-overview" aria-labelledby="install-title">
+      <h2 id="install-title">{{ i18n.t().settings.installTitle }}</h2>
+      @if (install.canPrompt()) {
+        <button type="button" class="btn btn-soft" (click)="install.install()">
+          {{ i18n.t().settings.installAction }}
+        </button>
+      } @else {
+        <p class="hint">{{ install.isAppleMobile ? i18n.t().settings.installAppleHint : i18n.t().settings.installBrowserHint }}</p>
+      }
+    </section>
+  }
+
   <section class="card block">
     <h2>{{ i18n.t().settings.updatesTitle }}</h2>
     <div class="row">
       <span class="label">{{ version }}</span>
       <div class="opts">
-        <button
-          type="button"
-          class="btn btn-soft"
-          (click)="checkNow()"
-          [disabled]="checkingUpdate()"
-        >
-          🔄 {{ checkingUpdate() ? i18n.t().settings.checking : i18n.t().settings.checkNow }}
-        </button>
+        @if (updates.status() !== 'idle') {
+          <button type="button" class="btn btn-primary" (click)="updates.apply()" [disabled]="updates.applying()">
+            {{ i18n.t().update.reload }}
+          </button>
+        } @else {
+          <button type="button" class="btn btn-soft" (click)="checkNow()" [disabled]="updates.checking()">
+            {{ updates.checking() ? i18n.t().settings.checking : i18n.t().settings.checkNow }}
+          </button>
+        }
       </div>
     </div>
+    @if (updates.status() === 'ready') {
+      <p class="hint" role="status">{{ i18n.t().update.ready }} · {{ i18n.t().update.action }}</p>
+    } @else if (updates.status() === 'recovery') {
+      <p class="hint" role="status">{{ i18n.t().settings.repairHint }}</p>
+    }
   </section>
 
   <details class="card block advanced-help">
@@ -476,7 +494,7 @@
     <div class="row">
       <span class="label">{{ i18n.t().settings.repairHint }}</span>
       <div class="opts">
-        <button type="button" class="btn btn-ghost" (click)="repair()">
+        <button type="button" class="btn btn-ghost" (click)="updates.repair()" [disabled]="updates.applying()">
           🩹 {{ i18n.t().settings.repair }}
         </button>
       </div>

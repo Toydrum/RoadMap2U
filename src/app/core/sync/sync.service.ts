@@ -126,6 +126,7 @@ export const SYNC_META_STORAGE = new InjectionToken<SyncMetaStorage>('SYNC_META_
 });
 
 export type SyncPhase = 'off' | 'mismatch' | 'idle' | 'syncing' | 'offline' | 'error';
+export type ForestSyncStatus = 'local' | 'pending' | 'current' | 'attention';
 
 @Injectable({ providedIn: 'root' })
 export class SyncService {
@@ -147,6 +148,7 @@ export class SyncService {
   private readonly busySignal = signal(false);
   private readonly lastSyncAtSignal = signal<number | null>(null);
   private readonly lastErrorSignal = signal<ApiErrorCode | null>(null);
+  private readonly queuedRevision = signal(0);
 
   readonly link = this.linkSignal.asReadonly();
   readonly lastSyncAt = this.lastSyncAtSignal.asReadonly();
@@ -163,6 +165,32 @@ export class SyncService {
     if (this.lastErrorSignal() === 'offline') return 'offline';
     if (this.lastErrorSignal()) return 'error';
     return 'idle';
+  });
+
+  readonly forestStatus = computed<ForestSyncStatus>(() => {
+    const phase = this.phase();
+    const link = this.link();
+    if (phase === 'off' || !link) return 'local';
+    const privacy = this.privacy.status();
+    if (
+      phase === 'mismatch' || phase === 'error' || this.auth.sessionStale() ||
+      this.privacy.cloudBlocked() || (privacy !== null && !privacy.canUseCloud) ||
+      this.conflicts.conflicts().some((conflict) => conflict.state === 'pending')
+    ) return 'attention';
+    const lastSync = this.lastSyncAt();
+    if (phase !== 'idle' || link.autoStartPending || lastSync === null || lastSync < link.linkedAt)
+      return 'pending';
+
+    this.queuedRevision();
+    if (this.forcePending) return 'pending';
+    for (const store of SYNC_STORES) {
+      const dirty = this.dirtyIds.get(store);
+      for (const record of this.repoOf(store).byId().values()) {
+        if ((record.updatedAt > this.watermark || dirty?.has(record.id)) && !this.isLocalOnlyVersion(store, record))
+          return 'pending';
+      }
+    }
+    return 'current';
   });
 
   private watermark = 0;
@@ -233,6 +261,7 @@ export class SyncService {
         for (const membership of snapshot.mutationGroups ?? []) {
           this.restoreMembership(membership);
         }
+        this.queuedRevision.update((revision) => revision + 1);
       }
       this.metadataLoaded = true;
     } catch {
@@ -264,6 +293,7 @@ export class SyncService {
           message.mutationGroupId ?? createMutationGroupId(),
           ids.map((id) => ({ store: message.store as SyncStore, id })),
         );
+        this.queuedRevision.update((revision) => revision + 1);
         // …and marks must reach DISK even without a successful sync (the
         // in-memory set dies with the tab; the watermark scan can't cover a
         // backward clock — the exact case the persisted set exists for).
@@ -581,6 +611,16 @@ export class SyncService {
     }, 2000);
   }
 
+  /** Keep queued edits, including edits stamped before the watermark, across an explicit reload. */
+  async flushLocalQueue(): Promise<void> {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+      this.persistTimer = null;
+      await this.persistState();
+    }
+    await Promise.allSettled([...this.pendingMetaWrites]);
+  }
+
   /** Called by BackupService after an import-replace. An EXPLICIT restore
    *  must prevail over the cloud — otherwise the next pull silently undoes it
    *  (the cloud's higher revs win LWW). The flag persists, so an offline (or
@@ -590,6 +630,7 @@ export class SyncService {
     if (this.accountClosureQuiesced) return;
     this.forcePending = true;
     this.watermark = 0;
+    this.queuedRevision.update((revision) => revision + 1);
     await this.persistState();
     void this.syncNow(); // guards inside handle off/mismatch/offline
   }
@@ -884,6 +925,7 @@ export class SyncService {
       }
       this.schedulePush();
     }
+    this.queuedRevision.update((revision) => revision + 1);
     await this.persistState();
     return true;
   }

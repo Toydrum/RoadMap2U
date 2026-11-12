@@ -1,4 +1,7 @@
-import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import {
+  Component, ElementRef, afterNextRender, computed, effect, inject, input, output, signal,
+  untracked, viewChild,
+} from '@angular/core';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { NodesRepo } from '../../core/repos/nodes.repo';
 import { LIGHT_ICONS, NodePriority, Tree, TreeNode, lightRank } from '../../core/db/schema';
@@ -32,7 +35,7 @@ const AUTO_COLLAPSE_AT = 12;
   imports: [SpiralGlyph, HeartwoodGlyph],
   template: `
     <div class="head">
-      <h2>{{ i18n.t().tree.outlineTitle }}</h2>
+      <h2 #heading id="tree-branch-outline-title" tabindex="-1">{{ i18n.t().tree.outlineTitle }}</h2>
       @if (editable()) {
         <button
           type="button"
@@ -73,11 +76,13 @@ const AUTO_COLLAPSE_AT = 12;
      HEADING (🌳, no status-dot noise, no light button) — the tablita is a
      map, so locating/opening still works. Legacy extra roots stay normal. -->
           <button
+            #branchButton
             type="button"
             class="row"
             [class.active]="focusedId() === row.node.id"
             [class.heart]="isHeart(row.node)"
-            (click)="onRow(row)"
+            [attr.aria-current]="tree().currentNodeId === row.node.id ? 'location' : null"
+            (click)="onRow(row, branchButton)"
           >
             @if (isHeart(row.node)) {
               <svg class="heart-mark" viewBox="-14 -14 28 28" aria-hidden="true">
@@ -302,6 +307,7 @@ export class TreeOutline {
 
   protected readonly i18n = inject(I18nService);
   private readonly nodes = inject(NodesRepo);
+  private readonly heading = viewChild.required<ElementRef<HTMLHeadingElement>>('heading');
   private readonly lastTap = signal<string | null>(null);
 
   /** «Ver por luz» — session-scoped like the folds: a lens, not state. It
@@ -314,6 +320,8 @@ export class TreeOutline {
   private seededFor: string | null = null;
 
   constructor() {
+    afterNextRender(() => this.heading().nativeElement.focus({ preventScroll: true }));
+
     // The "second tap opens" memory only means something while the row is
     // still the focused one — after focusing elsewhere (a canvas tap), a
     // return tap minutes later should LOCATE again, not surprise-open.
@@ -434,8 +442,9 @@ export class TreeOutline {
   }
 
   /** First tap locates; a second tap on the same row opens its sheet. */
-  protected onRow(row: OutlineRow): void {
+  protected onRow(row: OutlineRow, button: HTMLButtonElement): void {
     if (this.lastTap() === row.node.id) {
+      button.focus({ preventScroll: true });
       this.open.emit(row.node);
     } else {
       this.lastTap.set(row.node.id);
