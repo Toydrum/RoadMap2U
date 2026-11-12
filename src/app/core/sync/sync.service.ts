@@ -126,7 +126,7 @@ export const SYNC_META_STORAGE = new InjectionToken<SyncMetaStorage>('SYNC_META_
 });
 
 export type SyncPhase = 'off' | 'mismatch' | 'idle' | 'syncing' | 'offline' | 'error';
-export type ForestSyncStatus = 'local' | 'pending' | 'current' | 'attention';
+export type ForestSyncStatus = 'local' | 'pending' | 'current' | 'attention' | 'local-only';
 
 @Injectable({ providedIn: 'root' })
 export class SyncService {
@@ -153,6 +153,18 @@ export class SyncService {
   readonly link = this.linkSignal.asReadonly();
   readonly lastSyncAt = this.lastSyncAtSignal.asReadonly();
   readonly lastError = this.lastErrorSignal.asReadonly();
+  readonly deviceConflicts = computed(() => {
+    const ownerId = this.auth.user()?.userId;
+    if (!ownerId || this.link()?.accountId !== ownerId) return [];
+    return this.conflicts.forOwner(ownerId).flatMap((conflict) => {
+      if (conflict.state === 'pending') return [conflict];
+      const recordRefs = conflict.recordRefs.filter((ref) => {
+        const current = this.repoOf(ref.store).byId().get(ref.id);
+        return current && this.matchesConflictVersion(current, ref);
+      });
+      return recordRefs.length ? [{ ...conflict, recordRefs }] : [];
+    });
+  });
 
   /** The single state the UI paints from. */
   readonly phase = computed<SyncPhase>(() => {
@@ -175,7 +187,7 @@ export class SyncService {
     if (
       phase === 'mismatch' || phase === 'error' || this.auth.sessionStale() ||
       this.privacy.cloudBlocked() || (privacy !== null && !privacy.canUseCloud) ||
-      this.conflicts.conflicts().some((conflict) => conflict.state === 'pending')
+      this.deviceConflicts().some((conflict) => conflict.state === 'pending')
     ) return 'attention';
     const lastSync = this.lastSyncAt();
     if (phase !== 'idle' || link.autoStartPending || lastSync === null || lastSync < link.linkedAt)
@@ -190,7 +202,9 @@ export class SyncService {
           return 'pending';
       }
     }
-    return 'current';
+    return this.deviceConflicts().some((conflict) => conflict.state === 'local-only')
+      ? 'local-only'
+      : 'current';
   });
 
   private watermark = 0;
@@ -212,6 +226,7 @@ export class SyncService {
   private initialization: Promise<void> | null = null;
   private metadataLoaded = false;
   private accountClosureQuiesced = false;
+  private resolvingConflict = false;
   private readonly pendingMetaWrites = new Set<Promise<void>>();
   private readonly activeSyncPasses = new Set<Promise<boolean>>();
 
@@ -500,6 +515,7 @@ export class SyncService {
       this.phase() === 'off' ||
       this.phase() === 'mismatch' ||
       this.busySignal() ||
+      this.resolvingConflict ||
       (this.linkSignal()?.autoStartPending && !verifyAutomatic)
     ) {
       return Promise.resolve(false);
@@ -893,41 +909,52 @@ export class SyncService {
    * not the forest row. Other dirty refs and every local record stay intact. */
   async resolveConflict(conflictId: string, resolution: 'retry' | 'local-only'): Promise<boolean> {
     const ownerId = this.auth.user()?.userId;
-    if (!ownerId) return false;
-    const conflict = await this.conflicts.resolve(ownerId, conflictId, resolution);
-    if (!conflict) return false;
-    if (resolution === 'local-only') {
-      for (const ref of conflict.recordRefs) {
-        const current = this.repoOf(ref.store).byId().get(ref.id);
-        if (!current || !this.matchesConflictVersion(current, ref)) continue;
-        this.dirtyIds.get(ref.store)?.delete(ref.id);
-        this.removePendingRef(ref.store, ref.id);
+    if (!ownerId || this.busySignal() || this.resolvingConflict || this.accountClosureQuiesced) return false;
+    const wasLocalOnly = this.conflicts.forOwner(ownerId).some(
+      (conflict) => conflict.id === conflictId && conflict.state === 'local-only',
+    );
+    const epoch = this.epoch;
+    this.resolvingConflict = true;
+    let resolved = false;
+    try {
+      const conflict = await this.conflicts.resolve(ownerId, conflictId, resolution);
+      if (!conflict || this.auth.user()?.userId !== ownerId || epoch !== this.epoch) return false;
+      if (resolution === 'local-only') {
+        for (const ref of conflict.recordRefs) {
+          const current = this.repoOf(ref.store).byId().get(ref.id);
+          if (!current || !this.matchesConflictVersion(current, ref)) continue;
+          this.dirtyIds.get(ref.store)?.delete(ref.id);
+          this.removePendingRef(ref.store, ref.id);
+        }
+      } else {
+        const currentRefs: MutationRecordRef[] = [];
+        let canReuseGroupId = true;
+        for (const ref of conflict.recordRefs) {
+          const current = this.repoOf(ref.store).byId().get(ref.id);
+          if (!current) continue;
+          if (!this.matchesConflictVersion(current, ref)) {
+            if (wasLocalOnly) continue;
+            canReuseGroupId = false;
+          }
+          const dirty = this.dirtyIds.get(ref.store) ?? new Set<string>();
+          dirty.add(ref.id);
+          this.dirtyIds.set(ref.store, dirty);
+          currentRefs.push({ store: ref.store, id: ref.id });
+        }
+        const reuseGroup = canReuseGroupId && currentRefs.length === conflict.recordRefs.length;
+        if (currentRefs.length) {
+          this.rememberMutation(reuseGroup ? conflict.mutationGroupId : createMutationGroupId(), currentRefs);
+        }
+        if (!reuseGroup) await this.conflicts.clearPendingGroup(ownerId, conflict.mutationGroupId);
       }
-    } else {
-      const currentRefs: MutationRecordRef[] = [];
-      let canReuseGroupId = true;
-      for (const ref of conflict.recordRefs) {
-        const current = this.repoOf(ref.store).byId().get(ref.id);
-        if (!current) continue;
-        if (!this.matchesConflictVersion(current, ref)) canReuseGroupId = false;
-        const dirty = this.dirtyIds.get(ref.store) ?? new Set<string>();
-        dirty.add(ref.id);
-        this.dirtyIds.set(ref.store, dirty);
-        currentRefs.push({ store: ref.store, id: ref.id });
-      }
-      if (currentRefs.length) {
-        this.rememberMutation(
-          canReuseGroupId && currentRefs.length === conflict.recordRefs.length
-            ? conflict.mutationGroupId
-            : createMutationGroupId(),
-          currentRefs,
-        );
-      }
-      this.schedulePush();
+      this.queuedRevision.update((revision) => revision + 1);
+      await this.persistState();
+      resolved = true;
+      return true;
+    } finally {
+      this.resolvingConflict = false;
+      if (resolved) this.schedulePush();
     }
-    this.queuedRevision.update((revision) => revision + 1);
-    await this.persistState();
-    return true;
   }
 
   private ownerIdOrThrow(): string {
@@ -1127,7 +1154,7 @@ export class SyncService {
     const repo = this.repoOf(change.store);
     const incoming = change.record;
     const current = repo.byId().get(incoming.id);
-    if (current && lwwBeats(current, incoming)) return false;
+    if (current && (this.isLocalOnlyVersion(change.store, current) || lwwBeats(current, incoming))) return false;
     try {
       await put(change.store, incoming, () => this.assertPrivacy());
     } catch (error) {

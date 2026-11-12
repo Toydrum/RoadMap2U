@@ -205,6 +205,11 @@ export class SyncConflictStore {
 
   readonly conflicts = this.conflictsSignal.asReadonly();
 
+  forOwner(ownerId: string): readonly SyncConflict[] {
+    const conflicts = this.conflictsSignal();
+    return this.activeKey === scopeKey(ownerId) ? conflicts : [];
+  }
+
   async open(ownerId: string | null): Promise<void> {
     if (!ownerId) {
       if (this.activeKey === null && this.conflictsSignal().length === 0) return;
@@ -219,6 +224,7 @@ export class SyncConflictStore {
     if (this.activeKey === key) return;
     const generation = ++this.generation;
     this.activeKey = key;
+    this.conflictsSignal.set([]);
     const promise = (async () => {
       let stored: unknown = null;
       try {

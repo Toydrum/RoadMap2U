@@ -171,7 +171,7 @@ Hay tres formas, todas equivalentes:
 - **Botón "+" flotante**: toca una rama y aparece un botón verde **+** encima. Tócalo y planta una rama hija justo ahí.
 - **"+ Plantar aquí"** (arriba a la derecha): planta una ramita nueva del corazón del árbol.
 - **Pasitos** (dentro del detalle de una rama): la vía rápida para varios seguidos.
-- **Varios a la vez** (en la hoja de plantar): para quienes ya traen el plan completo. Se abre una cajita donde **cada línea siembra una ramita**; sangra una línea con **Tab** (o dos espacios) y esa ramita cuelga de la línea de arriba. También puedes **pegar una lista entera** — el árbol brota de golpe. Y si sembraste un buen puñado, al cerrar la hoja la app te invita, una sola vez y sin insistir: *"Tu árbol se ve listo — ¿le crecemos una ramita? 🌱"* con su puerta de 2 minutitos.
+- **Varios a la vez** (en la hoja de plantar): para quienes ya traen el plan completo. Se abre una cajita donde **cada línea siembra una ramita**; coloca el cursor en una línea y usa **Aumentar sangría** para colgar esa ramita de la anterior. Puedes ajustar el nivel con **Reducir sangría** y pegar listas con tabulaciones o dos espacios por nivel. También puedes **pegar una lista entera** — el árbol brota de golpe. Y si sembraste un buen puñado, al cerrar la hoja la app te invita, una sola vez y sin insistir: *"Tu árbol se ve listo — ¿le crecemos una ramita? 🌱"* con su puerta de 2 minutitos.
 
 La hoja de plantar **se queda abierta**: nombra, Enter, nombra, Enter — cada ramita crece al fondo mientras sigues, con su contador amable ("🌱 3 ramitas plantadas"). Cierras con **"Listo"** (o Escape, o tocando fuera) cuando termines. Cada rama nueva crece con una pequeña animación — el árbol está vivo.
 
@@ -352,7 +352,7 @@ Los accesos a la guía y **Reportar un problema** están al final de Ajustes. **
 
 - **Exportar mi copia**: descarga un archivo con todo tu bosque (árboles, ramas, check-ins, sesiones y ajustes). Hazlo seguido — es tu respaldo.
 - **Última copia y recordatorio**: debajo de esos botones, Ajustes muestra la fecha de tu última copia. Si pasan unos 30 días sin una, la app te lo recuerda con una sola línea (nunca insiste); puedes apagar el recordatorio con el interruptor «Recordarme bajar una copia cada tanto».
-- **Importar una copia**: restaura un archivo exportado. *Ojo:* reemplaza lo que haya en ese momento — pero antes de reemplazar, la app **descarga automáticamente un respaldo** de lo actual, así que siempre puedes volver atrás.
+- **Importar una copia**: al elegir el archivo, puedes revisar su fecha y cuántos árboles y ramas contiene. Si confirmas, la app **descarga automáticamente un respaldo** del bosque actual y reemplaza sus datos en este dispositivo. Si sincronizas el bosque, los datos restaurados tienen prioridad en la siguiente sincronización que se complete.
 
 ## Archivo
 

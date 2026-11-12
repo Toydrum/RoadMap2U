@@ -87,17 +87,16 @@
       <button type="button" class="btn btn-soft" (click)="exportData()" [disabled]="exporting()">
         <span aria-hidden="true">⬇</span> {{ i18n.t().settings.export }}
       </button>
-      <label class="btn btn-soft import">
+      <button
+        type="button"
+        class="btn btn-soft import"
+        [attr.aria-disabled]="importing()"
+        (click)="!importing() && importFile.click()"
+      >
         <span aria-hidden="true">⬆</span> {{ i18n.t().settings.import }}
-        <input
-          type="file"
-          accept="application/json"
-          (change)="onImportFile($event)"
-          [disabled]="importing()"
-        />
-      </label>
+      </button>
+      <input #importFile type="file" accept="application/json" hidden (change)="onImportFile($event)" />
     </div>
-    <p class="hint">{{ i18n.t().settings.importWarning }}</p>
     <p class="hint backup-mark">{{ lastBackupText() }}</p>
     <div class="row">
       <span class="label">{{ i18n.t().settings.backupRemindersLabel }}</span>
@@ -338,7 +337,7 @@
   @if (auth.user()) {
     <app-privacy-panel [showCloud]="true" (cloudAuthorized)="doConnect()" />
     <section class="card block nube">
-      <h2>{{ i18n.t().nube.title }}</h2>
+      <h2 #cloudHeading tabindex="-1">{{ i18n.t().nube.title }}</h2>
 
       @switch (sync.phase()) {
         @case ('off') {
@@ -397,6 +396,7 @@
           <p class="hint">{{ i18n.t().nube.disconnectHint }}</p>
         }
       }
+      <app-sync-conflict-review [fallbackFocus]="cloudHeading" />
     </section>
   }
 
@@ -513,6 +513,28 @@
   </details>
 
   <p class="about">{{ i18n.t().settings.aboutText }}</p>
+
+  @if (importPreview(); as preview) {
+    <app-confirm-sheet
+      icon="⬆"
+      [title]="i18n.t().settings.importConfirmTitle"
+      [body]="i18n.t().settings.importWarning"
+      [confirmLabel]="i18n.t().settings.importConfirmCta"
+      [quiet]="true"
+      (cancelled)="importPreview.set(null)"
+      (confirmed)="confirmImport()"
+    >
+      @if (importPreviewDate(preview.details.exportedAt); as date) {
+        <p>{{ i18n.fill(i18n.t().settings.importPreviewDate, { date }) }}</p>
+      }
+      <p>
+        {{ i18n.plural(preview.details.trees, i18n.t().settings.importPreviewTrees) }}
+        ·
+        {{ i18n.plural(preview.details.branches, i18n.t().settings.importPreviewBranches) }}
+      </p>
+      <p>{{ i18n.t().settings.importPreviewCloud }}</p>
+    </app-confirm-sheet>
+  }
 
   @if (deleting(); as tree) {
     <app-confirm-sheet

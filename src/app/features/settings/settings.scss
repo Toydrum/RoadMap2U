@@ -172,16 +172,8 @@
   max-width: 32ch;
 }
 
-.import {
-  position: relative;
-  overflow: hidden;
-
-  input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
+.import[aria-disabled='true'] {
+  cursor: wait;
 }
 
 .hint {

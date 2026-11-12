@@ -412,6 +412,43 @@ describe('account create validation', () => {
     expect(harness.constructed).toEqual({ backup: 0, sync: 0, trees: 0 });
   });
 
+  it.each([
+    { locale: 'es', dict: ES, destination: '/forest' },
+    { locale: 'en', dict: EN, destination: '/forest' },
+    { locale: 'es', dict: ES, destination: '/account/subscription' },
+    { locale: 'es', dict: ES, destination: '/settings' },
+  ])('returns to $destination after signup ($locale)', async ({ dict, destination }) => {
+    const harness = accountHarness(dict);
+    harness.closure.receipt.set(null);
+    harness.admission.set('absent');
+    harness.adultDeclared.set(false);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(AccountPage);
+    fixture.componentRef.setInput('intent', 'create');
+    fixture.componentRef.setInput('volver', destination);
+    fixture.detectChanges();
+    const page = fixture.componentInstance as any;
+    await vi.waitFor(() => expect(page.signupDocument()).not.toBeNull());
+    page.username.set('brisa');
+    page.email.set('brisa@example.invalid');
+    page.password.set('Bosque123');
+    page.password2.set('Bosque123');
+    page.acceptsTerms.set(true);
+    await page.doCreate();
+    expect(page.step()).toBe('confirmCode');
+    expect(navigate).not.toHaveBeenCalled();
+    harness.auth.confirmCode.mockImplementation(async () => {
+      harness.auth.user.set({ userId: 'brisa', username: 'brisa', displayName: null, email: 'brisa@example.invalid', accountType: 'adult' });
+      harness.auth.status.set('signedIn');
+      return 'done';
+    });
+
+    await page.doConfirmCode();
+
+    expect(harness.api.changePrivacyConsent).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(destination);
+  });
+
   it('recovers an interrupted signup through terms-only admission on sign-in', async () => {
     TestBed.resetTestingModule();
     const harness = accountHarness();

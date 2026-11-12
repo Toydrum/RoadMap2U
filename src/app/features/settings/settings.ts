@@ -8,7 +8,7 @@ import { SettingsService } from '../../core/repos/settings.service';
 import { ThemeService } from '../../core/theme/theme.service';
 import { TreesRepo } from '../../core/repos/trees.repo';
 import { NodesRepo } from '../../core/repos/nodes.repo';
-import { BackupService } from '../../core/repos/backup.service';
+import { BackupService, type BackupImportPreview } from '../../core/repos/backup.service';
 import { ToastService } from '../../shared/ui/toast.service';
 import { AccompanimentService } from '../../core/accompaniment.service';
 import { storageAvailable } from '../../core/db/idb';
@@ -27,10 +27,11 @@ import { PrivacyService } from '../../core/privacy.service';
 import { PrivacyPanel } from '../../shared/ui/privacy-panel';
 import { AccountAccessSummary } from '../../shared/ui/account-access-summary';
 import { forestQuotaMessage, restoreTreeWithFeedback } from '../forest/forest-quota-feedback';
+import { SyncConflictReview } from './sync-conflict-review';
 
 @Component({
   selector: 'app-settings',
-  imports: [RouterLink, ConfirmSheet, Switch, PrivacyPanel, AccountAccessSummary],
+  imports: [RouterLink, ConfirmSheet, Switch, PrivacyPanel, AccountAccessSummary, SyncConflictReview],
   templateUrl: './settings.html',
   styleUrl: './settings.scss',
 })
@@ -74,6 +75,7 @@ export class SettingsPage {
       case 'pending': return this.sync.phase() === 'offline' ? copy.nube.offlineHint : copy.settings.syncPending;
       case 'current': return copy.premiumCloud.current;
       case 'attention': return copy.settings.syncAttention;
+      case 'local-only': return copy.nube.conflicts.someLocal;
     }
   });
 
@@ -143,6 +145,7 @@ export class SettingsPage {
   }
 
   protected readonly importing = signal(false);
+  protected readonly importPreview = signal<{ json: string; details: BackupImportPreview } | null>(null);
   /** Tree pending permanent deletion (confirm sheet open). */
   protected readonly deleting = signal<Tree | null>(null);
   private readonly nodes = inject(NodesRepo);
@@ -271,13 +274,35 @@ export class SettingsPage {
     const inputEl = event.target as HTMLInputElement;
     const file = inputEl.files?.[0];
     inputEl.value = '';
-    if (!file) return;
+    if (!file || this.importing()) return;
     this.importing.set(true);
     try {
-      await this.backup.importReplace(await file.text());
-      this.toast.show({ message: this.i18n.t().settings.importOk });
+      const json = await file.text();
+      this.importPreview.set({ json, details: this.backup.previewImport(json) });
     } catch (error) {
       this.toast.show({ message: forestQuotaMessage(this.i18n, error) ?? this.i18n.t().settings.importError });
+    } finally {
+      this.importing.set(false);
+    }
+  }
+
+  protected importPreviewDate(exportedAt: string): string | null {
+    const date = new Date(exportedAt);
+    return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString(this.i18n.lang(), { dateStyle: 'medium' });
+  }
+
+  protected async confirmImport(): Promise<void> {
+    const preview = this.importPreview();
+    if (!preview || this.importing()) return;
+    this.importPreview.set(null);
+    this.importing.set(true);
+    try {
+      await this.backup.importReplace(preview.json);
+      this.toast.show({ message: this.i18n.t().settings.importOk });
+    } catch (error) {
+      this.toast.show({
+        message: forestQuotaMessage(this.i18n, error) ?? this.i18n.t().settings.importRestoreError,
+      });
     } finally {
       this.importing.set(false);
     }

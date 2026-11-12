@@ -24,6 +24,12 @@ import { SettingsService } from './settings.service';
 import { FOREST_REPLACEMENT_STORAGE, ForestMutationsService } from './forest-mutations.service';
 import { preflightImport } from '../access/quota-policy';
 
+export interface BackupImportPreview {
+  readonly exportedAt: string;
+  readonly trees: number;
+  readonly branches: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class BackupService {
   private readonly trees = inject(TreesRepo);
@@ -91,41 +97,40 @@ export class BackupService {
     }
   }
 
-  /**
-   * Validate + replace-all. A backup of the CURRENT data is auto-downloaded
-   * first, so a bad import is always recoverable. Merge-import is a v2 sync
-   * problem — not half-built here.
-   */
-  async importReplace(json: string): Promise<void> {
+  previewImport(json: string): BackupImportPreview {
+    const { exportedAt, data } = this.parseImport(json);
+    const hearts = new Map(
+      data.trees.filter((tree) => tree.deletedAt == null).map((tree) => [tree.id, tree.heartId]),
+    );
+    return {
+      exportedAt,
+      trees: hearts.size,
+      branches: data.nodes.filter((node) =>
+        node.deletedAt == null && hearts.has(node.treeId) && hearts.get(node.treeId) !== node.id,
+      ).length,
+    };
+  }
+
+  private parseImport(json: string): ExportEnvelope {
     // Validation + the same pure data-shape pipeline used by live IndexedDB
     // happen BEFORE the safety download or any replace transaction. The
     // import-only 'rodemap2u' app id remains accepted inside the migrator.
     const envelope = migrateBackupEnvelope(JSON.parse(json));
-    // Validate the WHOLE shape before touching disk: a malformed file that
-    // passed the header checks used to wipe the stores and THEN throw —
-    // empty forest on next reload.
-    const data = envelope.data;
-    if (!data || typeof data !== 'object') throw new Error('backup has no data');
-    const trees = data.trees ?? [];
-    const nodes = data.nodes ?? [];
-    const checkins = data.checkins ?? [];
-    const sessions = data.sessions ?? [];
-    // Pre-v5 backups simply lack harvests — imported as an empty pantry
-    // (the backfill sentinel is device state and does NOT re-run; restored
-    // achieved branches without their harvests stay fruitless until they
-    // re-achieve, which is honest: the backup predates the jar).
-    const harvests = data.harvests ?? [];
-    // Pre-v6 backups lack preserves — imported as no jars (member fruits
-    // also lack preserveId in those backups, so the homes stay consistent).
-    const preserves = data.preserves ?? [];
+    const { trees, nodes, checkins, sessions, harvests = [], preserves = [] } = envelope.data;
     for (const list of [trees, nodes, checkins, sessions, harvests, preserves]) {
       if (!Array.isArray(list) || list.some((r) => typeof r?.id !== 'string')) {
         throw new Error('backup data is malformed');
       }
     }
-    // One decision over the complete replacement candidate. It happens
-    // after schema migration and before any download, disk write or signal.
     this.mutations.assertImport(trees, nodes);
+    return envelope;
+  }
+
+  /** Replace-all with an automatic safety copy of the current forest. */
+  async importReplace(json: string): Promise<void> {
+    const { data } = this.parseImport(json);
+    // Pre-v5 and pre-v6 backups restore with an empty pantry or no jars.
+    const { trees, nodes, checkins, sessions, harvests = [], preserves = [] } = data;
     // Records the import REMOVES must also be announced, or a second tab's
     // in-memory copy resurrects them on its next save. From byId() — not
     // all() — so TOMBSTONES count too (0.0.115 B7: a tombstone absent from

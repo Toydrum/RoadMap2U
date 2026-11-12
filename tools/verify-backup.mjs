@@ -129,15 +129,15 @@ await page.evaluate(async () => {
 });
 await page.reload({ waitUntil: 'networkidle' });
 await page.waitForTimeout(600);
-// The import auto-downloads a pre-import copy first — swallow it.
-page.on('download', () => {});
-await page.locator('input[type="file"]').setInputFiles({
+const importInput = page.locator('input[type="file"]');
+const importButton = page.getByRole('button', { name: 'Importar una copia' });
+const preview = page.getByRole('dialog', { name: 'Restaurar respaldo' });
+const legacyFile = {
   name: 'rodemap2u-v12.json',
   mimeType: 'application/json',
   buffer: Buffer.from(JSON.stringify(legacyEnvelope)),
-});
-await page.waitForTimeout(2500);
-const restored = await page.evaluate(async () => {
+};
+const readForest = () => page.evaluate(async () => {
   const open = indexedDB.open('roadmap2u');
   const db = await new Promise((res, rej) => { open.onsuccess = () => res(open.result); open.onerror = rej; });
   const state = await new Promise((res, rej) => {
@@ -153,8 +153,57 @@ const restored = await page.evaluate(async () => {
   db.close();
   return state;
 });
+const beforeRestore = await readForest();
+const restoreDownloads = [];
+page.on('download', (download) => restoreDownloads.push(download));
+
+const fileChooser = page.waitForEvent('filechooser');
+await importButton.click();
+await (await fileChooser).setFiles(legacyFile);
+await preview.waitFor({ state: 'visible' });
+const previewText = await preview.textContent();
 ok(
-  'F2 legacy v12 import migrates hearts + restores pantry',
+  'F2 preview shows date, counts and cloud scope without replacing the forest',
+  /Fecha del respaldo/.test(previewText) &&
+    /árbol/.test(previewText) &&
+    /sincronización/.test(previewText) &&
+    (await readForest()).harvests === beforeRestore.harvests &&
+    restoreDownloads.length === 0,
+  previewText.trim(),
+);
+await preview.getByRole('button', { name: 'Cancelar' }).click();
+await preview.waitFor({ state: 'hidden' });
+const cancelled = await readForest();
+ok(
+  'F3 cancelling leaves the forest untouched and returns focus to the picker',
+  cancelled.harvests === beforeRestore.harvests &&
+    restoreDownloads.length === 0 &&
+    await importButton.evaluate((button) => document.activeElement === button),
+);
+
+await importInput.setInputFiles({
+  name: 'invalid.json',
+  mimeType: 'application/json',
+  buffer: Buffer.from('{"data": null}'),
+});
+await page.getByText('Ese archivo no se pudo leer como respaldo.').waitFor({ state: 'visible' });
+ok('F4 invalid files leave the forest untouched', (await readForest()).harvests === beforeRestore.harvests && restoreDownloads.length === 0);
+
+await importInput.setInputFiles(legacyFile);
+await preview.waitFor({ state: 'visible' });
+const preImportDownload = page.waitForEvent('download');
+await preview.getByRole('button', { name: 'Restaurar bosque' }).click();
+const safetyFile = await preImportDownload;
+const safetyCopy = JSON.parse(await fs.readFile(await safetyFile.path(), 'utf8'));
+ok(
+  'F5 confirmation downloads the pre-import forest',
+  safetyFile.suggestedFilename().startsWith('roadmap2u-pre-import-') &&
+    safetyCopy.data.harvests.length === beforeRestore.harvests,
+);
+await page.getByText('Tu bosque llegó completo.').waitFor({ state: 'visible' });
+const restored = await readForest();
+ok(
+  'F6 legacy v12 import migrates hearts + restores pantry',
   restored.harvests === exportedHarvests && restored.hearts.every((heartId) => typeof heartId === 'string'),
   `restored=${restored.harvests}/${exportedHarvests} hearts=${restored.hearts.join(',')}`,
 );

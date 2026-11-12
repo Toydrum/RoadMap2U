@@ -37,7 +37,7 @@
         </button>
       </div>
       <a class="sign-in" routerLink="/account" [queryParams]="{ intent: 'signIn', lang: lang() }">{{ copy().landing.nav.signIn }}</a>
-      <a class="button button-small" routerLink="/account" [queryParams]="{ intent: 'create', lang: lang() }">{{ copy().landing.nav.start }}</a>
+      <a class="button button-small" routerLink="/account" [queryParams]="signupQueryParams()">{{ copy().landing.nav.start }}</a>
     </div>
   </header>
 
@@ -59,7 +59,7 @@
           <h1 id="hero-title">{{ copy().landing.hero.title }}</h1>
           <p class="hero-body">{{ copy().landing.hero.body }}</p>
           <div class="hero-actions">
-            <a class="button" routerLink="/account" [queryParams]="{ intent: 'create', lang: lang() }">{{ copy().landing.hero.primary }}</a>
+            <a class="button" routerLink="/account" [queryParams]="signupQueryParams()">{{ copy().landing.hero.primary }}</a>
             <div class="hero-secondary">
               <a class="text-link" routerLink="/" queryParamsHandling="preserve" fragment="how-it-works">
                 {{ copy().landing.hero.secondary }}
@@ -192,7 +192,7 @@
               }
             </ul>
           </div>
-          <a class="button" routerLink="/account" [queryParams]="{ intent: 'create', lang: lang() }">{{ copy().landing.plans.free.cta }}</a>
+          <a class="button" routerLink="/account" [queryParams]="signupQueryParams()">{{ copy().landing.plans.free.cta }}</a>
         </article>
 
         <article class="plan premium-plan">
@@ -264,7 +264,7 @@
         <p class="eyebrow">{{ copy().landing.final.eyebrow }}</p>
         <h2 id="final-title">{{ copy().landing.final.title }}</h2>
         <p>{{ quotaText(copy().landing.final.body) ?? copy().landing.plans.free.summary }}</p>
-        <a class="button button-light" routerLink="/account" [queryParams]="{ intent: 'create', lang: lang() }">{{ copy().landing.final.cta }}</a>
+        <a class="button button-light" routerLink="/account" [queryParams]="signupQueryParams()">{{ copy().landing.final.cta }}</a>
       </div>
     </section>
   </main>

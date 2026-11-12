@@ -8,9 +8,9 @@ Preparar una cuenta dedicada de TEST con Premium de sandbox y un vencimiento con
 
 1. Crear un árbol con una rama y un pasito en el primer perfil. Revisar el estado en Ajustes y comprobar que el árbol permanece local antes del consentimiento.
 2. Autorizar la nube en el primer perfil y sincronizar. Abrir el bosque en el segundo perfil con el permiso correspondiente. Confirmar que aparecen el árbol, la rama y el pasito en el orden correcto.
-3. Desconectar el segundo perfil de la red, editar el pasito y volver a cargar la vista instalada. Confirmar que se conserva el cambio local. Reconectar, sincronizar y comprobar que el primer perfil recibe el cambio una sola vez.
+3. En el segundo perfil, abrir el árbol con conexión y esperar a que el service worker controle la página y haya guardado todos los archivos del grupo `app` de `ngsw.json`. Desconectar la red, plantar una rama y cerrar y volver a abrir el árbol aún sin conexión. Confirmar que se conserva la misma rama y que el primer perfil todavía no la ve. Reconectar, sincronizar y comprobar que el primer perfil recibe la rama una sola vez.
 4. Usar el vencimiento de Premium configurado para la cuenta de prueba. Comprobar que una edición posterior permanece en el dispositivo y que Ajustes sigue ofreciendo exportar el respaldo.
-5. Exportar el respaldo. En un tercer perfil limpio, iniciar sesión con una cuenta de TEST cuya cuota permita importar la copia. Importarla y comparar el árbol, las ramas, los pasitos y el último texto con el primer perfil.
+5. Exportar el respaldo. En un tercer perfil limpio, iniciar sesión con una cuenta de TEST cuya cuota permita importar la copia. Abrir el archivo, revisar la fecha, los recuentos y el alcance, y cancelar una vez para comprobar que el bosque sigue intacto. Volver a abrir el archivo y confirmar la restauración. Comprobar que se descarga el respaldo previo y comparar el árbol, las ramas y los pasitos con el primer perfil.
 
 ## Teléfono y lector de pantalla
 
@@ -24,3 +24,4 @@ Preparar una cuenta dedicada de TEST con Premium de sandbox y un vencimiento con
 3. Con la app instalada en un ambiente de prueba que tenga una nueva versión disponible, abrir Ajustes y buscar actualizaciones. Comprobar que la pantalla sigue disponible mientras la app comprueba la versión.
 4. Abrir la ruta que se quiere comprobar y aplicar la actualización desde el aviso. Revisar que conserva la ruta, sus parámetros y el árbol guardado. Repetir desde Ahora cuando haya otra versión disponible y comprobar que retoma la pantalla sin volver a pedir el check-in.
 5. Abrir el bosque instalado sin conexión después de haberlo abierto con conexión. Comprobar que se puede leer y editar la rama local.
+6. En «Varios a la vez», recorrer el formulario con el lector de pantalla, sangrar una línea y comprobar que se anuncia el nivel. En el Bosque con varios claros, avanzar, retroceder y saltar a un claro concreto. Confirmar que se anuncia el claro actual y que sus controles se pueden tocar con texto grande.

@@ -1,4 +1,4 @@
-import { Component, ElementRef, effect, inject, input, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, input, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Meta, Title } from '@angular/platform-browser';
 import { type MarketingLang, MarketingLocaleService } from './marketing-locale.service';
@@ -17,6 +17,11 @@ export class LandingPage {
   protected readonly locale = inject(MarketingLocaleService);
   protected readonly copy = this.locale.copy;
   protected readonly lang = this.locale.lang;
+  protected readonly signupQueryParams = computed(() => ({
+    intent: 'create',
+    lang: this.lang(),
+    volver: '/forest',
+  }));
   protected readonly plans = inject(PlanCatalogService);
   protected readonly demoBranches: readonly MarketingDemoBranch[] = [
     'vocabulary', 'listening', 'speaking', 'reading',

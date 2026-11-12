@@ -359,40 +359,41 @@
 
         <!-- More trees than one clearing holds: little arrows walk the meadow -->
         @if (pageCount() > 1) {
-          <button
-            type="button"
-            class="clearing-nav prev"
-            [disabled]="page() === 0 || !!draggingId()"
-            (click)="goPage(-1)"
-            [attr.aria-label]="i18n.t().forest.prevClearing"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            class="clearing-nav next"
-            [disabled]="page() >= pageCount() - 1 || !!draggingId()"
-            (click)="goPage(1)"
-            [attr.aria-label]="i18n.t().forest.nextClearing"
-          >
-            ›
-          </button>
-          <div class="clearing-dots" role="tablist">
-            @for (d of dots(); track d) {
-              <button
-                type="button"
-                class="dot"
-                [class.on]="d === page()"
-                [disabled]="!!draggingId()"
-                (click)="page.set(d)"
-                [attr.aria-label]="i18n.fill(i18n.t().forest.clearingDot, { n: d + 1 })"
-                [attr.aria-selected]="d === page()"
-              ></button>
-            }
-          </div>
-          <span class="sr-live" aria-live="polite">{{
-            i18n.fill(i18n.t().forest.clearingDot, { n: page() + 1 })
-          }}</span>
+          <nav [attr.aria-label]="i18n.t().forest.clearingsNav">
+            <button
+              type="button"
+              class="clearing-nav prev"
+              [disabled]="page() === 0 || !!draggingId()"
+              (click)="goPage(-1)"
+              [attr.aria-label]="i18n.t().forest.prevClearing"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              class="clearing-nav next"
+              [disabled]="page() >= pageCount() - 1 || !!draggingId()"
+              (click)="goPage(1)"
+              [attr.aria-label]="i18n.t().forest.nextClearing"
+            >
+              ›
+            </button>
+            <div #clearingDots class="clearing-dots">
+              @for (d of dots(); track d) {
+                <button
+                  type="button"
+                  class="dot"
+                  [disabled]="!!draggingId()"
+                  (click)="page.set(d)"
+                  [attr.aria-label]="i18n.fill(i18n.t().forest.clearingDot, { n: d + 1 })"
+                  [attr.aria-current]="d === page() ? 'page' : null"
+                ></button>
+              }
+            </div>
+            <span class="sr-live" role="status">{{
+              i18n.fill(i18n.t().forest.clearingPosition, { current: page() + 1, total: pageCount() })
+            }}</span>
+          </nav>
         }
 
         <!-- (0.0.99) The meadow jar was removed — the Conservería has its own
