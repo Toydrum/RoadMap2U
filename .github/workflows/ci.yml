@@ -47,3 +47,21 @@ jobs:
             echo 'AWS provider signature leaked into the initial bundle.' >&2
             exit 1
           fi
+
+      - name: Install the locked Playwright Chromium
+        run: node node_modules/playwright-core/cli.js install --with-deps chromium
+
+      - name: Check public routes and two-device recovery in the browser
+        env:
+          RM_BROWSER_CHANNEL: chromium
+        run: |
+          node tools/verify-public-shell.mjs
+          node tools/probe-two-device-recovery.mjs
+
+      - name: Build the isolated public catalog fixture
+        run: npm run build -- --configuration production,ci-public-catalog --base-href / --output-path dist/public-catalog-ci
+
+      - name: Check delayed and unavailable catalogs in the browser
+        env:
+          RM_BROWSER_CHANNEL: chromium
+        run: node tools/probe-public-catalog.mjs

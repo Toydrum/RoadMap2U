@@ -1,6 +1,6 @@
 // The natural meadow (0.0.43): scattered clearings — sky safety, determinism,
 // drag-that-moves-trees, arrows/dots pagination, mobile fit.
-import { BASE, launchPage, newProbePage } from './lib/harness.mjs';
+import { BASE, launchPage, newProbePage, ok } from './lib/harness.mjs';
 const { browser, page } = await launchPage({ width: 1280, height: 800 });
 
 const names = ['Guitarra', 'Cuidarme', 'Negocio', 'Inglés', 'Cocina', 'Lectura', 'Amigos', 'Jardín', 'Dibujo', 'Ahorro', 'Fotos', 'Huerto', 'Yoga', 'Piano', 'Viaje', 'Club'];
@@ -65,6 +65,15 @@ for (const n of [1, 5, 10, 16]) {
   console.log(`A n=${n}: visible=${rects.length} minTop=${minTop} (skyline<${Math.round(skyline)}) hearts=${hearts} arrows=${arrows} dots=${dots} | OK=${ok}`);
 }
 
+ok('Each tree link and Archive button are separate accessible controls', await page.evaluate(() =>
+  [...document.querySelectorAll('.plot')].every((plot) => {
+    const link = plot.querySelector('a[href]');
+    const archive = plot.querySelector('.plot-archive');
+    return link?.hasAttribute('aria-label') && archive?.hasAttribute('aria-label') &&
+      !link.contains(archive);
+  }),
+));
+
 // B — determinism: same rects across a reload.
 const before = await plotRects();
 await page.reload({ waitUntil: 'networkidle' });
@@ -117,7 +126,7 @@ console.log(`B determinism across reload: ${same} | OK=${same}`);
 {
   const rects = await plotRects();
   const first = rects[0];
-  await page.locator(`[data-tree-id="${first.id}"]`).focus();
+  await page.locator(`[data-tree-id="${first.id}"] .plot-link`).focus();
   await page.keyboard.press('ArrowRight');
   await page.waitForTimeout(500);
   const now = await plotRects();

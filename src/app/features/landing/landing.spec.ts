@@ -15,6 +15,27 @@ import { LandingPage } from './landing';
 import { marketingTreeModel } from './marketing-tree';
 
 describe('commercial landing foundation', () => {
+  it('opens an example branch and chooses a next step without leaving the public page', async () => {
+    await TestBed.configureTestingModule({ imports: [LandingPage], providers: [provideRouter([])] })
+      .compileComponents();
+    const fixture = TestBed.createComponent(LandingPage);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.hero-access-note')?.textContent).toContain('confirmar tu correo');
+
+    const branch = root.querySelector<HTMLButtonElement>('[data-demo-branch="vocabulary"]');
+    expect(branch?.getAttribute('aria-expanded')).toBe('false');
+    branch?.click();
+    fixture.detectChanges();
+    expect(branch?.getAttribute('aria-expanded')).toBe('true');
+    expect(root.querySelector('#demo-branch-detail')?.textContent).toContain('Repasar cinco palabras');
+
+    root.querySelector<HTMLButtonElement>('.demo-choose-step')?.click();
+    fixture.detectChanges();
+    expect(root.querySelector('.demo-next-step')?.textContent).toContain('Repasar cinco palabras');
+    expect(root.querySelector('a[href*="intent=create"]')).not.toBeNull();
+  });
+
   it('omits all unconfirmed Free limits when the public plan read is pending or fails', async () => {
     let rejectCatalog!: (error: Error) => void;
     const read = new Promise<typeof REDUCED_PLAN_CATALOG>((_resolve, reject) => {

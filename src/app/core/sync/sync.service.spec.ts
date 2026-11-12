@@ -203,6 +203,30 @@ describe('commercial sync conflicts', () => {
     vi.unstubAllGlobals();
   });
 
+  it('reports local, synced, pending backwards-clock edits, and an account mismatch distinctly', async () => {
+    vi.stubGlobal('navigator', { onLine: true });
+    const at = Date.now() - 10;
+    const pushSync = vi.fn<ApiClient['pushSync']>(async (payload) => ({
+      applied: payloadRecords(payload).map((row) => row.record.id), rejected: [], serverRecords: [],
+    }));
+    const meta = memoryMetadataStorage();
+    await meta.write(META_ACCOUNT_LINK, { accountId: 'owner-a', linkedAt: at, uploadedAt: at });
+    await meta.write('sync.state', { cursor: 'cursor-1', watermark: at, lastSyncAt: at });
+    const { service, authUser, trees } = configure({ pushSync, metaStorage: meta });
+    expect(service.forestStatus()).toBe('local');
+    await service.init();
+    expect(service.forestStatus()).toBe('current');
+
+    trees.applyExternal(tree('edited', at - 1));
+    broadcastChange({ store: 'trees', ids: ['edited'] });
+    expect(service.forestStatus()).toBe('pending');
+    await expect(service.syncNow()).resolves.toBe(true);
+    expect(service.forestStatus()).toBe('current');
+
+    authUser.set({ userId: 'owner-b' });
+    expect(service.forestStatus()).toBe('attention');
+  });
+
   it.each([false, true])('resumes the same cursor only with current durable authority (%s)', async (detached) => {
     vi.stubGlobal('navigator', {
       onLine: true,

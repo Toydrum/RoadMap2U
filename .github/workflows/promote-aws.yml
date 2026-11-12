@@ -142,6 +142,9 @@ jobs:
         run: |
           npm run test:config
           npm test -- --watch=false
+          if [[ "$STAGE" == prod ]]; then
+            node tools/prepare-public-discovery.mjs prod
+          fi
           npm run build -- --base-href /
 
       - name: Validate the built PWA

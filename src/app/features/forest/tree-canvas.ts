@@ -731,8 +731,17 @@ export class TreeCanvas {
   /** A title opens its branch. On bare canvas the closest branch wins.
    *  Drags never count as taps, and the note and plant buttons act directly. */
   protected onCanvasClick(ev: MouseEvent): void {
+    const target = ev.target;
+    if (!(target instanceof Element) || target.closest('.note-mark, .plant-bud')) return;
+    // An assistive action can activate the named SVG treeitem without a
+    // pointer. In that case the element, rather than its coordinates, is the target.
+    if (ev.detail === 0) {
+      const id = target.closest('.node')?.getAttribute('data-node-id');
+      const point = id ? this.layout().byId.get(id) : undefined;
+      if (point) this.openPoint(point);
+      return;
+    }
     if (this.movedSinceDown) return;
-    if ((ev.target as Element).closest?.('.note-mark, .plant-bud')) return;
     const rect = this.svgRef().nativeElement.getBoundingClientRect();
     const k = this.k();
     const wx = (ev.clientX - rect.left - this.tx()) / k;
@@ -832,7 +841,7 @@ export class TreeCanvas {
       case 'Enter':
       case ' ':
         ev.preventDefault();
-        this.nodeOpened.emit(point.node);
+        this.openPoint(point);
         break;
     }
   }
@@ -843,8 +852,8 @@ export class TreeCanvas {
     if (point) this.panIntoView(point);
     queueMicrotask(() => {
       this.host.nativeElement
-        .querySelector<SVGGElement>(`[data-node-id="${id}"]`)
-        ?.focus();
+        .querySelector<SVGGElement>(`[data-node-id="${CSS.escape(id)}"]`)
+        ?.focus({ preventScroll: true });
     });
   }
 

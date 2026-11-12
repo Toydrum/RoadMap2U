@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { inputValue } from '../../shared/ui/dom';
 import { Switch } from '../../shared/ui/switch';
 import { ConfirmSheet } from '../../shared/ui/confirm-sheet';
@@ -10,8 +10,10 @@ import { TreesRepo } from '../../core/repos/trees.repo';
 import { NodesRepo } from '../../core/repos/nodes.repo';
 import { BackupService } from '../../core/repos/backup.service';
 import { ToastService } from '../../shared/ui/toast.service';
-import { SwUpdate } from '@angular/service-worker';
 import { AccompanimentService } from '../../core/accompaniment.service';
+import { storageAvailable } from '../../core/db/idb';
+import { PwaInstallService } from '../../core/pwa-install.service';
+import { UpdateService } from '../../core/update.service';
 import { Lang, MotionPref, TextSize, ThemeName, Tree } from '../../core/db/schema';
 import { APP_VERSION } from '../../core/version';
 import { AuthService } from '../../core/auth/auth.service';
@@ -37,39 +39,16 @@ export class SettingsPage {
   protected readonly version = APP_VERSION;
   protected readonly bugReportUrl =
     'https://docs.google.com/forms/d/e/1FAIpQLSelXiTkj1W9hKmgw1z_fLVFKy_a2bpWDFT8FdSABTLteHxmew/viewform';
-  protected readonly checkingUpdate = signal(false);
-  private readonly swUpdate = inject(SwUpdate);
+  protected readonly updates = inject(UpdateService);
+  protected readonly install = inject(PwaInstallService);
   protected readonly i18n = inject(I18nService);
 
-  /** One tap: check, and if something new exists, activate + reload. */
   protected async checkNow(): Promise<void> {
-    if (this.checkingUpdate()) return;
-    this.checkingUpdate.set(true);
-    try {
-      if (this.swUpdate.isEnabled && (await this.swUpdate.checkForUpdate())) {
-        await this.swUpdate.activateUpdate().catch(() => {});
-        location.reload();
-        return;
-      }
+    const result = await this.updates.check();
+    if (result === 'current') {
       this.toast.show({ message: this.i18n.t().settings.upToDate });
-    } catch {
+    } else if (result === 'unavailable') {
       this.toast.show({ message: this.i18n.t().settings.updateFailed });
-    } finally {
-      this.checkingUpdate.set(false);
-    }
-  }
-
-  /** Nuclear but safe: unregister the SW + drop its caches, then reload.
-   *  IndexedDB (trees, notes, settings) is untouched. */
-  protected async repair(): Promise<void> {
-    try {
-      const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? [];
-      for (const reg of regs) await reg.unregister();
-      if ('caches' in window) {
-        for (const key of await caches.keys()) await caches.delete(key);
-      }
-    } finally {
-      location.reload();
     }
   }
   protected readonly settings = inject(SettingsService);
@@ -83,9 +62,24 @@ export class SettingsPage {
   protected readonly isMock = APP_CONFIG.backend === 'mock';
   private readonly backup = inject(BackupService);
   private readonly toast = inject(ToastService);
+  private readonly storageReady = signal<boolean | null>(null);
+  protected readonly exporting = signal(false);
+  protected readonly forestStatusText = computed(() => {
+    const copy = this.i18n.t();
+    const storage = this.storageReady();
+    if (storage === null) return '';
+    if (!storage) return copy.app.memoryOnly;
+    switch (this.sync.forestStatus()) {
+      case 'local': return copy.settings.syncLocal;
+      case 'pending': return this.sync.phase() === 'offline' ? copy.nube.offlineHint : copy.settings.syncPending;
+      case 'current': return copy.premiumCloud.current;
+      case 'attention': return copy.settings.syncAttention;
+    }
+  });
 
   constructor() {
     void this.closure.hydrate();
+    void storageAvailable().then((ready) => this.storageReady.set(ready));
   }
 
   protected closureStateText(state: AccountClosureState): string {
@@ -121,7 +115,7 @@ export class SettingsPage {
     const at = this.sync.lastSyncAt();
     if (!at) return this.i18n.t().nube.neverSynced;
     const locale = this.i18n.lang() === 'en' ? 'en' : 'es';
-    const time = new Date(at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+    const time = new Date(at).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
     return this.i18n.fill(this.i18n.t().nube.lastSync, { time });
   }
 
@@ -206,8 +200,16 @@ export class SettingsPage {
     void this.settings.patch({ timeCompass: !this.settings.settings().timeCompass });
   }
 
-  protected exportData(): void {
-    void this.backup.download();
+  protected async exportData(): Promise<void> {
+    if (this.exporting()) return;
+    this.exporting.set(true);
+    try {
+      await this.backup.download(undefined, { allowMemoryCopy: true });
+    } catch {
+      this.toast.show({ message: this.i18n.t().account.errors.unknown });
+    } finally {
+      this.exporting.set(false);
+    }
   }
 
   protected toggleBackupReminders(): void {

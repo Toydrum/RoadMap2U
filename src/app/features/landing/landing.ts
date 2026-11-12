@@ -1,8 +1,8 @@
-import { Component, ElementRef, effect, inject, input, viewChild } from '@angular/core';
+import { Component, ElementRef, effect, inject, input, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Meta, Title } from '@angular/platform-browser';
 import { type MarketingLang, MarketingLocaleService } from './marketing-locale.service';
-import { MarketingTree } from './marketing-tree';
+import { type MarketingDemoBranch, MarketingTree } from './marketing-tree';
 import { PlanCatalogService } from '../../core/access/plan-catalog.service';
 
 @Component({
@@ -10,7 +10,7 @@ import { PlanCatalogService } from '../../core/access/plan-catalog.service';
   imports: [RouterLink, MarketingTree],
   providers: [MarketingLocaleService],
   templateUrl: './landing.html',
-  styleUrls: ['./landing.scss', './landing-responsive.scss'],
+  styleUrls: ['./landing.scss', './landing-responsive.scss', './landing-demo.scss'],
 })
 export class LandingPage {
   readonly requestedLang = input<string>(undefined, { alias: 'lang' });
@@ -18,6 +18,11 @@ export class LandingPage {
   protected readonly copy = this.locale.copy;
   protected readonly lang = this.locale.lang;
   protected readonly plans = inject(PlanCatalogService);
+  protected readonly demoBranches: readonly MarketingDemoBranch[] = [
+    'vocabulary', 'listening', 'speaking', 'reading',
+  ];
+  protected readonly demoBranch = signal<MarketingDemoBranch | null>(null);
+  protected readonly demoNextStep = signal<MarketingDemoBranch | null>(null);
   private readonly title = inject(Title);
   private readonly meta = inject(Meta);
   private readonly main = viewChild.required<ElementRef<HTMLElement>>('main');
@@ -59,6 +64,10 @@ export class LandingPage {
 
   protected setLanguage(lang: MarketingLang): void {
     this.locale.set(lang);
+  }
+
+  protected toggleDemoBranch(branch: MarketingDemoBranch): void {
+    this.demoBranch.update((current) => current === branch ? null : branch);
   }
 
   protected focusMain(): void {

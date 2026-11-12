@@ -253,7 +253,10 @@ export async function newProbePage(
 
 /** Standard browser + page. Desktop viewport unless overridden. */
 export async function launchPage(viewport = { width: 900, height: 800 }, options = {}) {
-  const browser = await chromium.launch({ channel: 'msedge', headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.RM_BROWSER_CHANNEL ?? 'msedge',
+    headless: true,
+  });
   try {
     return await newProbePage(browser, viewport, options);
   } catch (error) {

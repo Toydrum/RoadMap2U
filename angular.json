@@ -53,6 +53,14 @@
               "outputHashing": "all",
               "serviceWorker": "ngsw-config.json"
             },
+            "ci-public-catalog": {
+              "fileReplacements": [
+                {
+                  "replace": "src/app/core/generated-config.ts",
+                  "with": "tools/fixtures/public-catalog-config.ts"
+                }
+              ]
+            },
             "development": {
               "optimization": false,
               "extractLicenses": false,

@@ -491,16 +491,23 @@
 
 .plot {
   position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   width: clamp(140px, 22vw, 184px);
-  padding: 0.4rem 0.2rem 0.6rem;
-  text-decoration: none;
   color: var(--text);
   border-radius: var(--radius);
   transform-origin: 50% 100%;
   transition: left 0.35s ease, bottom 0.35s ease, transform 0.3s ease;
+
+  .plot-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    padding: 0.4rem 0.2rem 0.6rem;
+    border-radius: inherit;
+    text-decoration: none;
+    color: inherit;
+    cursor: inherit;
+  }
 
   /* Earned-size crowns can shade a neighbor's corner 🗃 — the plot you're
      reaching for steps forward. !important beats the inline painter's-order

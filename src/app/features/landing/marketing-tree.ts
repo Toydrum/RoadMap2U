@@ -27,6 +27,8 @@ export interface MarketingDemoLabels {
   description: string;
 }
 
+export type MarketingDemoBranch = Exclude<keyof MarketingDemoLabels, 'description' | 'goal'>;
+
 interface MarketingLabelAnchor {
   key: Exclude<keyof MarketingDemoLabels, 'description'>;
   x: number;
@@ -204,5 +206,6 @@ export function marketingTreeModel(): MarketingTreeModel {
 export class MarketingTree {
   readonly variant = input<MarketingTreeVariant>('hero');
   readonly demoLabels = input<MarketingDemoLabels>();
+  readonly highlightedBranch = input<MarketingDemoBranch | null>(null);
   protected readonly model = marketingTreeModel();
 }

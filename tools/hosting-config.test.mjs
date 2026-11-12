@@ -6,9 +6,30 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { rewriteLegacyPagesManifest } from './prepare-pages-artifact.mjs';
+import { publicDiscovery } from './prepare-public-discovery.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relativePath) => readFileSync(join(root, relativePath), 'utf8');
+
+test('production shares the canonical landing and non-production exposes its noindex rule', () => {
+  const index = read('src/index.html');
+  const prod = publicDiscovery(index, 'prod');
+  assert.match(prod.index, /rel="canonical" href="https:\/\/roadmap2u\.com\/"/);
+  assert.match(prod.index, /property="og:title" content="RoadMap2U/);
+  assert.match(prod.index, /property="og:description" content="RoadMap2U/);
+  assert.match(prod.index, /property="og:image" content="https:\/\/roadmap2u\.com\/icons\/icon-512x512\.png"/);
+  assert.doesNotMatch(prod.index, /noindex/);
+  assert.match(prod.robots, /Disallow: \/account\nSitemap: https:\/\/roadmap2u\.com\/sitemap\.xml/);
+  assert.match(prod.sitemap, /<loc>https:\/\/roadmap2u\.com\/<\/loc>/);
+
+  for (const stage of ['local', 'dev', 'test']) {
+    const privateBuild = publicDiscovery(index, stage);
+    assert.match(privateBuild.index, /noindex, nofollow/);
+    assert.equal(privateBuild.robots, 'User-agent: *\nDisallow:\n');
+    assert.equal(privateBuild.robots, read('public/robots.txt').replaceAll('\r\n', '\n'));
+    assert.equal(privateBuild.sitemap, null);
+  }
+});
 
 test('each AWS workflow expires stable public assets before its smoke and release marker', () => {
   const stepName = 'Invalidate public assets without hashed filenames';
@@ -27,18 +48,24 @@ test('each AWS workflow expires stable public assets before its smoke and releas
     const bash = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash';
     const log = join(temp, 'aws.log');
     try {
-      writeFileSync(join(temp, 'aws'), '#!/usr/bin/env bash\nprintf "%s\\0" "$@" >> "$QA_AWS_LOG"\nprintf "\\n" >> "$QA_AWS_LOG"\ncase "$1 $2" in\n  "cloudfront create-invalidation") printf "CACHEINV123\\n" ;;\n  "cloudfront wait") exit 0 ;;\n  *) printf "Unexpected AWS call\\n" >&2; exit 1 ;;\nesac\n', { mode: 0o700 });
+      writeFileSync(join(temp, 'aws'), '#!/usr/bin/env bash\nprintf "%s\\0" "$@" >> "$QA_AWS_LOG"\nprintf "\\n" >> "$QA_AWS_LOG"\ncase "$1 $2" in\n  "cloudfront create-invalidation") printf "CACHEINV123\\n" ;;\n  "cloudfront wait"|"s3 rm") exit 0 ;;\n  *) printf "Unexpected AWS call\\n" >&2; exit 1 ;;\nesac\n', { mode: 0o700 });
       execFileSync(bash, ['-c', 'export PATH="$QA_SHIM_DIR:$PATH"\n' + shell], {
-        encoding: 'utf8', timeout: 10000, windowsHide: true,
-        env: { ...process.env, QA_SHIM_DIR: unix(temp), QA_AWS_LOG: unix(log), DISTRIBUTION_ID: 'DISTTEST123' },
+        cwd: temp, encoding: 'utf8', timeout: 10000, windowsHide: true,
+        env: { ...process.env, QA_SHIM_DIR: unix(temp), QA_AWS_LOG: unix(log), SITE_BUCKET: 'site-fixture', DISTRIBUTION_ID: 'DISTTEST123' },
       });
       const calls = readFileSync(log, 'utf8').trimEnd().split('\n').map(line => line.split('\0').filter(Boolean));
-      assert.equal(calls.length, 2, 'one invalidation followed by its completion wait');
-      const create = calls[0], wait = calls[1];
+      const rollback = workflowPath.endsWith('/rollback-aws.yml');
+      const expectedRemovals = rollback ? [
+        'releases/current/robots.txt', 'robots.txt', 'releases/current/sitemap.xml', 'sitemap.xml',
+      ].map(key => ['s3', 'rm', `s3://site-fixture/${key}`, '--only-show-errors']) : [];
+      assert.deepEqual(calls.slice(0, -2), expectedRemovals, 'an older rollback only clears mutable discovery keys');
+      const [create, wait] = calls.slice(-2);
       assert.deepEqual(create.slice(0, 2), ['cloudfront', 'create-invalidation']);
       assert.equal(create[create.indexOf('--distribution-id') + 1], 'DISTTEST123');
       const paths = create.slice(create.indexOf('--paths') + 1, create.indexOf('--query'));
-      for (const asset of ['/icons/icon-192x192.png', '/icons/logo.svg', '/favicon.ico']) {
+      const stableAssets = ['/icons/icon-192x192.png', '/icons/logo.svg', '/favicon.ico'];
+      if (rollback) stableAssets.push('/robots.txt', '/sitemap.xml');
+      for (const asset of stableAssets) {
         assert.ok(paths.some(path => path === asset || path.endsWith('*') && asset.startsWith(path.slice(0, -1))), `${workflowPath}: stale ${asset} must be evicted`);
       }
       assert.ok(!paths.includes('/*'), 'hashed bundles keep their cache');
@@ -220,6 +247,22 @@ test('AWS publication preserves release entrypoints, uploads index last, and inv
   assert.ok(indexPosition > syncPosition, 'index.html must be uploaded after assets');
   assert.match(publisher, /create-invalidation/);
   assert.doesNotMatch(publisher, /["']\/\*["']/);
+});
+
+test('rollback expires discovery paths absent from both rebuilt and retained artifacts', () => {
+  const workflow = read('.github/workflows/rollback-aws.yml');
+  const start = workflow.indexOf('- name: Invalidate public assets without hashed filenames');
+  const end = workflow.indexOf('- name: Smoke the restored host and API boundary', start);
+  const cleanup = workflow.slice(start, end);
+  assert.ok(start > workflow.indexOf('bash tools/publish-aws-site.sh'));
+  assert.ok(end > start);
+  assert.doesNotMatch(cleanup, /if:.*recovery_mode/);
+  assert.match(cleanup, /for entrypoint in robots\.txt sitemap\.xml/);
+  assert.match(cleanup, /! -f "dist\/roadmap2u\/browser\/\$entrypoint"/);
+  const removal = [...cleanup.matchAll(/aws s3 rm "([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(removal, ['s3://$SITE_BUCKET/releases/current/$entrypoint', 's3://$SITE_BUCKET/$entrypoint']);
+  assert.match(cleanup, /--paths .*'\/robots\.txt' '\/sitemap\.xml'/);
+  assert.ok(cleanup.indexOf('create-invalidation') > cleanup.lastIndexOf('aws s3 rm'));
 });
 
 test('CloudFront binding validation requires an origin access control', () => {
