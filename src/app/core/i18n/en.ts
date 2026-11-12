@@ -1149,28 +1149,9 @@ export const EN: Dict = {
     mockResetConfirmGo: 'Yes, reset',
     aboutText: 'Made with care for minds that grow in spirals, not straight lines.',
     installTitle: 'Install RoadMap2U',
-    installGuide: {
-      title: 'Install on my phone',
-      action: 'Install on this device',
-      desktopHint: 'On a computer, look for the install icon in the address bar or “Install app” in the browser menu.',
-      iphone: {
-        title: 'iPhone',
-        steps: [
-          'Open RoadMap2U in Safari.',
-          'Tap Share and choose “Add to Home Screen”.',
-          'If “Open as Web App” appears, turn it on. Tap “Add”.',
-        ],
-      },
-      android: {
-        title: 'Android',
-        steps: [
-          'Open RoadMap2U in Chrome.',
-          'Tap the ⋮ menu and look for “Install”, “Install and create shortcut”, or “Add to Home screen”.',
-          'Choose “Install” if it appears, then confirm.',
-        ],
-      },
-      openFromIcon: 'You can then open RoadMap2U from the icon on your home screen.',
-    },
+    installAction: 'Install',
+    installAppleHint: 'In Safari, open Share and choose Add to Home Screen.',
+    installBrowserHint: 'In your browser menu, look for Install app or Add to Home screen.',
     updatesTitle: 'Updates',
     checkNow: 'Check for updates now',
     checking: 'Checking…',
@@ -1698,11 +1679,6 @@ export const EN: Dict = {
     settingsHint: 'A short walk through everything you can do here',
     firstTime: 'First time here? See how it works →',
     sections: [
-      {
-        icon: '📱',
-        title: 'Install on my phone',
-        body: 'On your first visit to the Forest, look for “Install on my phone” for iPhone and Android steps. You can also find them under Settings → Install RoadMap2U anytime, on both Free and Premium.',
-      },
       {
         icon: '🧭',
         title: 'The check-in',
