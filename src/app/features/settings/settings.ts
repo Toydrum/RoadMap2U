@@ -26,12 +26,21 @@ import type { AccountClosureState } from '../../core/api/contracts';
 import { PrivacyService } from '../../core/privacy.service';
 import { PrivacyPanel } from '../../shared/ui/privacy-panel';
 import { AccountAccessSummary } from '../../shared/ui/account-access-summary';
+import { PhoneInstallGuide } from '../../shared/ui/phone-install-guide';
 import { forestQuotaMessage, restoreTreeWithFeedback } from '../forest/forest-quota-feedback';
 import { SyncConflictReview } from './sync-conflict-review';
 
 @Component({
   selector: 'app-settings',
-  imports: [RouterLink, ConfirmSheet, Switch, PrivacyPanel, AccountAccessSummary, SyncConflictReview],
+  imports: [
+    RouterLink,
+    ConfirmSheet,
+    Switch,
+    PrivacyPanel,
+    AccountAccessSummary,
+    SyncConflictReview,
+    PhoneInstallGuide,
+  ],
   templateUrl: './settings.html',
   styleUrl: './settings.scss',
 })

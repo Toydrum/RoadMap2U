@@ -38,6 +38,7 @@ import { forestQuotaMessage, restoreTreeWithFeedback } from './forest-quota-feed
 import { CheckinsRepo } from '../../core/repos/checkins.repo';
 import { HarvestsRepo } from '../../core/repos/harvests.repo';
 import { SettingsService } from '../../core/repos/settings.service';
+import { PwaInstallService } from '../../core/pwa-install.service';
 import { ToastService, UNDO_MS } from '../../shared/ui/toast.service';
 import { AccentToken, Feeling, Tree } from '../../core/db/schema';
 import { deriveAccent, ritualKind } from '../../core/harvest';
@@ -54,6 +55,7 @@ import { FlowerGlyph } from './flower';
 import { FocusSessionService } from '../../core/focus-session.service';
 import { PerchAnchorService } from '../../core/perch-anchor.service';
 import { PerchBody } from '../../shared/ui/perch-body';
+import { PhoneInstallGuide } from '../../shared/ui/phone-install-guide';
 import { PlanLimitSheet } from '../access/plan-limit-sheet';
 
 const ACCENTS: AccentToken[] = ['moss', 'sage', 'sky', 'clay', 'lavender', 'sand', 'rose', 'pine'];
@@ -84,6 +86,7 @@ type PlanLimitDecision = Extract<
     FinderSheet,
     DespedidaSheet,
     PlanLimitSheet,
+    PhoneInstallGuide,
   ],
   templateUrl: './forest.html',
   styleUrls: ['./forest.scss', './clearing-pagination.scss'],
@@ -102,6 +105,7 @@ export class ForestPage {
   protected readonly nodes = inject(NodesRepo);
   protected readonly harvests = inject(HarvestsRepo);
   protected readonly accents = ACCENTS;
+  protected readonly showPhoneInstallGuide = inject(PwaInstallService).claimForestGuide();
 
   protected readonly creating = signal(false);
   protected readonly newName = signal('');
