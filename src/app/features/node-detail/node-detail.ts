@@ -1,7 +1,9 @@
-import { Component, ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { inputValue } from '../../shared/ui/dom';
 import { Router } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
+import { ApiError, type StepSuggestionsRequest } from '../../core/api/contracts';
+import { StepSuggestionsService } from '../../core/api/step-suggestions.service';
 import { NodesRepo } from '../../core/repos/nodes.repo';
 import { TreesRepo } from '../../core/repos/trees.repo';
 import { SessionsRepo } from '../../core/repos/sessions.repo';
@@ -26,6 +28,8 @@ import { VisitSession } from '../../core/visit/visit-session';
 import { PromiseService } from '../cosecha/promise.service';
 import { forestQuotaMessage } from '../forest/forest-quota-feedback';
 import { RitualCompletion, occurrenceAvailable } from './ritual-completion';
+import { buildStepSuggestionContext, comparableStepTitle } from './step-suggestion-context';
+import { STEP_SUGGESTION_COPY } from './step-suggestion-copy';
 
 // Life-cycle order, rest LAST (owner 2026-07-11): seed → growing → bloomed
 // reads as the branch's natural arc; resting is the aside, not a stage.
@@ -33,6 +37,16 @@ const SELECTABLE_STATUSES: NodeStatus[] = ['seed', 'growing', 'achieved', 'resti
 
 // LightChoice + LIGHT_ICONS live in schema.ts (shared with the tablita).
 const LIGHTS: LightChoice[] = ['sunlit', 'steady', 'shade'];
+
+interface StepSuggestionReview {
+  session: string;
+  branchId: string;
+  treeId: string;
+  context: StepSuggestionsRequest;
+  phase: 'disclose' | 'loading' | 'editing' | 'saving' | 'error';
+  rows: { title: string; selected: boolean }[];
+  error?: string;
+}
 
 @Component({
   selector: 'app-node-detail',
@@ -58,6 +72,19 @@ export class NodeDetail {
   private readonly promise = inject(PromiseService);
   private readonly reminders = inject(RemindersService);
   private readonly ritualCompletion = inject(RitualCompletion);
+  private readonly stepSuggestions = inject(StepSuggestionsService);
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.suggestionDraft.set(null));
+    effect(() => {
+      if (this.stepSuggestions.session() && this.suggestionBranchEligible()) {
+        void this.stepSuggestions.checkEligibility();
+      }
+    });
+    effect(() => {
+      if (this.suggestionDraft() && !this.stepSuggestionReview()) this.suggestionDraft.set(null);
+    });
+  }
 
   protected readonly statuses = SELECTABLE_STATUSES;
   protected readonly lights = LIGHTS;
@@ -449,6 +476,134 @@ export class NodeDetail {
     this.crumbleStep.set(null);
     this.crumbleAnswer.set('');
     this.crumbleAnswers = [];
+  }
+
+  protected readonly suggestionCopy = computed(() => STEP_SUGGESTION_COPY[this.i18n.lang()]);
+  private readonly suggestionDraft = signal<StepSuggestionReview | null>(null);
+  protected readonly canSuggestSteps = computed(() =>
+    this.stepSuggestions.available() && this.suggestionBranchEligible(),
+  );
+  protected readonly stepSuggestionReview = computed(() => {
+    const review = this.suggestionDraft();
+    if (!review || review.session !== this.stepSuggestions.session()) return null;
+    if (review.phase !== 'saving' && !this.canSuggestSteps()) return null;
+    return review.branchId === this.node().id && review.treeId === this.tree().id ? review : null;
+  });
+  protected readonly hasSelectedSuggestion = computed(() =>
+    this.stepSuggestionReview()?.rows.some((row) => row.selected) ?? false,
+  );
+
+  protected openStepSuggestions(): void {
+    const session = this.stepSuggestions.session();
+    if (!session || !this.canSuggestSteps()) return;
+    const context = this.suggestionContext();
+    if (!context) return;
+    const branchId = this.node().id;
+    const cached = this.stepSuggestions.cached(branchId, context);
+    this.suggestionDraft.set({
+      session,
+      branchId,
+      treeId: this.tree().id,
+      context,
+      phase: cached ? 'editing' : 'disclose',
+      rows: (cached ?? []).map((title) => ({ title, selected: true })),
+    });
+  }
+
+  protected async generateStepSuggestions(): Promise<void> {
+    const review = this.stepSuggestionReview();
+    if (review?.phase !== 'disclose') return;
+    // Preview the new context before sending if titles changed since the sheet opened.
+    if (JSON.stringify(review.context) !== JSON.stringify(this.suggestionContext())) {
+      this.openStepSuggestions();
+      return;
+    }
+
+    const pending: StepSuggestionReview = { ...review, phase: 'loading' };
+    this.suggestionDraft.set(pending);
+    try {
+      const titles = await this.stepSuggestions.generate(review.branchId, review.context);
+      if (this.stepSuggestionReview() === pending) {
+        this.suggestionDraft.set({
+          ...review,
+          phase: 'editing',
+          rows: titles.map((title) => ({ title, selected: true })),
+        });
+      }
+    } catch (error) {
+      if (this.stepSuggestionReview() !== pending) return;
+      let message = this.suggestionCopy().unavailable;
+      if (error instanceof ApiError && error.code === 'RATE_LIMITED') {
+        const next = new Date();
+        next.setUTCHours(24, 0, 0, 0);
+        const time = new Intl.DateTimeFormat(this.i18n.lang(), { timeStyle: 'short' }).format(next);
+        message = this.i18n.fill(this.suggestionCopy().limit, { time });
+      }
+      this.suggestionDraft.set({ ...review, phase: 'error', error: message });
+    }
+  }
+
+  protected editStepSuggestion(index: number, title: string): void {
+    const review = this.stepSuggestionReview();
+    if (review?.phase !== 'editing') return;
+    const rows = review.rows.map((row, i) => i === index ? { ...row, title } : row);
+    this.suggestionDraft.set({ ...review, rows, error: undefined });
+  }
+
+  protected selectStepSuggestion(index: number): void {
+    const review = this.stepSuggestionReview();
+    if (review?.phase !== 'editing') return;
+    const rows = review.rows.map((row, i) => i === index ? { ...row, selected: !row.selected } : row);
+    this.suggestionDraft.set({ ...review, rows, error: undefined });
+  }
+
+  protected async saveStepSuggestions(): Promise<void> {
+    const review = this.stepSuggestionReview();
+    if (review?.phase !== 'editing') return;
+    const titles = review.rows.filter((row) => row.selected).map((row) => row.title.trim());
+    if (!titles.length) return;
+    const existing = new Set(this.children().map((child) => comparableStepTitle(child.title)));
+    for (const title of titles) {
+      const normalized = comparableStepTitle(title);
+      if (!normalized || title.length > 80 || existing.has(normalized)) {
+        this.suggestionDraft.set({ ...review, error: this.suggestionCopy().invalid });
+        return;
+      }
+      existing.add(normalized);
+    }
+    const saving: StepSuggestionReview = { ...review, phase: 'saving', error: undefined };
+    this.suggestionDraft.set(saving);
+    try {
+      const drafts = titles.map((title) => ({ parentId: review.branchId, title }));
+      await this.nodes.plantMany(review.treeId, drafts);
+      if (this.stepSuggestionReview() !== saving) return;
+      this.suggestionDraft.set(null);
+      this.toast.show({ message: this.i18n.plural(titles.length, this.i18n.t().crumble.planted) });
+    } catch (error) {
+      if (this.stepSuggestionReview() !== saving) return;
+      this.suggestionDraft.set(review);
+      this.showMutationError(error);
+    }
+  }
+
+  protected closeStepSuggestions(): void {
+    if (this.stepSuggestionReview()?.phase !== 'saving') this.suggestionDraft.set(null);
+  }
+
+  protected continueCrumbleManually(): void {
+    this.closeStepSuggestions();
+    this.startCrumble();
+  }
+
+  private suggestionBranchEligible(): boolean {
+    const node = this.node();
+    const tree = this.tree();
+    return !this.visiting && !tree.archivedAt && !tree.deletedAt && !node.archivedAt && !node.deletedAt &&
+      tree.id === node.treeId && this.canCrumble() && !this.isRitualLeaf();
+  }
+
+  private suggestionContext(): StepSuggestionsRequest | null {
+    return buildStepSuggestionContext(this.i18n.lang(), this.tree(), this.node(), this.nodes.byId(), this.children());
   }
 
   /** The pasitos become (or stop being) an ordered path. Never forced. */

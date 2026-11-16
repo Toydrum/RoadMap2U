@@ -316,6 +316,11 @@
           🔪 {{ i18n.t().crumble.cta }}
         </button>
         <span class="hint">{{ i18n.t().crumble.ctaHint }}</span>
+        @if (canSuggestSteps()) {
+          <button type="button" class="btn btn-ghost crumble-cta" (click)="openStepSuggestions()">
+            {{ suggestionCopy().title }}
+          </button>
+        }
       }
     }
 
@@ -422,5 +427,93 @@
         </button>
       </div>
     </form>
+  </div>
+}
+
+@if (stepSuggestionReview(); as review) {
+  <div class="sheet-backdrop" (click)="closeStepSuggestions()">
+    <section
+      class="sheet card confirm step-suggestions"
+      appSheet
+      (sheetClose)="closeStepSuggestions()"
+      (click)="$event.stopPropagation()"
+      role="dialog" aria-modal="true"
+      [attr.aria-label]="suggestionCopy().title"
+      [attr.aria-busy]="review.phase === 'loading' || review.phase === 'saving'"
+    >
+      <h2>{{ suggestionCopy().title }}</h2>
+      @switch (review.phase) {
+        @case ('disclose') {
+          <p class="confirm-body">{{ suggestionCopy().disclosure }}</p>
+          <dl class="suggestion-context">
+            <dt>{{ suggestionCopy().tree }}</dt>
+            <dd>{{ review.context.treeTitle }}</dd>
+            <dt>{{ suggestionCopy().branch }}</dt>
+            <dd>{{ review.context.branchTitle }}</dd>
+            @if (review.context.ancestorTitles.length) {
+              <dt>{{ suggestionCopy().ancestors }}</dt>
+              <dd>{{ review.context.ancestorTitles.join(' → ') }}</dd>
+            }
+            @if (review.context.existingStepTitles.length) {
+              <dt>{{ suggestionCopy().existing }}</dt>
+              <dd>{{ review.context.existingStepTitles[0] }}</dd>
+            }
+          </dl>
+        }
+        @case ('loading') {
+          <p class="confirm-body" role="status">{{ suggestionCopy().loading }}</p>
+        }
+        @case ('error') {
+          <p class="confirm-body" role="status">{{ review.error }}</p>
+        }
+        @default {
+          <p class="confirm-body">{{ suggestionCopy().instructions }}</p>
+          @for (row of review.rows; track $index) {
+            <div class="suggestion-row">
+              <input
+                type="checkbox"
+                [checked]="row.selected"
+                [disabled]="review.phase === 'saving'"
+                [attr.aria-label]="i18n.fill(suggestionCopy().select, { number: $index + 1 })"
+                (change)="selectStepSuggestion($index)"
+              >
+              <input
+                type="text"
+                maxlength="80"
+                [value]="row.title"
+                [readOnly]="review.phase === 'saving'"
+                [attr.aria-label]="i18n.fill(suggestionCopy().edit, { number: $index + 1 })"
+                (input)="editStepSuggestion($index, inputValue($event))"
+              >
+            </div>
+          }
+          @if (review.error) {
+            <p class="confirm-body" role="status">{{ review.error }}</p>
+          }
+        }
+      }
+      <div class="row">
+        <button type="button" class="btn btn-ghost" (click)="closeStepSuggestions()" [disabled]="review.phase === 'saving'">
+          {{ i18n.t().common.cancel }}
+        </button>
+        @switch (review.phase) {
+          @case ('disclose') {
+            <button type="button" class="btn btn-primary" (click)="generateStepSuggestions()">
+              {{ suggestionCopy().generate }}
+            </button>
+          }
+          @case ('error') {
+            <button type="button" class="btn btn-primary" (click)="continueCrumbleManually()">
+              {{ i18n.t().crumble.cta }}
+            </button>
+          }
+          @case ('editing') {
+            <button type="button" class="btn btn-primary" (click)="saveStepSuggestions()" [disabled]="!hasSelectedSuggestion()">
+              {{ suggestionCopy().save }}
+            </button>
+          }
+        }
+      </div>
+    </section>
   </div>
 }

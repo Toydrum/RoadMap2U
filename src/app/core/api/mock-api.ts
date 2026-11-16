@@ -64,6 +64,8 @@ import {
   ReplaceAdditionalResponsibleScopeRequest,
   RevokeAdditionalResponsibleRequest,
   SubscriptionChangePreviewView,
+  StepSuggestionsRequest,
+  StepSuggestionsResponse,
   SyncChangesResponse,
   SyncPushPayload,
   SyncRecord,
@@ -304,6 +306,17 @@ export class MockApi implements ApiClient {
   }
 
   // ── me (phase «cuentas») ──────────────────────────────────────────────────
+
+  async suggestSteps(request: StepSuggestionsRequest): Promise<StepSuggestionsResponse> {
+    const caller = await this.caller(true);
+    if (caller.accountType !== 'adult' || caller.privacyMode) throw new ApiError('FORBIDDEN');
+    return {
+      suggestions:
+        request.language === 'es'
+          ? ['Identificar el primer movimiento', 'Reunir lo necesario', 'Probar durante dos minutos']
+          : ['Find the first small action', 'Gather what you need', 'Try it for two minutes'],
+    };
+  }
 
   async getMe(): Promise<MeResponse> {
     await simLatency('api.getMe');

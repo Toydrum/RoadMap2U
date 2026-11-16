@@ -329,6 +329,26 @@
   margin-top: 0.3rem;
 }
 
+.suggestion-context {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.35rem 0.65rem;
+  text-align: start;
+
+  dt { color: var(--text-dim); }
+  dd { margin: 0; overflow-wrap: anywhere; }
+}
+
+.suggestion-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  margin-block: 0.45rem;
+
+  input[type='text'] { width: 100%; }
+}
+
 /* «La campanita» (0.0.111) — the reminder hour beside the cuando-entonces */
 .remind-row {
   display: flex;

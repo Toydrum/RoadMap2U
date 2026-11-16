@@ -50,6 +50,8 @@ import {
   MinorLinkRequestView,
   PlanCatalog,
   PreviewSubscriptionChangeRequest,
+  StepSuggestionsRequest,
+  StepSuggestionsResponse,
   ReplaceAdditionalResponsibleScopeRequest,
   RevokeAdditionalResponsibleRequest,
   SERVER_API_ERROR_CODES,
@@ -134,6 +136,9 @@ export class HttpApi implements ApiClient {
   // ── me ────────────────────────────────────────────────────────────────────
   getMe(): Promise<MeResponse> {
     return this.request('GET', API_PATHS.me);
+  }
+  suggestSteps(request: StepSuggestionsRequest): Promise<StepSuggestionsResponse> {
+    return this.request('POST', API_PATHS.stepSuggestions, request);
   }
   patchMe(patch: { displayName?: string }): Promise<UserProfile> {
     return this.request('PATCH', API_PATHS.me, patch);

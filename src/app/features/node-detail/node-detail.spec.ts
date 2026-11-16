@@ -2,6 +2,8 @@ import { signal, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../core/api/contracts';
+import { StepSuggestionsService } from '../../core/api/step-suggestions.service';
 import { ES } from '../../core/i18n/es';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { RemindersService } from '../../core/reminders.service';
@@ -22,9 +24,13 @@ function setup(error?: ForestQuotaError) {
     if (error) throw error;
   });
   const show = vi.fn();
+  const session = signal<string | null>('test-session');
+  const generate = vi.fn(async () => ['Preparar la maceta', 'Plantar las semillas', 'Humedecer la tierra']);
   const i18n = {
     t: signal(ES),
-    fill: (template: string, values: { limit: number }) => template.replace('{limit}', String(values.limit)),
+    lang: signal('es'),
+    fill: (template: string, values: Record<string, string | number>) =>
+      template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? '')),
     plural: (count: number, forms: { one: string; many: string }) =>
       (count === 1 ? forms.one : forms.many).replace('{count}', String(count)),
   };
@@ -32,7 +38,8 @@ function setup(error?: ForestQuotaError) {
     imports: [NodeDetail],
     providers: [
       { provide: I18nService, useValue: i18n },
-      { provide: NodesRepo, useValue: { plant, plantMany } },
+      { provide: NodesRepo, useValue: { plant, plantMany, byId: signal(new Map()), childrenOf: () => [] } },
+      { provide: StepSuggestionsService, useValue: { session, available: () => true, checkEligibility: vi.fn(), cached: () => null, generate } },
       { provide: ToastService, useValue: { show } },
       ...[TreesRepo, SessionsRepo, Router, HarvestsRepo, BloomBurstService, HarvestSkyService,
         PromiseService, RemindersService].map((provide) => ({ provide, useValue: {} })),
@@ -40,14 +47,22 @@ function setup(error?: ForestQuotaError) {
   });
   TestBed.overrideComponent(NodeDetail, { set: { template: '', imports: [] } });
   const fixture = TestBed.createComponent(NodeDetail);
-  fixture.componentRef.setInput('node', { id: 'parent', treeId: 'tree' });
+  fixture.componentRef.setInput('node', { id: 'parent', treeId: 'tree', title: 'Plantar albahaca', status: 'seed', parentId: null });
+  fixture.componentRef.setInput('tree', { id: 'tree', name: 'Preparar el balcón' });
   const detail = fixture.componentInstance as unknown as {
     startCrumble(): void;
     crumbleNext(skip: boolean): Promise<void>;
     crumbleAnswer: WritableSignal<string>;
     crumbleStep: WritableSignal<number | null>;
+    openStepSuggestions(): void;
+    generateStepSuggestions(): Promise<void>;
+    editStepSuggestion(index: number, title: string): void;
+    selectStepSuggestion(index: number): void;
+    saveStepSuggestions(): Promise<void>;
+    closeStepSuggestions(): void;
+    stepSuggestionReview(): unknown;
   };
-  return { detail, plant, plantMany, show };
+  return { detail, plant, plantMany, show, session, generate };
 }
 
 async function enterAnswers(detail: ReturnType<typeof setup>['detail']) {
@@ -81,6 +96,79 @@ describe('Desmenuzar quota handling', () => {
     expect(detail.crumbleStep()).toBe(2);
     expect(detail.crumbleAnswer()).toBe('Tres');
     expect(plant).not.toHaveBeenCalled();
+    expect(show).toHaveBeenCalledWith({
+      message: ES.forest.errors.visibleBranchLimit.replace('{limit}', '5'),
+    });
+  });
+});
+
+describe('step suggestions in Desmenuzar', () => {
+  it('shows context before sending and plants only the selected edits', async () => {
+    const { detail, generate, plantMany } = setup();
+    detail.openStepSuggestions();
+    expect(generate).not.toHaveBeenCalled();
+    await detail.generateStepSuggestions();
+    expect(generate).toHaveBeenCalledExactlyOnceWith('parent', {
+      language: 'es',
+      treeTitle: 'Preparar el balcón',
+      branchTitle: 'Plantar albahaca',
+      ancestorTitles: [],
+      existingStepTitles: [],
+    });
+    detail.editStepSuggestion(0, 'Llenar una maceta');
+    detail.selectStepSuggestion(1);
+    detail.selectStepSuggestion(2);
+    await detail.saveStepSuggestions();
+    expect(plantMany).toHaveBeenCalledExactlyOnceWith('tree', [
+      { parentId: 'parent', title: 'Llenar una maceta' },
+    ]);
+  });
+
+  it('never saves a result from the previous session', async () => {
+    const { detail, plantMany, session } = setup();
+    detail.openStepSuggestions();
+    const pending = detail.generateStepSuggestions();
+    session.set('another-session');
+    await pending;
+    expect(detail.stepSuggestionReview()).toBeNull();
+    await detail.saveStepSuggestions();
+    expect(plantMany).not.toHaveBeenCalled();
+  });
+
+  it('lets the user close a review without saving it', async () => {
+    const { detail, plantMany } = setup();
+    detail.openStepSuggestions();
+    await detail.generateStepSuggestions();
+    detail.closeStepSuggestions();
+    await detail.saveStepSuggestions();
+    expect(plantMany).not.toHaveBeenCalled();
+  });
+
+  it('reserves a single request for a double click and shows the daily limit', async () => {
+    const { detail, generate, plantMany } = setup();
+    generate.mockRejectedValueOnce(new ApiError('RATE_LIMITED'));
+    detail.openStepSuggestions();
+    await Promise.all([detail.generateStepSuggestions(), detail.generateStepSuggestions()]);
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(detail.stepSuggestionReview()).toMatchObject({
+      phase: 'error', error: expect.stringContaining('El cupo se renueva'),
+    });
+    expect(plantMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps the chosen edits when the branch quota blocks saving', async () => {
+    const { detail, show } = setup(new ForestQuotaError({
+      allowed: false, reason: 'VISIBLE_BRANCH_LIMIT', treeId: 'tree', current: 5, projected: 6, limit: 5,
+    }));
+    detail.openStepSuggestions();
+    await detail.generateStepSuggestions();
+    detail.editStepSuggestion(0, 'Llenar una maceta');
+    await detail.saveStepSuggestions();
+
+    expect(detail.stepSuggestionReview()).toMatchObject({
+      phase: 'editing', rows: expect.arrayContaining([{ title: 'Llenar una maceta', selected: true }]),
+    });
     expect(show).toHaveBeenCalledWith({
       message: ES.forest.errors.visibleBranchLimit.replace('{limit}', '5'),
     });
