@@ -461,12 +461,13 @@
           </dl>
           @if (review.focusInput !== undefined) {
             <label class="suggestion-focus">
-              <span>{{ suggestionCopy().focusLabel }}</span>
+              <span>{{ suggestionFocusRequired() ? suggestionCopy().requiredFocusLabel : suggestionCopy().focusLabel }}</span>
               <input
                 type="text"
                 maxlength="80"
                 [placeholder]="suggestionCopy().focusPlaceholder"
                 [value]="review.focusInput"
+                [required]="suggestionFocusRequired()"
                 aria-describedby="suggestion-focus-help"
                 (input)="setStepSuggestionFocus(inputValue($event))"
               >
@@ -512,7 +513,7 @@
         </button>
         @switch (review.phase) {
           @case ('disclose') {
-            <button type="button" class="btn btn-primary" (click)="generateStepSuggestions()">
+            <button type="button" class="btn btn-primary" (click)="generateStepSuggestions()" [disabled]="!canGenerateStepSuggestion()">
               {{ suggestionCopy().generate }}
             </button>
           }

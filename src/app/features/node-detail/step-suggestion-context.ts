@@ -1,6 +1,13 @@
 import type { StepSuggestionsRequest } from '../../core/api/contracts';
 import type { Lang, Tree, TreeNode } from '../../core/db/schema';
 
+// Keep this title check paired with the exercises handler in the backend.
+const LEARNING_TITLE = /^(?:aprender|estudiar|practicar|repasar|learn(?:ing)?|study(?:ing)?|practic(?:e|ing)|practis(?:e|ing)|review(?:ing)?)(?:\s|$)/iu;
+
+export function isLearningTitle(title: string): boolean {
+  return LEARNING_TITLE.test(title.normalize('NFKC').trim());
+}
+
 export function boundedTitle(title: string): string {
   return title.replace(/[\s\p{Cc}\p{Cs}]+/gu, ' ').trim().slice(0, 80)
     .replace(/[\uD800-\uDBFF]$/u, '').trimEnd();

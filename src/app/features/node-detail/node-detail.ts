@@ -28,7 +28,7 @@ import { VisitSession } from '../../core/visit/visit-session';
 import { PromiseService } from '../cosecha/promise.service';
 import { forestQuotaMessage } from '../forest/forest-quota-feedback';
 import { RitualCompletion, occurrenceAvailable } from './ritual-completion';
-import { boundedTitle, buildStepSuggestionContext, comparableStepTitle } from './step-suggestion-context';
+import { boundedTitle, buildStepSuggestionContext, comparableStepTitle, isLearningTitle } from './step-suggestion-context';
 import { STEP_SUGGESTION_COPY } from './step-suggestion-copy';
 
 // Life-cycle order, rest LAST (owner 2026-07-11): seed → growing → bloomed
@@ -490,6 +490,16 @@ export class NodeDetail {
     if (review.phase !== 'saving' && !this.canSuggestSteps()) return null;
     return review.branchId === this.node().id && review.treeId === this.tree().id ? review : null;
   });
+  protected readonly suggestionFocusRequired = computed(() => {
+    const review = this.stepSuggestionReview();
+    return review?.focusInput !== undefined && review.context.ancestorTitles.length === 0 &&
+      review.context.existingStepTitles.length === 0 && isLearningTitle(review.context.treeTitle);
+  });
+  protected readonly canGenerateStepSuggestion = computed(() => {
+    const review = this.stepSuggestionReview();
+    return review?.phase === 'disclose' &&
+      (!this.suggestionFocusRequired() || !!boundedTitle(review.focusInput ?? ''));
+  });
   protected readonly hasSelectedSuggestion = computed(() =>
     this.stepSuggestionReview()?.rows.some((row) => row.selected) ?? false,
   );
@@ -531,6 +541,7 @@ export class NodeDetail {
     }
 
     const focus = boundedTitle(review.focusInput ?? '');
+    if (this.suggestionFocusRequired() && !focus) return;
     const context = focus ? { ...review.context, focus } : review.context;
     const pending: StepSuggestionReview = { ...review, context, phase: 'loading' };
     this.suggestionDraft.set(pending);
