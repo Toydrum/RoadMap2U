@@ -339,6 +339,15 @@
   dd { margin: 0; overflow-wrap: anywhere; }
 }
 
+.suggestion-focus {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+  text-align: start;
+
+  input { min-width: 0; }
+}
+
 .suggestion-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

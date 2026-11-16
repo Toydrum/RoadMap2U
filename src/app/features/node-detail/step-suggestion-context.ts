@@ -1,7 +1,7 @@
 import type { StepSuggestionsRequest } from '../../core/api/contracts';
 import type { Lang, Tree, TreeNode } from '../../core/db/schema';
 
-function boundedTitle(title: string): string {
+export function boundedTitle(title: string): string {
   return title.replace(/[\s\p{Cc}\p{Cs}]+/gu, ' ').trim().slice(0, 80)
     .replace(/[\uD800-\uDBFF]$/u, '').trimEnd();
 }
