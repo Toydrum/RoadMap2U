@@ -488,7 +488,7 @@
                 type="checkbox"
                 [checked]="row.selected"
                 [disabled]="review.phase === 'saving'"
-                [attr.aria-label]="i18n.fill(suggestionCopy().select, { number: $index + 1 })"
+                [attr.aria-label]="suggestionCopy().select"
                 (change)="selectStepSuggestion($index)"
               >
               <input
@@ -496,7 +496,7 @@
                 maxlength="80"
                 [value]="row.title"
                 [readOnly]="review.phase === 'saving'"
-                [attr.aria-label]="i18n.fill(suggestionCopy().edit, { number: $index + 1 })"
+                [attr.aria-label]="suggestionCopy().edit"
                 (input)="editStepSuggestion($index, inputValue($event))"
               >
             </div>

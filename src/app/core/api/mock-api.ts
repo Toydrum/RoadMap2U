@@ -310,6 +310,9 @@ export class MockApi implements ApiClient {
   async suggestSteps(request: StepSuggestionsRequest): Promise<StepSuggestionsResponse> {
     const caller = await this.caller(true);
     if (caller.accountType !== 'adult' || caller.privacyMode) throw new ApiError('FORBIDDEN');
+    if (request.maxSuggestions === 1) {
+      return { suggestions: [request.language === 'es' ? 'Probar el primer movimiento' : 'Try the first movement'] };
+    }
     return {
       suggestions:
         request.language === 'es'

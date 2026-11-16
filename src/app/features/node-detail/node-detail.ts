@@ -621,7 +621,8 @@ export class NodeDetail {
   }
 
   private suggestionContext(): StepSuggestionsRequest | null {
-    return buildStepSuggestionContext(this.i18n.lang(), this.tree(), this.node(), this.nodes.byId(), this.children());
+    const context = buildStepSuggestionContext(this.i18n.lang(), this.tree(), this.node(), this.nodes.byId(), this.children());
+    return context ? { ...context, maxSuggestions: 1 } : null;
   }
 
   private canAddSuggestionFocus(context: StepSuggestionsRequest): boolean {

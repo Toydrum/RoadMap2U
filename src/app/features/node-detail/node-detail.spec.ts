@@ -26,7 +26,7 @@ function setup(error?: ForestQuotaError) {
   });
   const show = vi.fn();
   const session = signal<string | null>('test-session');
-  const generate = vi.fn(async () => ['Preparar la maceta', 'Plantar las semillas', 'Humedecer la tierra']);
+  const generate = vi.fn(async () => ['Preparar la maceta']);
   const cached = vi.fn<(_branchId: string, _context: StepSuggestionsRequest) => readonly string[] | null>(() => null);
   const children = signal<readonly TreeNode[]>([]);
   const i18n = {
@@ -61,7 +61,6 @@ function setup(error?: ForestQuotaError) {
     setStepSuggestionFocus(value: string): void;
     generateStepSuggestions(): Promise<void>;
     editStepSuggestion(index: number, title: string): void;
-    selectStepSuggestion(index: number): void;
     saveStepSuggestions(): Promise<void>;
     closeStepSuggestions(): void;
     stepSuggestionReview(): unknown;
@@ -107,7 +106,7 @@ describe('Desmenuzar quota handling', () => {
 });
 
 describe('step suggestions in Desmenuzar', () => {
-  it('shows context before sending and plants only the selected edits', async () => {
+  it('shows context before requesting one next step and plants the edit', async () => {
     const { detail, generate, plantMany } = setup();
     detail.openStepSuggestions();
     detail.setStepSuggestionFocus('Otro enfoque');
@@ -119,10 +118,10 @@ describe('step suggestions in Desmenuzar', () => {
       branchTitle: 'Plantar albahaca',
       ancestorTitles: [],
       existingStepTitles: [],
+      maxSuggestions: 1,
     });
+    expect(detail.stepSuggestionReview()).toMatchObject({ phase: 'editing', rows: [{ title: 'Preparar la maceta', selected: true }] });
     detail.editStepSuggestion(0, 'Llenar una maceta');
-    detail.selectStepSuggestion(1);
-    detail.selectStepSuggestion(2);
     await detail.saveStepSuggestions();
     expect(plantMany).toHaveBeenCalledExactlyOnceWith('tree', [
       { parentId: 'parent', title: 'Llenar una maceta' },
@@ -171,6 +170,7 @@ describe('step suggestions in Desmenuzar', () => {
     detail.setStepSuggestionFocus('Elegir tierra');
     await detail.generateStepSuggestions();
     expect(generate).not.toHaveBeenCalled();
+    expect(cached.mock.lastCall?.[1]).toMatchObject({ focus: 'Elegir tierra', maxSuggestions: 1 });
     expect(detail.stepSuggestionReview()).toMatchObject({ phase: 'editing', rows: [{ title: 'Sacar una bolsa de tierra' }] });
 
     detail.closeStepSuggestions();
