@@ -59,6 +59,7 @@ function setup(error?: ForestQuotaError) {
     crumbleStep: WritableSignal<number | null>;
     openStepSuggestions(): void;
     setStepSuggestionFocus(value: string): void;
+    canGenerateStepSuggestion(): boolean;
     generateStepSuggestions(): Promise<void>;
     editStepSuggestion(index: number, title: string): void;
     saveStepSuggestions(): Promise<void>;
@@ -106,6 +107,36 @@ describe('Desmenuzar quota handling', () => {
 });
 
 describe('step suggestions in Desmenuzar', () => {
+  it.each(['Aprender ajedrez', 'Learning chess'])('requires a concrete focus before generating for an empty learning root (%s)', async (title) => {
+    const { detail, fixture, generate } = setup();
+    fixture.componentRef.setInput('tree', { id: 'tree', name: title });
+    fixture.componentRef.setInput('node', { id: 'parent', treeId: 'tree', title, status: 'seed', parentId: null });
+
+    detail.openStepSuggestions();
+    detail.setStepSuggestionFocus('   ');
+    expect(detail.canGenerateStepSuggestion()).toBe(false);
+    await detail.generateStepSuggestions();
+    expect(generate).not.toHaveBeenCalled();
+
+    detail.setStepSuggestionFocus('El movimiento del caballo');
+    expect(detail.canGenerateStepSuggestion()).toBe(true);
+    await detail.generateStepSuggestions();
+    expect(generate).toHaveBeenCalledExactlyOnceWith('parent', expect.objectContaining({ focus: 'El movimiento del caballo' }));
+  });
+
+  it('allows generation without focus when a learning root already has a step', async () => {
+    const { detail, fixture, generate, children } = setup();
+    const title = 'Aprender ajedrez';
+    fixture.componentRef.setInput('tree', { id: 'tree', name: title });
+    fixture.componentRef.setInput('node', { id: 'parent', treeId: 'tree', title, status: 'seed', parentId: null });
+    children.set([{ title: 'Colocar las piezas' } as TreeNode]);
+
+    detail.openStepSuggestions();
+    expect(detail.canGenerateStepSuggestion()).toBe(true);
+    await detail.generateStepSuggestions();
+    expect(generate).toHaveBeenCalledOnce();
+  });
+
   it('shows context before requesting one next step and plants the edit', async () => {
     const { detail, generate, plantMany } = setup();
     detail.openStepSuggestions();
