@@ -625,7 +625,7 @@ export class NodeDetail {
   }
 
   private canAddSuggestionFocus(context: StepSuggestionsRequest): boolean {
-    return this.node().parentId === null && this.children().length === 0 &&
+    return this.node().parentId === null &&
       comparableStepTitle(context.treeTitle) === comparableStepTitle(context.branchTitle);
   }
 

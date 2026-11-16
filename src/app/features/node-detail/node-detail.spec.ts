@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError, type StepSuggestionsRequest } from '../../core/api/contracts';
 import { StepSuggestionsService } from '../../core/api/step-suggestions.service';
+import type { TreeNode } from '../../core/db/schema';
 import { ES } from '../../core/i18n/es';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { RemindersService } from '../../core/reminders.service';
@@ -27,6 +28,7 @@ function setup(error?: ForestQuotaError) {
   const session = signal<string | null>('test-session');
   const generate = vi.fn(async () => ['Preparar la maceta', 'Plantar las semillas', 'Humedecer la tierra']);
   const cached = vi.fn<(_branchId: string, _context: StepSuggestionsRequest) => readonly string[] | null>(() => null);
+  const children = signal<readonly TreeNode[]>([]);
   const i18n = {
     t: signal(ES),
     lang: signal('es'),
@@ -39,7 +41,7 @@ function setup(error?: ForestQuotaError) {
     imports: [NodeDetail],
     providers: [
       { provide: I18nService, useValue: i18n },
-      { provide: NodesRepo, useValue: { plant, plantMany, byId: signal(new Map()), childrenOf: () => [] } },
+      { provide: NodesRepo, useValue: { plant, plantMany, byId: signal(new Map()), childrenOf: children } },
       { provide: StepSuggestionsService, useValue: { session, available: () => true, checkEligibility: vi.fn(), cached, generate } },
       { provide: ToastService, useValue: { show } },
       ...[TreesRepo, SessionsRepo, Router, HarvestsRepo, BloomBurstService, HarvestSkyService,
@@ -64,7 +66,7 @@ function setup(error?: ForestQuotaError) {
     closeStepSuggestions(): void;
     stepSuggestionReview(): unknown;
   };
-  return { detail, fixture, plant, plantMany, show, session, cached, generate };
+  return { detail, fixture, plant, plantMany, show, session, cached, generate, children };
 }
 
 async function enterAnswers(detail: ReturnType<typeof setup>['detail']) {
@@ -127,9 +129,10 @@ describe('step suggestions in Desmenuzar', () => {
     ]);
   });
 
-  it('sends an explicitly entered focus for a bare tree root only after confirmation', async () => {
-    const { detail, fixture, generate } = setup();
+  it('sends an explicitly entered focus for a matching tree root only after confirmation', async () => {
+    const { detail, fixture, generate, children } = setup();
     fixture.componentRef.setInput('tree', { id: 'tree', name: 'Plantar albahaca' });
+    children.set([{ title: 'Elegir albahaca' } as TreeNode]);
 
     detail.openStepSuggestions();
     expect(detail.stepSuggestionReview()).toMatchObject({ phase: 'disclose', focusInput: '' });
@@ -139,6 +142,7 @@ describe('step suggestions in Desmenuzar', () => {
 
     expect(generate).toHaveBeenCalledExactlyOnceWith('parent', expect.objectContaining({
       focus: 'Usar una maceta pequeña',
+      existingStepTitles: ['Elegir albahaca'],
     }));
   });
 
