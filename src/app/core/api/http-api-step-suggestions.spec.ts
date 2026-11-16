@@ -19,15 +19,16 @@ describe('step suggestions HTTP transport', () => {
   } as unknown as AuthProvider);
 
   it('sends only the approved context in an authenticated POST', async () => {
-    const payload = { suggestions: ['Elegir semillas', 'Llenar la maceta', 'Humedecer la tierra'] };
+    const request = { ...context, maxSuggestions: 1 as const };
+    const payload = { suggestions: ['Elegir semillas'] };
     const fetch = vi.fn(async () => Response.json(payload));
     vi.stubGlobal('fetch', fetch);
 
-    expect(await api.suggestSteps(context)).toEqual(payload);
+    expect(await api.suggestSteps(request)).toEqual(payload);
     expect(fetch).toHaveBeenCalledExactlyOnceWith(`${APP_CONFIG.aws.apiBaseUrl}/v1/ai/step-suggestions`, {
       method: 'POST',
       headers: { authorization: 'Bearer pilot-token', 'content-type': 'application/json' },
-      body: JSON.stringify(context),
+      body: JSON.stringify(request),
     });
   });
 

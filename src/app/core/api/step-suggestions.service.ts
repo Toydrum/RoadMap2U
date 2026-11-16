@@ -63,7 +63,7 @@ export class StepSuggestionsService {
     const generation = ++this.generation;
     const { suggestions } = await this.api.suggestSteps(context);
     if (this.session() !== session) throw new ApiError('UNAUTHENTICATED');
-    if (!Array.isArray(suggestions) || suggestions.length !== 3 || suggestions.some((title) =>
+    if (!Array.isArray(suggestions) || suggestions.length !== (context.maxSuggestions ?? 3) || suggestions.some((title) =>
       typeof title !== 'string' || !title.trim() || title.length > 80 || /[\r\n]/u.test(title),
     )) {
       throw new ApiError('STEP_SUGGESTIONS_UNAVAILABLE');
