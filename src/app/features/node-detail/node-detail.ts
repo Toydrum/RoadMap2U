@@ -28,7 +28,7 @@ import { VisitSession } from '../../core/visit/visit-session';
 import { PromiseService } from '../cosecha/promise.service';
 import { forestQuotaMessage } from '../forest/forest-quota-feedback';
 import { RitualCompletion, occurrenceAvailable } from './ritual-completion';
-import { buildStepSuggestionContext, comparableStepTitle } from './step-suggestion-context';
+import { boundedTitle, buildStepSuggestionContext, comparableStepTitle } from './step-suggestion-context';
 import { STEP_SUGGESTION_COPY } from './step-suggestion-copy';
 
 // Life-cycle order, rest LAST (owner 2026-07-11): seed → growing → bloomed
@@ -43,6 +43,7 @@ interface StepSuggestionReview {
   branchId: string;
   treeId: string;
   context: StepSuggestionsRequest;
+  focusInput?: string;
   phase: 'disclose' | 'loading' | 'editing' | 'saving' | 'error';
   rows: { title: string; selected: boolean }[];
   error?: string;
@@ -499,33 +500,50 @@ export class NodeDetail {
     const context = this.suggestionContext();
     if (!context) return;
     const branchId = this.node().id;
-    const cached = this.stepSuggestions.cached(branchId, context);
+    const offerFocus = this.canAddSuggestionFocus(context);
+    const cached = offerFocus ? null : this.stepSuggestions.cached(branchId, context);
     this.suggestionDraft.set({
       session,
       branchId,
       treeId: this.tree().id,
       context,
+      focusInput: offerFocus ? '' : undefined,
       phase: cached ? 'editing' : 'disclose',
       rows: (cached ?? []).map((title) => ({ title, selected: true })),
     });
+  }
+
+  protected setStepSuggestionFocus(value: string): void {
+    const review = this.stepSuggestionReview();
+    if (review?.phase === 'disclose' && review.focusInput !== undefined) {
+      this.suggestionDraft.set({ ...review, focusInput: value });
+    }
   }
 
   protected async generateStepSuggestions(): Promise<void> {
     const review = this.stepSuggestionReview();
     if (review?.phase !== 'disclose') return;
     // Preview the new context before sending if titles changed since the sheet opened.
-    if (JSON.stringify(review.context) !== JSON.stringify(this.suggestionContext())) {
+    if (JSON.stringify(review.context) !== JSON.stringify(this.suggestionContext()) ||
+        (review.focusInput !== undefined) !== this.canAddSuggestionFocus(review.context)) {
       this.openStepSuggestions();
       return;
     }
 
-    const pending: StepSuggestionReview = { ...review, phase: 'loading' };
+    const focus = boundedTitle(review.focusInput ?? '');
+    const context = focus ? { ...review.context, focus } : review.context;
+    const pending: StepSuggestionReview = { ...review, context, phase: 'loading' };
     this.suggestionDraft.set(pending);
     try {
-      const titles = await this.stepSuggestions.generate(review.branchId, review.context);
+      const titles = this.stepSuggestions.cached(review.branchId, context) ??
+        await this.stepSuggestions.generate(review.branchId, context);
       if (this.stepSuggestionReview() === pending) {
+        if (JSON.stringify(review.context) !== JSON.stringify(this.suggestionContext())) {
+          this.openStepSuggestions();
+          return;
+        }
         this.suggestionDraft.set({
-          ...review,
+          ...pending,
           phase: 'editing',
           rows: titles.map((title) => ({ title, selected: true })),
         });
@@ -539,7 +557,7 @@ export class NodeDetail {
         const time = new Intl.DateTimeFormat(this.i18n.lang(), { timeStyle: 'short' }).format(next);
         message = this.i18n.fill(this.suggestionCopy().limit, { time });
       }
-      this.suggestionDraft.set({ ...review, phase: 'error', error: message });
+      this.suggestionDraft.set({ ...pending, phase: 'error', error: message });
     }
   }
 
@@ -604,6 +622,11 @@ export class NodeDetail {
 
   private suggestionContext(): StepSuggestionsRequest | null {
     return buildStepSuggestionContext(this.i18n.lang(), this.tree(), this.node(), this.nodes.byId(), this.children());
+  }
+
+  private canAddSuggestionFocus(context: StepSuggestionsRequest): boolean {
+    return this.node().parentId === null &&
+      comparableStepTitle(context.treeTitle) === comparableStepTitle(context.branchTitle);
   }
 
   /** The pasitos become (or stop being) an ordered path. Never forced. */

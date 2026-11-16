@@ -2,8 +2,9 @@ import { signal, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
-import { ApiError } from '../../core/api/contracts';
+import { ApiError, type StepSuggestionsRequest } from '../../core/api/contracts';
 import { StepSuggestionsService } from '../../core/api/step-suggestions.service';
+import type { TreeNode } from '../../core/db/schema';
 import { ES } from '../../core/i18n/es';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { RemindersService } from '../../core/reminders.service';
@@ -26,6 +27,8 @@ function setup(error?: ForestQuotaError) {
   const show = vi.fn();
   const session = signal<string | null>('test-session');
   const generate = vi.fn(async () => ['Preparar la maceta', 'Plantar las semillas', 'Humedecer la tierra']);
+  const cached = vi.fn<(_branchId: string, _context: StepSuggestionsRequest) => readonly string[] | null>(() => null);
+  const children = signal<readonly TreeNode[]>([]);
   const i18n = {
     t: signal(ES),
     lang: signal('es'),
@@ -38,8 +41,8 @@ function setup(error?: ForestQuotaError) {
     imports: [NodeDetail],
     providers: [
       { provide: I18nService, useValue: i18n },
-      { provide: NodesRepo, useValue: { plant, plantMany, byId: signal(new Map()), childrenOf: () => [] } },
-      { provide: StepSuggestionsService, useValue: { session, available: () => true, checkEligibility: vi.fn(), cached: () => null, generate } },
+      { provide: NodesRepo, useValue: { plant, plantMany, byId: signal(new Map()), childrenOf: children } },
+      { provide: StepSuggestionsService, useValue: { session, available: () => true, checkEligibility: vi.fn(), cached, generate } },
       { provide: ToastService, useValue: { show } },
       ...[TreesRepo, SessionsRepo, Router, HarvestsRepo, BloomBurstService, HarvestSkyService,
         PromiseService, RemindersService].map((provide) => ({ provide, useValue: {} })),
@@ -55,6 +58,7 @@ function setup(error?: ForestQuotaError) {
     crumbleAnswer: WritableSignal<string>;
     crumbleStep: WritableSignal<number | null>;
     openStepSuggestions(): void;
+    setStepSuggestionFocus(value: string): void;
     generateStepSuggestions(): Promise<void>;
     editStepSuggestion(index: number, title: string): void;
     selectStepSuggestion(index: number): void;
@@ -62,7 +66,7 @@ function setup(error?: ForestQuotaError) {
     closeStepSuggestions(): void;
     stepSuggestionReview(): unknown;
   };
-  return { detail, plant, plantMany, show, session, generate };
+  return { detail, fixture, plant, plantMany, show, session, cached, generate, children };
 }
 
 async function enterAnswers(detail: ReturnType<typeof setup>['detail']) {
@@ -106,6 +110,7 @@ describe('step suggestions in Desmenuzar', () => {
   it('shows context before sending and plants only the selected edits', async () => {
     const { detail, generate, plantMany } = setup();
     detail.openStepSuggestions();
+    detail.setStepSuggestionFocus('Otro enfoque');
     expect(generate).not.toHaveBeenCalled();
     await detail.generateStepSuggestions();
     expect(generate).toHaveBeenCalledExactlyOnceWith('parent', {
@@ -122,6 +127,57 @@ describe('step suggestions in Desmenuzar', () => {
     expect(plantMany).toHaveBeenCalledExactlyOnceWith('tree', [
       { parentId: 'parent', title: 'Llenar una maceta' },
     ]);
+  });
+
+  it('sends an explicitly entered focus for a matching tree root only after confirmation', async () => {
+    const { detail, fixture, generate, children } = setup();
+    fixture.componentRef.setInput('tree', { id: 'tree', name: 'Plantar albahaca' });
+    children.set([{ title: 'Elegir albahaca' } as TreeNode]);
+
+    detail.openStepSuggestions();
+    expect(detail.stepSuggestionReview()).toMatchObject({ phase: 'disclose', focusInput: '' });
+    detail.setStepSuggestionFocus('  Usar una maceta\npequeña  ');
+    expect(generate).not.toHaveBeenCalled();
+    await detail.generateStepSuggestions();
+
+    expect(generate).toHaveBeenCalledExactlyOnceWith('parent', expect.objectContaining({
+      focus: 'Usar una maceta pequeña',
+      existingStepTitles: ['Elegir albahaca'],
+    }));
+  });
+
+  it('reopens the context preview without sending the old focus if the tree changes', async () => {
+    const { detail, fixture, generate } = setup();
+    fixture.componentRef.setInput('tree', { id: 'tree', name: 'Plantar albahaca' });
+    detail.openStepSuggestions();
+    detail.setStepSuggestionFocus('Usar una maceta');
+    fixture.componentRef.setInput('tree', { id: 'tree', name: 'Preparar el balcón' });
+
+    await detail.generateStepSuggestions();
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(detail.stepSuggestionReview()).toMatchObject({
+      phase: 'disclose',
+      context: { treeTitle: 'Preparar el balcón' },
+    });
+  });
+
+  it('only reuses a result for the same focus and still lets a root generate without a focus', async () => {
+    const { detail, fixture, cached, generate } = setup();
+    fixture.componentRef.setInput('tree', { id: 'tree', name: 'Plantar albahaca' });
+    cached.mockImplementation((_branchId, context) => context.focus === 'Elegir tierra' ? ['Sacar una bolsa de tierra'] : null);
+
+    detail.openStepSuggestions();
+    detail.setStepSuggestionFocus('Elegir tierra');
+    await detail.generateStepSuggestions();
+    expect(generate).not.toHaveBeenCalled();
+    expect(detail.stepSuggestionReview()).toMatchObject({ phase: 'editing', rows: [{ title: 'Sacar una bolsa de tierra' }] });
+
+    detail.closeStepSuggestions();
+    detail.openStepSuggestions();
+    await detail.generateStepSuggestions();
+    expect(generate).toHaveBeenCalledOnce();
+    expect(cached.mock.lastCall?.[1]).not.toHaveProperty('focus');
   });
 
   it('never saves a result from the previous session', async () => {

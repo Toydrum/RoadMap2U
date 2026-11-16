@@ -459,6 +459,20 @@
               <dd>{{ review.context.existingStepTitles[0] }}</dd>
             }
           </dl>
+          @if (review.focusInput !== undefined) {
+            <label class="suggestion-focus">
+              <span>{{ suggestionCopy().focusLabel }}</span>
+              <input
+                type="text"
+                maxlength="80"
+                [placeholder]="suggestionCopy().focusPlaceholder"
+                [value]="review.focusInput"
+                aria-describedby="suggestion-focus-help"
+                (input)="setStepSuggestionFocus(inputValue($event))"
+              >
+            </label>
+            <p id="suggestion-focus-help" class="confirm-body">{{ suggestionCopy().focusHelp }}</p>
+          }
         }
         @case ('loading') {
           <p class="confirm-body" role="status">{{ suggestionCopy().loading }}</p>
