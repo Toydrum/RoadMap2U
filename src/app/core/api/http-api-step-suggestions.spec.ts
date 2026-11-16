@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AuthProvider } from '../auth/auth-provider';
+import { APP_CONFIG } from '../config';
 import { HttpApi } from './http-api';
 
 const context = {
@@ -23,7 +24,7 @@ describe('step suggestions HTTP transport', () => {
     vi.stubGlobal('fetch', fetch);
 
     expect(await api.suggestSteps(context)).toEqual(payload);
-    expect(fetch).toHaveBeenCalledExactlyOnceWith('/v1/ai/step-suggestions', {
+    expect(fetch).toHaveBeenCalledExactlyOnceWith(`${APP_CONFIG.aws.apiBaseUrl}/v1/ai/step-suggestions`, {
       method: 'POST',
       headers: { authorization: 'Bearer pilot-token', 'content-type': 'application/json' },
       body: JSON.stringify(context),
