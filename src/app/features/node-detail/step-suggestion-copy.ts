@@ -9,6 +9,11 @@ const ES = {
   existing: 'Pasito existente',
   focusLabel: '¿Por dónde quieres empezar? (opcional)',
   requiredFocusLabel: '¿Qué parte quieres practicar primero?',
+  clarification: {
+    object: '¿Qué quieres dejar listo?',
+    destination: '¿Dónde quieres que quede?',
+    result: '¿Qué quieres que quede hecho?',
+  },
   focusPlaceholder: 'Escribe qué quieres hacer primero',
   focusHelp: 'Si escribes un enfoque, también se enviará a Bedrock.',
   generate: 'Generar',
@@ -33,6 +38,11 @@ export const STEP_SUGGESTION_COPY = {
     existing: 'Existing step',
     focusLabel: 'Where would you like to start? (optional)',
     requiredFocusLabel: 'What would you like to practice first?',
+    clarification: {
+      object: 'What are you getting ready?',
+      destination: 'Where do you want it to go?',
+      result: 'What would you like to get done?',
+    },
     focusPlaceholder: 'Write what you want to do first',
     focusHelp: 'If you add a focus, it will also be sent to Bedrock.',
     generate: 'Generate',

@@ -461,8 +461,9 @@
           </dl>
           @if (review.focusInput !== undefined) {
             <label class="suggestion-focus">
-              <span>{{ suggestionFocusRequired() ? suggestionCopy().requiredFocusLabel : suggestionCopy().focusLabel }}</span>
+              <span>{{ suggestionFocusLabel() }}</span>
               <input
+                #suggestionFocusInput
                 type="text"
                 maxlength="80"
                 [placeholder]="suggestionCopy().focusPlaceholder"
@@ -513,6 +514,11 @@
         </button>
         @switch (review.phase) {
           @case ('disclose') {
+            @if (review.clarification) {
+              <button type="button" class="btn btn-ghost" (click)="continueCrumbleManually()">
+                {{ i18n.t().crumble.cta }}
+              </button>
+            }
             <button type="button" class="btn btn-primary" (click)="generateStepSuggestions()" [disabled]="!canGenerateStepSuggestion()">
               {{ suggestionCopy().generate }}
             </button>

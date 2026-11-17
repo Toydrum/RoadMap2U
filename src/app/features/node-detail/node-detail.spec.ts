@@ -60,6 +60,7 @@ function setup(error?: ForestQuotaError) {
     openStepSuggestions(): void;
     setStepSuggestionFocus(value: string): void;
     canGenerateStepSuggestion(): boolean;
+    suggestionFocusLabel(): string;
     generateStepSuggestions(): Promise<void>;
     editStepSuggestion(index: number, title: string): void;
     saveStepSuggestions(): Promise<void>;
@@ -209,6 +210,50 @@ describe('step suggestions in Desmenuzar', () => {
     await detail.generateStepSuggestions();
     expect(generate).toHaveBeenCalledOnce();
     expect(cached.mock.lastCall?.[1]).not.toHaveProperty('focus');
+  });
+
+  it('asks for the missing object and waits for a new answer before retrying a child branch', async () => {
+    const { detail, fixture, generate } = setup();
+    fixture.componentRef.setInput('node', { id: 'parent', treeId: 'tree', title: 'Dejarlo listo', status: 'seed', parentId: 'root' });
+    generate.mockRejectedValueOnce(new ApiError('STEP_SUGGESTIONS_CONTEXT_REQUIRED', 'object'));
+
+    detail.openStepSuggestions();
+    await detail.generateStepSuggestions();
+    expect(detail.stepSuggestionReview()).toMatchObject({ phase: 'disclose', focusInput: '' });
+    expect(detail.suggestionFocusLabel()).toBe('¿Qué quieres dejar listo?');
+    expect(detail.canGenerateStepSuggestion()).toBe(false);
+    await detail.generateStepSuggestions();
+    expect(generate).toHaveBeenCalledOnce();
+
+    detail.setStepSuggestionFocus(' Preparar una maceta para la albahaca ');
+    expect(detail.canGenerateStepSuggestion()).toBe(true);
+    await detail.generateStepSuggestions();
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate).toHaveBeenLastCalledWith('parent', expect.objectContaining({
+      branchTitle: 'Dejarlo listo', focus: 'Preparar una maceta para la albahaca', maxSuggestions: 1,
+    }));
+    expect(detail.stepSuggestionReview()).toMatchObject({ phase: 'editing' });
+  });
+
+  it('keeps the earlier focus editable when asking for a destination and avoids resending it unchanged', async () => {
+    const { detail, fixture, generate } = setup();
+    fixture.componentRef.setInput('tree', { id: 'tree', name: 'Plantar albahaca' });
+    generate.mockRejectedValueOnce(new ApiError('STEP_SUGGESTIONS_CONTEXT_REQUIRED', 'destination'));
+
+    detail.openStepSuggestions();
+    detail.setStepSuggestionFocus('Mover la maceta sin volcarla');
+    await detail.generateStepSuggestions();
+    expect(detail.stepSuggestionReview()).toMatchObject({ phase: 'disclose', focusInput: 'Mover la maceta sin volcarla' });
+    expect(detail.suggestionFocusLabel()).toBe('¿Dónde quieres que quede?');
+
+    detail.setStepSuggestionFocus('  Mover la maceta sin volcarla  ');
+    expect(detail.canGenerateStepSuggestion()).toBe(false);
+    await detail.generateStepSuggestions();
+    expect(generate).toHaveBeenCalledOnce();
+
+    detail.setStepSuggestionFocus('Mover la maceta a la repisa sin volcarla');
+    await detail.generateStepSuggestions();
+    expect(generate).toHaveBeenLastCalledWith('parent', expect.objectContaining({ focus: 'Mover la maceta a la repisa sin volcarla' }));
   });
 
   it('never saves a result from the previous session', async () => {
