@@ -43,4 +43,16 @@ describe('step suggestions HTTP transport', () => {
     });
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+
+  it('preserves the clarification field and waits for the caller to provide more context', async () => {
+    const fetch = vi.fn(async () =>
+      Response.json({ error: { code: 'STEP_SUGGESTIONS_CONTEXT_REQUIRED', message: 'destination' } }, { status: 400 }),
+    );
+    vi.stubGlobal('fetch', fetch);
+
+    await expect(api.suggestSteps({ ...context, maxSuggestions: 1 })).rejects.toMatchObject({
+      code: 'STEP_SUGGESTIONS_CONTEXT_REQUIRED', message: 'destination',
+    });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
 });

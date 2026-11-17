@@ -1,8 +1,8 @@
-import { Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { inputValue } from '../../shared/ui/dom';
 import { Router } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
-import { ApiError, type StepSuggestionsRequest } from '../../core/api/contracts';
+import { ApiError, type StepSuggestionContextField, type StepSuggestionsRequest } from '../../core/api/contracts';
 import { StepSuggestionsService } from '../../core/api/step-suggestions.service';
 import { NodesRepo } from '../../core/repos/nodes.repo';
 import { TreesRepo } from '../../core/repos/trees.repo';
@@ -44,6 +44,7 @@ interface StepSuggestionReview {
   treeId: string;
   context: StepSuggestionsRequest;
   focusInput?: string;
+  clarification?: { field: StepSuggestionContextField; previousFocus: string };
   phase: 'disclose' | 'loading' | 'editing' | 'saving' | 'error';
   rows: { title: string; selected: boolean }[];
   error?: string;
@@ -480,6 +481,8 @@ export class NodeDetail {
   }
 
   protected readonly suggestionCopy = computed(() => STEP_SUGGESTION_COPY[this.i18n.lang()]);
+  private readonly suggestionInjector = inject(Injector);
+  private readonly suggestionFocusInput = viewChild<ElementRef<HTMLInputElement>>('suggestionFocusInput');
   private readonly suggestionDraft = signal<StepSuggestionReview | null>(null);
   protected readonly canSuggestSteps = computed(() =>
     this.stepSuggestions.available() && this.suggestionBranchEligible(),
@@ -492,13 +495,22 @@ export class NodeDetail {
   });
   protected readonly suggestionFocusRequired = computed(() => {
     const review = this.stepSuggestionReview();
-    return review?.focusInput !== undefined && review.context.ancestorTitles.length === 0 &&
-      review.context.existingStepTitles.length === 0 && isLearningTitle(review.context.treeTitle);
+    return review?.focusInput !== undefined && (review.clarification !== undefined ||
+      (review.context.ancestorTitles.length === 0 && review.context.existingStepTitles.length === 0 &&
+        isLearningTitle(review.context.treeTitle)));
+  });
+  protected readonly suggestionFocusLabel = computed(() => {
+    const clarification = this.stepSuggestionReview()?.clarification;
+    const copy = this.suggestionCopy();
+    return clarification ? copy.clarification[clarification.field] :
+      this.suggestionFocusRequired() ? copy.requiredFocusLabel : copy.focusLabel;
   });
   protected readonly canGenerateStepSuggestion = computed(() => {
     const review = this.stepSuggestionReview();
-    return review?.phase === 'disclose' &&
-      (!this.suggestionFocusRequired() || !!boundedTitle(review.focusInput ?? ''));
+    if (review?.phase !== 'disclose') return false;
+    const focus = boundedTitle(review.focusInput ?? '');
+    return (!this.suggestionFocusRequired() || !!focus) && (!review.clarification ||
+      comparableStepTitle(focus) !== comparableStepTitle(review.clarification.previousFocus));
   });
   protected readonly hasSelectedSuggestion = computed(() =>
     this.stepSuggestionReview()?.rows.some((row) => row.selected) ?? false,
@@ -535,13 +547,13 @@ export class NodeDetail {
     if (review?.phase !== 'disclose') return;
     // Preview the new context before sending if titles changed since the sheet opened.
     if (JSON.stringify(review.context) !== JSON.stringify(this.suggestionContext()) ||
-        (review.focusInput !== undefined) !== this.canAddSuggestionFocus(review.context)) {
+        (!review.clarification && (review.focusInput !== undefined) !== this.canAddSuggestionFocus(review.context))) {
       this.openStepSuggestions();
       return;
     }
 
+    if (!this.canGenerateStepSuggestion()) return;
     const focus = boundedTitle(review.focusInput ?? '');
-    if (this.suggestionFocusRequired() && !focus) return;
     const context = focus ? { ...review.context, focus } : review.context;
     const pending: StepSuggestionReview = { ...review, context, phase: 'loading' };
     this.suggestionDraft.set(pending);
@@ -561,6 +573,21 @@ export class NodeDetail {
       }
     } catch (error) {
       if (this.stepSuggestionReview() !== pending) return;
+      if (error instanceof ApiError && error.code === 'STEP_SUGGESTIONS_CONTEXT_REQUIRED') {
+        if (JSON.stringify(review.context) !== JSON.stringify(this.suggestionContext())) {
+          this.openStepSuggestions();
+          return;
+        }
+        const field = error.message === 'object' || error.message === 'destination' ? error.message : 'result';
+        const clarification = { field, previousFocus: focus } as const;
+        this.suggestionDraft.set({ ...review, phase: 'disclose', focusInput: focus, clarification });
+        afterNextRender(() => {
+          if (this.stepSuggestionReview()?.clarification === clarification) {
+            this.suggestionFocusInput()?.nativeElement.focus();
+          }
+        }, { injector: this.suggestionInjector });
+        return;
+      }
       let message = this.suggestionCopy().unavailable;
       if (error instanceof ApiError && error.code === 'RATE_LIMITED') {
         const next = new Date();
